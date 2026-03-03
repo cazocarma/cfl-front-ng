@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS custom properties ─── */
+:root {
+  --color-primary:     #348040;
+  --color-primary-dark:#25522b;
+  --color-bg:          #f3faf4;
+  --color-sidebar-bg:  #102614;
+  --scrollbar-thumb:   #6dbc7a;
+  --scrollbar-track:   #e3f5e6;
+}
+
+/* ─── Smooth scrollbar ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 3px; }
+*::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+/* ─── Base body ─── */
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--color-bg);
+  color: #1e4424;
+}
+
+/* ─── Selection ─── */
+::selection {
+  background-color: #9fd8a8;
+  color: #102614;
+}
+
+/* ─── Status badge helpers ─── */
+@layer components {
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap;
+  }
+  .badge-dot {
+    @apply w-1.5 h-1.5 rounded-full flex-shrink-0;
+  }
+  .badge-detectado      { @apply bg-blue-50   border-blue-200   text-blue-800;  }
+  .badge-actualizado    { @apply bg-amber-50  border-amber-200  text-amber-800; }
+  .badge-en-revision    { @apply bg-orange-50 border-orange-200 text-orange-800;}
+  .badge-completado     { @apply bg-emerald-50 border-emerald-200 text-emerald-800; }
+  .badge-asignado-folio { @apply bg-cyan-50   border-cyan-200   text-cyan-800;  }
+  .badge-facturado      { @apply bg-violet-50 border-violet-200 text-violet-800;}
+  .badge-anulado        { @apply bg-slate-100 border-slate-200  text-slate-600; }
+
+  /* Stat card variants */
+  .stat-card {
+    @apply relative overflow-hidden rounded-2xl p-5 text-white shadow-nature;
+  }
+  .stat-card-primary  { @apply bg-gradient-to-br from-forest-600 to-forest-900; }
+  .stat-card-emerald  { @apply bg-gradient-to-br from-emerald-500 to-emerald-800; }
+  .stat-card-amber    { @apply bg-gradient-to-br from-amber-500  to-amber-800;  }
+  .stat-card-teal     { @apply bg-gradient-to-br from-teal-500   to-teal-800;   }
+
+  /* Table */
+  .table-header-cell {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-forest-200;
+  }
+  .table-cell {
+    @apply px-4 py-3 text-sm text-forest-900;
+  }
+  .table-row {
+    @apply border-b border-forest-100 transition-colors duration-150 hover:bg-forest-50;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-forest-300 transition-all duration-150 hover:bg-forest-800 hover:text-white cursor-pointer;
+  }
+  .nav-item-active {
+    @apply bg-forest-700 text-white shadow-md;
+  }
+
+  /* Input */
+  .cfl-input {
+    @apply block w-full rounded-lg border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 placeholder-forest-400 shadow-sm transition focus:border-forest-500 focus:outline-none focus:ring-2 focus:ring-forest-200;
+  }
+  .cfl-select {
+    @apply block w-full rounded-lg border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm transition focus:border-forest-500 focus:outline-none focus:ring-2 focus:ring-forest-200;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-lg bg-forest-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-700 focus:outline-none focus:ring-2 focus:ring-forest-400 focus:ring-offset-1 active:scale-[0.98] disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 rounded-lg border border-forest-200 bg-white px-4 py-2 text-sm font-medium text-forest-700 shadow-sm transition hover:bg-forest-50 focus:outline-none focus:ring-2 focus:ring-forest-300 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-forest-600 transition hover:bg-forest-100 focus:outline-none focus:ring-2 focus:ring-forest-300 active:scale-[0.98];
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-forest-500 transition hover:bg-forest-100 hover:text-forest-700 focus:outline-none focus:ring-2 focus:ring-forest-300;
+  }
+  .btn-danger {
+    @apply inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 active:scale-[0.98];
+  }
+}
+
+/* ─── Leaf decoration pattern ─── */
+.leaf-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236dbc7a' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
