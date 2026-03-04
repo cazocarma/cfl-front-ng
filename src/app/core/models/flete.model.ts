@@ -39,7 +39,7 @@ export interface FleteEnCursoRow {
   guia_remision: string | null;
   /** N° de entrega confirmado/editado por el operador */
   numero_entrega: string | null;
-  /** N° de entrega SAP original (columna renombrada desde sap_numero_entrega_sugerido) */
+  /** N° de entrega SAP original almacenado en cabecera */
   sap_numero_entrega: string | null;
 }
 
