@@ -60,14 +60,53 @@ import { FleteTabla } from '../../core/models/flete.model';
               </div>
             } @else {
 
-            <!-- Fila 1 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- Número de guía -->
-              <div>
-                <label class="field-label">N° Guía / Entrega *</label>
-                <input type="text" formControlName="numero_guia" class="cfl-input" placeholder="Ej: 0080012345" />
+            <!-- ── Datos SAP (solo modo candidato/en_curso con origen SAP) ── -->
+            @if (flete?.kind === 'candidato' || flete?.sapNumeroEntrega) {
+              <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+                <p class="text-xs font-semibold text-amber-700 uppercase tracking-wider">Datos de origen SAP (solo lectura)</p>
+                <div class="flex flex-wrap gap-3">
+                  @if (flete?.sapNumeroEntrega || flete?.numeroGuia) {
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs text-amber-800">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
+                      N° Entrega SAP: <strong>{{ flete?.sapNumeroEntrega || flete?.numeroGuia }}</strong>
+                    </span>
+                  }
+                  @if (flete?.sapGuiaRemision) {
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs text-amber-800">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      N° Guía SAP: <strong>{{ flete?.sapGuiaRemision }}</strong>
+                    </span>
+                  }
+                </div>
               </div>
-              <!-- Tipo movimiento -->
+            }
+
+            <!-- Fila 1: N° Entrega + N° Guía (remisión) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- N° Entrega confirmado -->
+              <div>
+                <label class="field-label">
+                  N° Entrega
+                  @if (flete?.kind !== 'candidato' && !flete) { * }
+                </label>
+                @if (flete?.sapNumeroEntrega) {
+                  <p class="text-[10px] text-forest-500 mb-1">SAP: {{ flete?.sapNumeroEntrega }}</p>
+                }
+                <input type="text" formControlName="numero_entrega" class="cfl-input" placeholder="Ej: 0080012345" />
+              </div>
+              <!-- N° Guía de remisión -->
+              <div>
+                <label class="field-label">N° Guía de Remisión</label>
+                @if (flete?.sapGuiaRemision) {
+                  <p class="text-[10px] text-forest-500 mb-1">SAP: {{ flete?.sapGuiaRemision }}</p>
+                }
+                <input type="text" formControlName="guia_remision" class="cfl-input" placeholder="Ej: 00123456789012345678901234" />
+              </div>
+            </div>
+
+            <!-- Fila 2: Tipo movimiento -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- placeholder para alinear -->
               <div>
                 <label class="field-label">Tipo movimiento *</label>
                 <select formControlName="tipo_movimiento" class="cfl-input">
@@ -264,7 +303,8 @@ export class EditFleteModalComponent implements OnChanges {
 
   constructor(private fb: FormBuilder, private cflApi: CflApiService) {
     this.form = this.fb.group({
-      numero_guia:          ['', Validators.required],
+      numero_entrega:       [''],   // N° entrega confirmado (editable)
+      guia_remision:        [''],   // N° guía de remisión confirmada (editable)
       tipo_movimiento:      ['', Validators.required],
       id_tipo_flete:        ['', Validators.required],
       id_centro_costo:      ['', Validators.required],
@@ -328,9 +368,11 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _populateForm(): void {
-    // Reset con valores por defecto; si hay flete en_curso existente, pre-rellena
+    // Pre-rellena campos confirmados si ya existen; SAP origin se muestra como chip (read-only)
     this.form.reset({
-      numero_guia:           this.flete?.numeroGuia !== '—' ? this.flete?.numeroGuia : '',
+      // En modo 'en_curso': usa el valor confirmado previo; en 'candidato': pre-rellena desde SAP
+      numero_entrega:        this.flete?.numeroEntrega || (this.flete?.kind === 'candidato' ? (this.flete?.sapNumeroEntrega ?? '') : ''),
+      guia_remision:         this.flete?.guiaRemision  || (this.flete?.kind === 'candidato' ? (this.flete?.sapGuiaRemision  ?? '') : ''),
       tipo_movimiento:       '',
       id_tipo_flete:         '',
       id_centro_costo:       '',
@@ -388,9 +430,13 @@ export class EditFleteModalComponent implements OnChanges {
   private _buildPayload(): Record<string, unknown> {
     const v = this.form.value;
     const payload: Record<string, unknown> = { ...v };
-    // Convertir strings vacíos de selects a null
+    // Convertir strings vacíos de selects/inputs a null
     for (const key of Object.keys(payload)) {
       if (payload[key] === '' || payload[key] === undefined) payload[key] = null;
+    }
+    // Incluir campo SAP renombrado para que el backend lo persista en sap_numero_entrega
+    if (this.flete?.sapNumeroEntrega) {
+      payload['sap_numero_entrega'] = this.flete.sapNumeroEntrega;
     }
     return payload;
   }

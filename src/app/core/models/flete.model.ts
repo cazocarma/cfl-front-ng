@@ -33,6 +33,14 @@ export interface FleteEnCursoRow {
   fecha_salida: string | null;
   monto_aplicado: number | null;
   numero_guia: string | null;
+  /** Snapshot de la guía de remisión SAP almacenado en cabecera */
+  sap_guia_remision: string | null;
+  /** Valor confirmado/editado por el operador */
+  guia_remision: string | null;
+  /** N° de entrega confirmado/editado por el operador */
+  numero_entrega: string | null;
+  /** N° de entrega SAP original (columna renombrada desde sap_numero_entrega_sugerido) */
+  sap_numero_entrega: string | null;
 }
 
 /** Unión normalizada para la tabla de la bandeja */
@@ -56,6 +64,14 @@ export interface FleteTabla {
   estado: LifecycleStatus;
   puedeIngresar?: boolean;
   motivoNoIngreso?: string | null;
+  /** N° de entrega SAP original (snapshot en cabecera) */
+  sapNumeroEntrega?: string | null;
+  /** Guía de remisión SAP (snapshot en cabecera) */
+  sapGuiaRemision?: string | null;
+  /** Guía de remisión confirmada/editada por el operador */
+  guiaRemision?: string | null;
+  /** N° de entrega confirmado/editado por el operador */
+  numeroEntrega?: string | null;
 }
 
 // ── Adaptadores BD → FleteTabla ───────────────────────────────────────────────
@@ -99,6 +115,10 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     monto:            row.monto_aplicado ?? 0,
     folio:            row.folio_numero ?? '—',
     estado:           (row.estado as LifecycleStatus) || 'EN_REVISION',
+    sapNumeroEntrega: row.sap_numero_entrega ?? null,
+    sapGuiaRemision:  row.sap_guia_remision ?? null,
+    guiaRemision:     row.guia_remision ?? null,
+    numeroEntrega:    row.numero_entrega ?? null,
   };
 }
 
