@@ -184,6 +184,41 @@ export class CflApiService {
     );
   }
 
+  // —— Operaciones: Facturas / Planillas / Estadísticas / Auditoría ————————
+  getFacturasOverview(): Observable<{ data: unknown; permissions?: unknown }> {
+    return this.http.get<{ data: unknown; permissions?: unknown }>(
+      `${API_BASE}/api/operaciones/facturas/overview`
+    );
+  }
+
+  getFacturaPreviewByFolio(idFolio: number): Observable<{ data: unknown; permissions?: unknown }> {
+    return this.http.get<{ data: unknown; permissions?: unknown }>(
+      `${API_BASE}/api/operaciones/facturas/folios/${idFolio}`
+    );
+  }
+
+  getPlanillasSapOverview(): Observable<{ data: unknown; permissions?: unknown }> {
+    return this.http.get<{ data: unknown; permissions?: unknown }>(
+      `${API_BASE}/api/operaciones/planillas-sap/overview`
+    );
+  }
+
+  getEstadisticasOverview(): Observable<{ data: unknown }> {
+    return this.http.get<{ data: unknown }>(
+      `${API_BASE}/api/operaciones/estadisticas/overview`
+    );
+  }
+
+  getAuditoriaOverview(limit?: number): Observable<{ data: unknown }> {
+    const params: Record<string, unknown> = {};
+    if (limit) params['limit'] = limit;
+
+    return this.http.get<{ data: unknown }>(
+      `${API_BASE}/api/operaciones/auditoria/overview`,
+      { params: this._toHttpParams(params) }
+    );
+  }
+
   private _toHttpParams(obj: Record<string, unknown>): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {

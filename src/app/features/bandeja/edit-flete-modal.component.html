@@ -1,0 +1,444 @@
+@if (visible) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    (click)="onBackdropClick($event)"
+  >
+    <div
+      class="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      (click)="$event.stopPropagation()"
+    >
+      <div
+        class="sticky top-0 z-20 flex items-center justify-between border-b border-forest-100 px-6 py-4"
+        style="background: linear-gradient(160deg, #1e4424 0%, #348040 100%);"
+      >
+        <div>
+          <h2 class="text-lg font-bold text-white">
+            @if (!flete) { Ingreso manual de flete }
+            @else if (flete.kind === 'candidato') { Crear flete desde SAP #{{ flete.numeroGuia }} }
+            @else { Editar flete #{{ flete.numeroGuia }} }
+          </h2>
+          <p class="mt-0.5 text-xs text-green-200">Completa la cabecera y revisa los detalles</p>
+        </div>
+        <button type="button" (click)="cerrado.emit()" class="text-white/70 hover:text-white transition">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="onGuardar()" class="space-y-5 px-6 py-6">
+        @if (loadingCatalogos()) {
+          <div class="flex justify-center py-12">
+            <svg class="h-8 w-8 animate-spin text-forest-500" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          </div>
+        } @else {
+          @if (showSapSnapshot()) {
+            <div class="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Datos de origen SAP</p>
+              <div class="flex flex-wrap gap-2">
+                @if (getSapNumeroEntrega()) {
+                  <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs text-amber-800">
+                    Numero entrega: <strong>{{ getSapNumeroEntrega() }}</strong>
+                  </span>
+                }
+                @if (getSapGuiaRemision()) {
+                  <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs text-amber-800">
+                    Guia SAP: <strong>{{ getSapGuiaRemision() }}</strong>
+                  </span>
+                }
+                @if (detailRows().length > 0) {
+                  <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs text-amber-800">
+                    Posiciones: <strong>{{ detailRows().length }}</strong>
+                  </span>
+                }
+              </div>
+            </div>
+          }
+
+          <div class="rounded-2xl border border-forest-100 bg-forest-50/70 px-4 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-forest-600">Ruta estimada</p>
+                <p class="mt-1 text-lg font-semibold text-forest-900">
+                  {{ hasResolvedRoute() ? resolvedRouteName : 'Pendiente por resolver' }}
+                </p>
+                <p class="mt-1 text-xs text-forest-600">{{ routeResolutionHint }}</p>
+              </div>
+              <div class="rounded-xl border border-forest-200 bg-white px-4 py-3 text-right shadow-sm">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-forest-500">
+                  {{ getCurrentTemporadaLabel() }}
+                </p>
+                <p class="mt-1 text-xl font-bold text-forest-900">{{ getRouteAmountLabel() }}</p>
+                @if (resolvedRouteDistanceKm !== null) {
+                  <p class="mt-1 text-xs text-forest-500">{{ resolvedRouteDistanceKm }} km</p>
+                }
+              </div>
+            </div>
+
+            <div class="mt-4 flex items-center gap-3">
+              <div class="route-node">{{ getRouteOriginLabel() }}</div>
+              <div class="flex min-w-0 flex-1 items-center gap-2">
+                <span class="h-0.5 flex-1 bg-forest-300"></span>
+                <span class="truncate rounded-full border border-forest-200 bg-white px-3 py-1 text-xs font-semibold text-forest-700">
+                  {{ hasResolvedRoute() ? resolvedRouteName : 'Sin ruta' }}
+                </span>
+                <span class="h-0.5 flex-1 bg-forest-300"></span>
+              </div>
+              <div class="route-node">{{ getRouteDestinationLabel() }}</div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-2 rounded-2xl border border-forest-100 bg-forest-50/70 p-2">
+            <button
+              type="button"
+              (click)="activeTab.set('cabecera')"
+              class="rounded-xl px-4 py-2 text-sm font-semibold transition-colors"
+              [class]="activeTab() === 'cabecera'
+                ? 'border border-forest-200 bg-white text-forest-800 shadow-sm'
+                : 'text-forest-600 hover:bg-white/70'"
+            >
+              Cabecera
+            </button>
+            <button
+              type="button"
+              (click)="activeTab.set('detalles')"
+              class="rounded-xl px-4 py-2 text-sm font-semibold transition-colors"
+              [class]="activeTab() === 'detalles'
+                ? 'border border-forest-200 bg-white text-forest-800 shadow-sm'
+                : 'text-forest-600 hover:bg-white/70'"
+            >
+              {{ isSapBacked() ? 'Posiciones SAP' : 'Detalles' }}
+            </button>
+          </div>
+
+          @if (activeTab() === 'cabecera') {
+            <div class="space-y-5">
+              <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
+                <div class="border-b border-forest-100 px-5 py-3">
+                  <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Datos generales</h3>
+                </div>
+                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
+                  <div class="xl:col-span-2">
+                    <label class="field-label">Numero Entrega</label>
+                    <input type="text" formControlName="numero_entrega" class="cfl-input" placeholder="Ej: 0080012345" />
+                    @if (flete?.kind === 'candidato' && getSapNumeroEntrega()) {
+                      <p class="mt-1 text-[11px] text-forest-500">SAP: {{ getSapNumeroEntrega() }}</p>
+                    }
+                  </div>
+
+                  <div class="xl:col-span-2">
+                    <label class="field-label">Numero Guia de Remision</label>
+                    <input type="text" formControlName="guia_remision" class="cfl-input" placeholder="Ej: 001234567890" />
+                    @if (getSapGuiaRemision()) {
+                      <p class="mt-1 text-[11px] text-forest-500">SAP: {{ getSapGuiaRemision() }}</p>
+                    }
+                  </div>
+
+                  <app-searchable-combobox
+                    label="Tipo movimiento"
+                    nullLabel="Seleccionar..."
+                    [required]="true"
+                    [invalid]="isInvalid('tipo_movimiento')"
+                    [options]="tipoMovimientoOptions"
+                    [value]="getControlValue('tipo_movimiento')"
+                    (valueChange)="setControlValue('tipo_movimiento', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Tipo de flete"
+                    [required]="true"
+                    [invalid]="isInvalid('id_tipo_flete')"
+                    [options]="getTipoFleteOptions()"
+                    [value]="getControlValue('id_tipo_flete')"
+                    (valueChange)="setControlValue('id_tipo_flete', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Centro de costo"
+                    [required]="true"
+                    [invalid]="isInvalid('id_centro_costo')"
+                    [options]="getCentroCostoOptions()"
+                    [value]="getControlValue('id_centro_costo')"
+                    (valueChange)="setControlValue('id_centro_costo', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Detalle de viaje"
+                    nullLabel="Sin especificar"
+                    [options]="getDetalleViajeOptions()"
+                    [value]="getControlValue('id_detalle_viaje')"
+                    (valueChange)="setControlValue('id_detalle_viaje', $event)"
+                  />
+
+                  <div>
+                    <label class="field-label">Fecha salida *</label>
+                    <input type="date" formControlName="fecha_salida" class="cfl-input" />
+                    @if (isInvalid('fecha_salida')) {
+                      <p class="mt-1 text-xs font-medium text-red-600">Campo requerido</p>
+                    }
+                  </div>
+
+                  <div>
+                    <label class="field-label">Hora salida *</label>
+                    <input type="time" formControlName="hora_salida" class="cfl-input" />
+                    @if (isInvalid('hora_salida')) {
+                      <p class="mt-1 text-xs font-medium text-red-600">Campo requerido</p>
+                    }
+                  </div>
+
+                  <app-searchable-combobox
+                    label="Origen"
+                    nullLabel="Sin especificar"
+                    [options]="getNodoOptions()"
+                    [value]="getControlValue('id_origen_nodo')"
+                    (valueChange)="setRouteNodeValue('id_origen_nodo', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Destino"
+                    nullLabel="Sin especificar"
+                    [options]="getNodoOptions()"
+                    [value]="getControlValue('id_destino_nodo')"
+                    (valueChange)="setRouteNodeValue('id_destino_nodo', $event)"
+                  />
+
+                  <div class="rounded-xl border border-forest-100 bg-forest-50/60 px-4 py-3 md:col-span-2 xl:col-span-2">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-forest-600">Monto aplicado</p>
+                    <p class="mt-1 text-xl font-bold text-forest-900">{{ getRouteAmountLabel() }}</p>
+                    <p class="mt-1 text-xs text-forest-500">
+                      Se calcula desde la ruta y la tarifa vigente de la temporada actual.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
+                <div class="border-b border-forest-100 px-5 py-3">
+                  <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Asignacion operativa</h3>
+                </div>
+                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
+                  <app-searchable-combobox
+                    label="Empresa transporte"
+                    nullLabel="Sin especificar"
+                    [options]="getEmpresaOptions()"
+                    [value]="getControlValue('id_empresa_transporte')"
+                    (valueChange)="setControlValue('id_empresa_transporte', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Chofer"
+                    nullLabel="Sin especificar"
+                    [options]="getChoferOptions()"
+                    [value]="getControlValue('id_chofer')"
+                    (valueChange)="setControlValue('id_chofer', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Camion"
+                    nullLabel="Sin especificar"
+                    [options]="getCamionOptions()"
+                    [value]="getControlValue('id_camion')"
+                    (valueChange)="setControlValue('id_camion', $event)"
+                  />
+
+                  <app-searchable-combobox
+                    label="Cuenta mayor"
+                    nullLabel="Sin especificar"
+                    [options]="getCuentaMayorOptions()"
+                    [value]="getControlValue('id_cuenta_mayor')"
+                    (valueChange)="setControlValue('id_cuenta_mayor', $event)"
+                  />
+                </div>
+              </section>
+
+              <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
+                <div class="border-b border-forest-100 px-5 py-3">
+                  <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Observaciones</h3>
+                </div>
+                <div class="px-5 py-5">
+                  <textarea formControlName="observaciones" class="cfl-input min-h-[96px] resize-y" placeholder="Notas adicionales..."></textarea>
+                </div>
+              </section>
+            </div>
+          } @else {
+            <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-forest-100 px-5 py-3">
+                <div>
+                  <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">
+                    {{ isSapBacked() ? 'Posiciones obtenidas desde LIPS' : 'Detalle de flete' }}
+                  </h3>
+                  <p class="mt-1 text-xs text-forest-500">
+                    @if (isSapBacked()) {
+                      Las posiciones se cargan desde SAP y se enviaran junto con la cabecera.
+                    } @else {
+                      Agrega una o mas lineas para construir el detalle manual.
+                    }
+                  </p>
+                </div>
+                @if (canManageDetailRows()) {
+                  <button type="button" (click)="addDetailRow()" class="btn-secondary">Agregar detalle</button>
+                }
+              </div>
+
+              <div class="space-y-4 px-5 py-5">
+                @if (detailLoading()) {
+                  <div class="flex justify-center py-10">
+                    <svg class="h-7 w-7 animate-spin text-forest-500" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                  </div>
+                } @else {
+                  @if (detailError()) {
+                    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {{ detailError() }}
+                    </div>
+                  }
+
+                  @if (detailRows().length === 0) {
+                    <div class="rounded-2xl border border-dashed border-forest-200 bg-forest-50/60 px-5 py-8 text-center">
+                      <p class="text-sm font-medium text-forest-700">Aun no hay detalles cargados.</p>
+                      <p class="mt-1 text-xs text-forest-500">
+                        @if (canManageDetailRows()) {
+                          Usa "Agregar detalle" para ingresar lineas manuales.
+                        } @else {
+                          No se encontraron posiciones SAP para esta entrega.
+                        }
+                      </p>
+                    </div>
+                  } @else {
+                    @for (row of detailRows(); track row.rowId; let i = $index) {
+                      <div class="space-y-4 rounded-2xl border border-forest-100 bg-forest-50/40 p-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p class="text-sm font-semibold text-forest-800">Detalle #{{ i + 1 }}</p>
+                            @if (row.sap_posicion || row.sap_posicion_superior || row.sap_lote) {
+                              <div class="mt-1 flex flex-wrap gap-2">
+                                @if (row.sap_posicion) { <span class="detail-chip">Posicion {{ row.sap_posicion }}</span> }
+                                @if (row.sap_posicion_superior) { <span class="detail-chip">Superior {{ row.sap_posicion_superior }}</span> }
+                                @if (row.sap_lote) { <span class="detail-chip">Lote {{ row.sap_lote }}</span> }
+                              </div>
+                            }
+                          </div>
+                          @if (canManageDetailRows()) {
+                            <button
+                              type="button"
+                              (click)="removeDetailRow(row.rowId)"
+                              class="inline-flex items-center rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                            >
+                              Quitar
+                            </button>
+                          }
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                          <app-searchable-combobox
+                            label="Especie"
+                            nullLabel="Sin especificar"
+                            [options]="getEspecieOptions()"
+                            [value]="getDetalleEspecieValue(row)"
+                            (valueChange)="setDetalleEspecieValue(row.rowId, $event)"
+                          />
+
+                          <div>
+                            <label class="field-label">Material</label>
+                            <input
+                              type="text"
+                              class="cfl-input"
+                              [readOnly]="isSapBacked()"
+                              [value]="row.material"
+                              (input)="updateDetailField(row.rowId, 'material', $any($event.target).value)"
+                              placeholder="Codigo material"
+                            />
+                          </div>
+
+                          <div class="lg:col-span-2">
+                            <label class="field-label">Descripcion</label>
+                            <textarea
+                              class="cfl-input min-h-[84px] resize-y"
+                              [readOnly]="isSapBacked()"
+                              [value]="row.descripcion"
+                              (input)="updateDetailField(row.rowId, 'descripcion', $any($event.target).value)"
+                              placeholder="Descripcion del detalle"
+                            ></textarea>
+                          </div>
+
+                          <div>
+                            <label class="field-label">Cantidad</label>
+                            <input
+                              type="number"
+                              class="cfl-input"
+                              [readOnly]="isSapBacked()"
+                              [value]="row.cantidad"
+                              (input)="updateDetailField(row.rowId, 'cantidad', $any($event.target).value)"
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+
+                          <div>
+                            <label class="field-label">Unidad</label>
+                            <input
+                              type="text"
+                              class="cfl-input"
+                              [readOnly]="isSapBacked()"
+                              [value]="row.unidad"
+                              (input)="updateDetailField(row.rowId, 'unidad', $any($event.target).value)"
+                              maxlength="3"
+                              placeholder="KG"
+                            />
+                          </div>
+
+                          <div>
+                            <label class="field-label">Peso</label>
+                            <input
+                              type="number"
+                              class="cfl-input"
+                              [readOnly]="isSapBacked()"
+                              [value]="row.peso"
+                              (input)="updateDetailField(row.rowId, 'peso', $any($event.target).value)"
+                              min="0"
+                              step="0.001"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  }
+                }
+              </div>
+            </section>
+          }
+
+          @if (errorMsg()) {
+            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {{ errorMsg() }}
+            </div>
+          }
+
+          <div class="flex items-center justify-end gap-3 border-t border-forest-100 pt-4">
+            <button type="button" (click)="cerrado.emit()" class="btn-secondary">Cancelar</button>
+            <button
+              type="submit"
+              [disabled]="form.invalid || saving() || loadingCatalogos() || detailLoading()"
+              class="btn-primary disabled:cursor-not-allowed"
+            >
+              @if (saving()) {
+                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Guardando...
+              } @else {
+                Guardar flete
+              }
+            </button>
+          </div>
+        }
+      </form>
+    </div>
+  </div>
+}

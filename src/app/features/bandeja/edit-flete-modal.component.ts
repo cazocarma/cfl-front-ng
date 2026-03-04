@@ -3,273 +3,71 @@ import {
   EventEmitter,
   Input,
   OnChanges,
-  OnInit,
   Output,
   SimpleChanges,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Observable, catchError, forkJoin, of } from 'rxjs';
+
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { FleteTabla } from '../../core/models/flete.model';
+import {
+  SearchableComboboxComponent,
+  SearchableOption,
+} from './searchable-combobox.component';
+
+type ModalTab = 'cabecera' | 'detalles';
+
+interface DetalleDraft {
+  rowId: string;
+  id_especie: string;
+  material: string;
+  descripcion: string;
+  cantidad: string;
+  unidad: string;
+  peso: string;
+  sap_posicion: string;
+  sap_posicion_superior: string;
+  sap_lote: string;
+}
+
+interface DashboardDetalleResponse {
+  data?: {
+    cabecera?: Record<string, unknown>;
+    posiciones?: Record<string, unknown>[];
+  };
+}
+
+interface FleteDetalleResponse {
+  data?: {
+    cabecera?: Record<string, unknown>;
+    detalles?: Record<string, unknown>[];
+  };
+}
+
+interface TarifaListResponse {
+  data?: unknown[];
+  temporada_id?: number | null;
+}
 
 @Component({
   selector: 'app-edit-flete-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
-  template: `
-    @if (visible) {
-      <!-- Backdrop -->
-      <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-        (click)="onBackdropClick($event)"
-      >
-        <!-- Modal panel -->
-        <div
-          class="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
-          (click)="$event.stopPropagation()"
-        >
-          <!-- Header -->
-          <div class="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-forest-100"
-               style="background: linear-gradient(160deg, #1e4424 0%, #348040 100%);">
-            <div>
-              <h2 class="text-lg font-bold text-white">
-                @if (!flete) { Ingreso manual de flete }
-                @else if (flete.kind === 'candidato') { Crear flete desde SAP #{{ flete.numeroGuia }} }
-                @else { Editar flete #{{ flete.numeroGuia }} }
-              </h2>
-              <p class="text-xs text-green-200 mt-0.5">Completa todos los campos obligatorios</p>
-            </div>
-            <button type="button" (click)="cerrado.emit()" class="text-white/70 hover:text-white transition">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-
-          <!-- Body -->
-          <form [formGroup]="form" (ngSubmit)="onGuardar()" class="px-6 py-6 space-y-5">
-
-            @if (loadingCatalogos()) {
-              <div class="flex justify-center py-12">
-                <svg class="animate-spin w-8 h-8 text-forest-500" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-              </div>
-            } @else {
-
-            <!-- ── Datos SAP (solo modo candidato/en_curso con origen SAP) ── -->
-            @if (flete?.kind === 'candidato' || flete?.sapNumeroEntrega) {
-              <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
-                <p class="text-xs font-semibold text-amber-700 uppercase tracking-wider">Datos de origen SAP (solo lectura)</p>
-                <div class="flex flex-wrap gap-3">
-                  @if (flete?.sapNumeroEntrega || flete?.numeroGuia) {
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs text-amber-800">
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>
-                      N° Entrega SAP: <strong>{{ flete?.sapNumeroEntrega || flete?.numeroGuia }}</strong>
-                    </span>
-                  }
-                  @if (flete?.sapGuiaRemision) {
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs text-amber-800">
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                      N° Guía SAP: <strong>{{ flete?.sapGuiaRemision }}</strong>
-                    </span>
-                  }
-                </div>
-              </div>
-            }
-
-            <!-- Fila 1: N° Entrega + N° Guía (remisión) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- N° Entrega confirmado -->
-              <div>
-                <label class="field-label">
-                  N° Entrega
-                  @if (flete?.kind !== 'candidato' && !flete) { * }
-                </label>
-                @if (flete?.sapNumeroEntrega) {
-                  <p class="text-[10px] text-forest-500 mb-1">SAP: {{ flete?.sapNumeroEntrega }}</p>
-                }
-                <input type="text" formControlName="numero_entrega" class="cfl-input" placeholder="Ej: 0080012345" />
-              </div>
-              <!-- N° Guía de remisión -->
-              <div>
-                <label class="field-label">N° Guía de Remisión</label>
-                @if (flete?.sapGuiaRemision) {
-                  <p class="text-[10px] text-forest-500 mb-1">SAP: {{ flete?.sapGuiaRemision }}</p>
-                }
-                <input type="text" formControlName="guia_remision" class="cfl-input" placeholder="Ej: 00123456789012345678901234" />
-              </div>
-            </div>
-
-            <!-- Fila 2: Tipo movimiento -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- placeholder para alinear -->
-              <div>
-                <label class="field-label">Tipo movimiento *</label>
-                <select formControlName="tipo_movimiento" class="cfl-input">
-                  <option value="">Seleccionar...</option>
-                  <option value="PUSH">Despacho (PUSH)</option>
-                  <option value="PULL">Retorno (PULL)</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Fila 2 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- Tipo flete -->
-              <div>
-                <label class="field-label">Tipo de flete *</label>
-                <select formControlName="id_tipo_flete" class="cfl-input">
-                  <option value="">Seleccionar...</option>
-                  @for (opt of tiposFlete; track opt.id_tipo_flete) {
-                    <option [value]="opt.id_tipo_flete">{{ opt.nombre }}</option>
-                  }
-                </select>
-              </div>
-              <!-- Centro de costo -->
-              <div>
-                <label class="field-label">Centro de costo *</label>
-                <select formControlName="id_centro_costo" class="cfl-input">
-                  <option value="">Seleccionar...</option>
-                  @for (opt of centrosCosto; track opt.id_centro_costo) {
-                    <option [value]="opt.id_centro_costo">{{ opt.sap_codigo }} — {{ opt.nombre }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <!-- Fila 3 -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- Detalle viaje -->
-              <div>
-                <label class="field-label">Detalle de viaje</label>
-                <select formControlName="id_detalle_viaje" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of detallesViaje; track opt.id_detalle_viaje) {
-                    <option [value]="opt.id_detalle_viaje">{{ opt.descripcion }}</option>
-                  }
-                </select>
-              </div>
-              <!-- Ruta -->
-              <div>
-                <label class="field-label">Ruta</label>
-                <select formControlName="id_ruta" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of rutas; track opt.id_ruta) {
-                    <option [value]="opt.id_ruta">{{ opt.nombre_ruta }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <!-- Fila 4: fecha + hora -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="field-label">Fecha salida *</label>
-                <input type="date" formControlName="fecha_salida" class="cfl-input" />
-              </div>
-              <div>
-                <label class="field-label">Hora salida *</label>
-                <input type="time" formControlName="hora_salida" class="cfl-input" />
-              </div>
-            </div>
-
-            <!-- Fila 5: empresa + chofer + camión -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label class="field-label">Empresa transporte</label>
-                <select formControlName="id_empresa_transporte" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of empresas; track opt.id_empresa) {
-                    <option [value]="opt.id_empresa">{{ opt.razon_social || opt.rut }}</option>
-                  }
-                </select>
-              </div>
-              <div>
-                <label class="field-label">Chofer</label>
-                <select formControlName="id_chofer" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of choferes; track opt.id_chofer) {
-                    <option [value]="opt.id_chofer">{{ opt.sap_nombre }}</option>
-                  }
-                </select>
-              </div>
-              <div>
-                <label class="field-label">Camión</label>
-                <select formControlName="id_camion" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of camiones; track opt.id_camion) {
-                    <option [value]="opt.id_camion">{{ opt.sap_patente }} / {{ opt.sap_carro }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <!-- Fila 6: monto + cuenta mayor -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="field-label">Monto aplicado</label>
-                <input type="number" formControlName="monto_aplicado" class="cfl-input" placeholder="0" min="0" step="1" />
-              </div>
-              <div>
-                <label class="field-label">Cuenta mayor</label>
-                <select formControlName="id_cuenta_mayor" class="cfl-input">
-                  <option value="">Sin especificar</option>
-                  @for (opt of cuentasMayor; track opt.id_cuenta_mayor) {
-                    <option [value]="opt.id_cuenta_mayor">{{ opt.codigo }} — {{ opt.glosa }}</option>
-                  }
-                </select>
-              </div>
-            </div>
-
-            <!-- Observaciones -->
-            <div>
-              <label class="field-label">Observaciones</label>
-              <textarea formControlName="observaciones" class="cfl-input min-h-[80px] resize-y" placeholder="Notas adicionales..."></textarea>
-            </div>
-
-            <!-- Error -->
-            @if (errorMsg()) {
-              <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ errorMsg() }}
-              </div>
-            }
-
-            } <!-- end @else loadingCatalogos -->
-
-            <!-- Footer -->
-            <div class="flex items-center justify-end gap-3 pt-4 border-t border-forest-100">
-              <button type="button" (click)="cerrado.emit()" class="btn-secondary">
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                [disabled]="form.invalid || saving() || loadingCatalogos()"
-                class="btn-primary disabled:cursor-not-allowed"
-              >
-                @if (saving()) {
-                  <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                  Guardando...
-                } @else {
-                  Guardar flete
-                }
-              </button>
-            </div>
-
-          </form>
-        </div>
-      </div>
-    }
-  `,
+  imports: [CommonModule, ReactiveFormsModule, SearchableComboboxComponent],
+  templateUrl: './edit-flete-modal.component.html',
   styles: [`
     .field-label {
       @apply block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5;
+    }
+
+    .detail-chip {
+      @apply inline-flex items-center rounded-full border border-forest-200 bg-white px-2.5 py-1 text-[11px] font-medium text-forest-700;
+    }
+
+    .route-node {
+      @apply min-w-[120px] rounded-xl border border-forest-200 bg-white px-3 py-2 text-center text-xs font-semibold text-forest-800 shadow-sm;
     }
   `],
 })
@@ -277,116 +75,228 @@ export class EditFleteModalComponent implements OnChanges {
   @Input() flete: FleteTabla | null = null;
   @Input() visible = false;
   @Output() guardado = new EventEmitter<void>();
-  @Output() cerrado  = new EventEmitter<void>();
+  @Output() cerrado = new EventEmitter<void>();
 
   form: FormGroup;
+  activeTab = signal<ModalTab>('cabecera');
   loadingCatalogos = signal(false);
-  saving           = signal(false);
-  errorMsg         = signal('');
+  detailLoading = signal(false);
+  saving = signal(false);
+  errorMsg = signal('');
+  detailError = signal('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tiposFlete:    any[] = [];
+  tiposFlete: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  centrosCosto:  any[] = [];
+  centrosCosto: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   detallesViaje: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rutas:         any[] = [];
+  nodos: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  empresas:      any[] = [];
+  rutas: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  choferes:      any[] = [];
+  tarifas: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  camiones:      any[] = [];
+  empresas: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  cuentasMayor:  any[] = [];
+  choferes: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  camiones: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cuentasMayor: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  especies: any[] = [];
+
+  tipoFleteOptions: SearchableOption[] = [];
+  centroCostoOptions: SearchableOption[] = [];
+  detalleViajeOptions: SearchableOption[] = [];
+  nodoOptions: SearchableOption[] = [];
+  empresaOptions: SearchableOption[] = [];
+  choferOptions: SearchableOption[] = [];
+  camionOptions: SearchableOption[] = [];
+  cuentaMayorOptions: SearchableOption[] = [];
+  especieOptions: SearchableOption[] = [];
+
+  detailRows = signal<DetalleDraft[]>([]);
+  sapSnapshot: Record<string, unknown> | null = null;
+  currentTemporadaId: number | null = null;
+  currentTemporadaLabel = '';
+  resolvedRouteName = '';
+  resolvedRouteDistanceKm: number | null = null;
+  resolvedRouteMonto: number | null = null;
+  resolvedRouteMoneda = '';
+  routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+
+  readonly tipoMovimientoOptions: SearchableOption[] = [
+    { value: 'PUSH', label: 'Despacho (PUSH)' },
+    { value: 'PULL', label: 'Retorno (PULL)' },
+  ];
 
   constructor(private fb: FormBuilder, private cflApi: CflApiService) {
     this.form = this.fb.group({
-      numero_entrega:       [''],   // N° entrega confirmado (editable)
-      guia_remision:        [''],   // N° guía de remisión confirmada (editable)
-      tipo_movimiento:      ['', Validators.required],
-      id_tipo_flete:        ['', Validators.required],
-      id_centro_costo:      ['', Validators.required],
-      id_detalle_viaje:     [''],
-      id_ruta:              [''],
-      fecha_salida:         ['', Validators.required],
-      hora_salida:          ['', Validators.required],
-      id_empresa_transporte:[''],
-      id_chofer:            [''],
-      id_camion:            [''],
-      monto_aplicado:       [null],
-      id_cuenta_mayor:      [''],
-      observaciones:        [''],
+      numero_entrega: [''],
+      guia_remision: [''],
+      tipo_movimiento: ['', Validators.required],
+      id_tipo_flete: ['', Validators.required],
+      id_centro_costo: ['', Validators.required],
+      id_detalle_viaje: [''],
+      id_origen_nodo: [''],
+      id_destino_nodo: [''],
+      id_ruta: [''],
+      id_tarifa: [''],
+      fecha_salida: ['', Validators.required],
+      hora_salida: ['', Validators.required],
+      id_empresa_transporte: [''],
+      id_chofer: [''],
+      id_camion: [''],
+      monto_aplicado: [null],
+      id_cuenta_mayor: [''],
+      observaciones: [''],
     });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['visible']?.currentValue === true) {
-      this.errorMsg.set('');
+      this._resetState();
+      this._seedBaseForm();
       this._loadCatalogos();
-      this._populateForm();
+      this._loadFleteContext();
     }
   }
 
-  private _loadCatalogos(): void {
-    this.loadingCatalogos.set(true);
-    forkJoin({
-      tiposFlete:    this.cflApi.listMaintainerRows('tipos-flete'),
-      centrosCosto:  this.cflApi.listMaintainerRows('centros-costo'),
-      detallesViaje: this.cflApi.listMaintainerRows('detalles-viaje'),
-      rutas:         this.cflApi.listMaintainerRows('rutas'),
-      empresas:      this.cflApi.listMaintainerRows('empresas-transporte'),
-      choferes:      this.cflApi.listMaintainerRows('choferes'),
-      camiones:      this.cflApi.listMaintainerRows('camiones'),
-      cuentasMayor:  this.cflApi.listMaintainerRows('cuentas-mayor'),
-    }).subscribe({
-      next: (res) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.tiposFlete    = res.tiposFlete.data    as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.centrosCosto  = res.centrosCosto.data  as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.detallesViaje = res.detallesViaje.data as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.rutas         = res.rutas.data         as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.empresas      = res.empresas.data      as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.choferes      = res.choferes.data      as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.camiones      = res.camiones.data      as any[];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.cuentasMayor  = res.cuentasMayor.data  as any[];
-        this.loadingCatalogos.set(false);
-      },
-      error: () => {
-        this.errorMsg.set('Error cargando catálogos. Intenta nuevamente.');
-        this.loadingCatalogos.set(false);
-      },
-    });
+  showSapSnapshot(): boolean {
+    return this.isSapBacked();
   }
 
-  private _populateForm(): void {
-    // Pre-rellena campos confirmados si ya existen; SAP origin se muestra como chip (read-only)
-    this.form.reset({
-      // En modo 'en_curso': usa el valor confirmado previo; en 'candidato': pre-rellena desde SAP
-      numero_entrega:        this.flete?.numeroEntrega || (this.flete?.kind === 'candidato' ? (this.flete?.sapNumeroEntrega ?? '') : ''),
-      guia_remision:         this.flete?.guiaRemision  || (this.flete?.kind === 'candidato' ? (this.flete?.sapGuiaRemision  ?? '') : ''),
-      tipo_movimiento:       '',
-      id_tipo_flete:         '',
-      id_centro_costo:       '',
-      id_detalle_viaje:      '',
-      id_ruta:               '',
-      fecha_salida:          '',
-      hora_salida:           '',
-      id_empresa_transporte: '',
-      id_chofer:             '',
-      id_camion:             '',
-      monto_aplicado:        this.flete?.monto || null,
-      id_cuenta_mayor:       '',
-      observaciones:         '',
+  isSapBacked(): boolean {
+    return Boolean(this.flete?.kind === 'candidato' || this.getSapNumeroEntrega());
+  }
+
+  canManageDetailRows(): boolean {
+    return !this.isSapBacked();
+  }
+
+  hasResolvedRoute(): boolean {
+    return Boolean(this.resolvedRouteName);
+  }
+
+  hasResolvedMonto(): boolean {
+    return this.resolvedRouteMonto !== null;
+  }
+
+  getSapNumeroEntrega(): string {
+    return this._toString(this.sapSnapshot?.['sap_numero_entrega']) || this._toString(this.flete?.sapNumeroEntrega) || '';
+  }
+
+  getSapGuiaRemision(): string {
+    return this._toString(this.sapSnapshot?.['sap_guia_remision']) || this._toString(this.flete?.sapGuiaRemision) || '';
+  }
+
+  getCurrentTemporadaLabel(): string {
+    return this.currentTemporadaLabel || 'Sin temporada activa';
+  }
+
+  getRouteAmountLabel(): string {
+    if (this.resolvedRouteMonto === null) return 'Sin tarifa vigente';
+    const formatter = new Intl.NumberFormat('es-CL', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     });
+    const prefix = this.resolvedRouteMoneda ? `${this.resolvedRouteMoneda} ` : '';
+    return `${prefix}${formatter.format(this.resolvedRouteMonto)}`;
+  }
+
+  getRouteOriginLabel(): string {
+    return this._findNodoLabel(this.getControlValue('id_origen_nodo')) || 'Origen';
+  }
+
+  getRouteDestinationLabel(): string {
+    return this._findNodoLabel(this.getControlValue('id_destino_nodo')) || 'Destino';
+  }
+
+  isInvalid(key: string): boolean {
+    const ctrl = this.form.get(key);
+    return !!(ctrl?.invalid && (ctrl.dirty || ctrl.touched));
+  }
+
+  getControlValue(key: string): string {
+    return this._toControlValue(this.form.get(key)?.value);
+  }
+
+  setControlValue(key: string, value: string): void {
+    this.form.get(key)?.setValue(value);
+    if (key === 'id_tipo_flete' && !this.getControlValue('id_centro_costo')) {
+      const tipo = this.tiposFlete.find((row) => String(row['id_tipo_flete']) === value);
+      const centro = this._toControlValue(tipo?.['id_centro_costo']);
+      if (centro) {
+        this.form.get('id_centro_costo')?.setValue(centro);
+      }
+    }
+    if (key === 'id_camion' || key === 'fecha_salida') {
+      this._syncRouteAndTarifa(true);
+    }
+  }
+
+  getTipoFleteOptions(): SearchableOption[] {
+    return this.tipoFleteOptions;
+  }
+
+  getCentroCostoOptions(): SearchableOption[] {
+    return this.centroCostoOptions;
+  }
+
+  getDetalleViajeOptions(): SearchableOption[] {
+    return this.detalleViajeOptions;
+  }
+
+  setRouteNodeValue(key: 'id_origen_nodo' | 'id_destino_nodo', value: string): void {
+    this.form.get(key)?.setValue(value);
+    this._syncRouteAndTarifa(true);
+  }
+
+  getNodoOptions(): SearchableOption[] {
+    return this.nodoOptions;
+  }
+
+  getEmpresaOptions(): SearchableOption[] {
+    return this.empresaOptions;
+  }
+
+  getChoferOptions(): SearchableOption[] {
+    return this.choferOptions;
+  }
+
+  getCamionOptions(): SearchableOption[] {
+    return this.camionOptions;
+  }
+
+  getCuentaMayorOptions(): SearchableOption[] {
+    return this.cuentaMayorOptions;
+  }
+
+  getEspecieOptions(): SearchableOption[] {
+    return this.especieOptions;
+  }
+
+  getDetalleEspecieValue(row: DetalleDraft): string {
+    return row.id_especie;
+  }
+
+  setDetalleEspecieValue(rowId: string, value: string): void {
+    this._updateDetailRow(rowId, { id_especie: value });
+  }
+
+  addDetailRow(): void {
+    this.detailRows.update((rows) => [...rows, this._createEmptyDetailRow()]);
+  }
+
+  removeDetailRow(rowId: string): void {
+    this.detailRows.update((rows) => rows.filter((row) => row.rowId !== rowId));
+  }
+
+  updateDetailField(rowId: string, field: keyof DetalleDraft, value: string): void {
+    this._updateDetailRow(rowId, { [field]: value } as Partial<DetalleDraft>);
   }
 
   onBackdropClick(event: MouseEvent): void {
@@ -398,6 +308,7 @@ export class EditFleteModalComponent implements OnChanges {
   onGuardar(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.activeTab.set('cabecera');
       return;
     }
 
@@ -405,8 +316,8 @@ export class EditFleteModalComponent implements OnChanges {
     this.errorMsg.set('');
 
     const payload = this._buildPayload();
+    let obs$: Observable<unknown>;
 
-    let obs$;
     if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
       obs$ = this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
     } else if (this.flete?.kind === 'en_curso' && this.flete.idCabeceraFlete) {
@@ -427,17 +338,550 @@ export class EditFleteModalComponent implements OnChanges {
     });
   }
 
-  private _buildPayload(): Record<string, unknown> {
-    const v = this.form.value;
-    const payload: Record<string, unknown> = { ...v };
-    // Convertir strings vacíos de selects/inputs a null
-    for (const key of Object.keys(payload)) {
-      if (payload[key] === '' || payload[key] === undefined) payload[key] = null;
+  private _resetState(): void {
+    this.errorMsg.set('');
+    this.detailError.set('');
+    this.activeTab.set('cabecera');
+    this.sapSnapshot = null;
+    this.detailRows.set([]);
+    this.currentTemporadaId = null;
+    this.currentTemporadaLabel = '';
+    this.resolvedRouteName = '';
+    this.resolvedRouteDistanceKm = null;
+    this.resolvedRouteMonto = null;
+    this.resolvedRouteMoneda = '';
+    this.routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+  }
+
+  private _seedBaseForm(): void {
+    const now = new Date();
+    this.form.reset({
+      numero_entrega: this.flete?.numeroEntrega ?? '',
+      guia_remision: this.flete?.guiaRemision ?? '',
+      tipo_movimiento: 'PUSH',
+      id_tipo_flete: this._toControlValue(this.flete?.idTipoFlete),
+      id_centro_costo: this._toControlValue(this.flete?.idCentroCosto),
+      id_detalle_viaje: this._toControlValue(this.flete?.idDetalleViaje),
+      id_origen_nodo: '',
+      id_destino_nodo: '',
+      id_ruta: this._toControlValue(this.flete?.idRuta),
+      id_tarifa: this._toControlValue(this.flete?.idTarifa),
+      fecha_salida: this._formatDate(now),
+      hora_salida: this._formatTime(now),
+      id_empresa_transporte: '',
+      id_chofer: '',
+      id_camion: '',
+      monto_aplicado: this.flete?.monto ?? null,
+      id_cuenta_mayor: this._toControlValue(this.flete?.idCuentaMayor),
+      observaciones: '',
+    });
+  }
+
+  private _loadCatalogos(): void {
+    this.loadingCatalogos.set(true);
+    forkJoin({
+      tiposFlete: this._safeCatalog('tipos-flete'),
+      centrosCosto: this._safeCatalog('centros-costo'),
+      detallesViaje: this._safeCatalog('detalles-viaje'),
+      nodos: this._safeCatalog('nodos'),
+      rutas: this._safeCatalog('rutas'),
+      tarifas: this._safeTarifas(),
+      empresas: this._safeCatalog('empresas-transporte'),
+      choferes: this._safeCatalog('choferes'),
+      camiones: this._safeCatalog('camiones'),
+      cuentasMayor: this._safeCatalog('cuentas-mayor'),
+      especies: this._safeCatalog('especies'),
+    }).subscribe({
+      next: (res) => {
+        this.tiposFlete = res.tiposFlete.data as Record<string, unknown>[];
+        this.centrosCosto = res.centrosCosto.data as Record<string, unknown>[];
+        this.detallesViaje = res.detallesViaje.data as Record<string, unknown>[];
+        this.nodos = res.nodos.data as Record<string, unknown>[];
+        this.rutas = res.rutas.data as Record<string, unknown>[];
+        this.tarifas = res.tarifas.data as Record<string, unknown>[];
+        this.empresas = res.empresas.data as Record<string, unknown>[];
+        this.choferes = res.choferes.data as Record<string, unknown>[];
+        this.camiones = res.camiones.data as Record<string, unknown>[];
+        this.cuentasMayor = res.cuentasMayor.data as Record<string, unknown>[];
+        this.especies = res.especies.data as Record<string, unknown>[];
+        this.currentTemporadaId = res.tarifas.temporada_id ?? null;
+        this.currentTemporadaLabel = this._toString(this.tarifas[0]?.['temporada_codigo']) || '';
+        this.tipoFleteOptions = this._mapOptions(this.tiposFlete, 'id_tipo_flete', ['nombre', 'sap_codigo']);
+        this.centroCostoOptions = this._mapOptions(this.centrosCosto, 'id_centro_costo', ['sap_codigo', 'nombre']);
+        this.detalleViajeOptions = this._mapOptions(this.detallesViaje, 'id_detalle_viaje', ['descripcion']);
+        this.nodoOptions = this._mapOptions(this.nodos, 'id_nodo', ['nombre']);
+        this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['razon_social', 'rut']);
+        this.choferOptions = this._mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
+        this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
+        this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
+        this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
+        this._applyFallbacks(true);
+        this.loadingCatalogos.set(false);
+      },
+      error: () => {
+        this.errorMsg.set('Error cargando catalogos. Intenta nuevamente.');
+        this.loadingCatalogos.set(false);
+      },
+    });
+  }
+
+  private _loadFleteContext(): void {
+    if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
+      this.detailLoading.set(true);
+      this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega).subscribe({
+        next: (res) => {
+          this._hydrateCandidate(res as DashboardDetalleResponse);
+          this.detailLoading.set(false);
+        },
+        error: (err) => {
+          this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones SAP.');
+          this.detailLoading.set(false);
+        },
+      });
+      return;
     }
-    // Incluir campo SAP renombrado para que el backend lo persista en sap_numero_entrega
-    if (this.flete?.sapNumeroEntrega) {
-      payload['sap_numero_entrega'] = this.flete.sapNumeroEntrega;
+
+    if (this.flete?.kind === 'en_curso' && this.flete.idCabeceraFlete) {
+      this.detailLoading.set(true);
+      this.cflApi.getFleteById(this.flete.idCabeceraFlete).subscribe({
+        next: (res) => {
+          this._hydrateExisting(res as FleteDetalleResponse);
+          this.detailLoading.set(false);
+        },
+        error: (err) => {
+          const message = err?.error?.error ?? 'No se pudo cargar el detalle del flete.';
+          this.errorMsg.set(message);
+          this.detailError.set(message);
+          this.detailLoading.set(false);
+        },
+      });
+      return;
     }
-    return payload;
+
+    this.detailLoading.set(false);
+  }
+
+  private _safeCatalog(entity: string): Observable<{ data: unknown[] }> {
+    return this.cflApi.listMaintainerRows(entity).pipe(catchError(() => of({ data: [] })));
+  }
+
+  private _safeTarifas(): Observable<TarifaListResponse> {
+    return this.cflApi.listTarifas().pipe(
+      catchError(() => of({ data: [], temporada_id: null }))
+    );
+  }
+
+  private _hydrateCandidate(response: DashboardDetalleResponse): void {
+    const cabecera = response.data?.cabecera ?? {};
+    const posiciones = response.data?.posiciones ?? [];
+
+    this.sapSnapshot = cabecera;
+    this.form.patchValue({
+      numero_entrega: this._toString(cabecera['sap_numero_entrega']) || this.getControlValue('numero_entrega'),
+      guia_remision: this._toString(cabecera['sap_guia_remision']) || this.getControlValue('guia_remision'),
+      fecha_salida: this._formatDate(cabecera['sap_fecha_salida']) || this.getControlValue('fecha_salida'),
+      hora_salida: this._formatTime(cabecera['sap_hora_salida']) || this.getControlValue('hora_salida'),
+    });
+    this.detailRows.set(posiciones.map((row) => this._fromSapRow(row)));
+    this._applyFallbacks(true);
+  }
+
+  private _hydrateExisting(response: FleteDetalleResponse): void {
+    const cabecera = response.data?.cabecera ?? {};
+    const detalles = response.data?.detalles ?? [];
+
+    if (cabecera['sap_numero_entrega']) {
+      this.sapSnapshot = {
+        sap_numero_entrega: cabecera['sap_numero_entrega'],
+        sap_guia_remision: cabecera['sap_guia_remision'],
+        sap_codigo_tipo_flete: cabecera['sap_codigo_tipo_flete'],
+        sap_centro_costo: cabecera['sap_centro_costo'],
+        sap_cuenta_mayor: cabecera['sap_cuenta_mayor'],
+      };
+    }
+
+    this.form.patchValue({
+      numero_entrega: this._toControlValue(cabecera['numero_entrega']),
+      guia_remision: this._toControlValue(cabecera['guia_remision']),
+      tipo_movimiento: this._toControlValue(cabecera['tipo_movimiento']) || 'PUSH',
+      id_tipo_flete: this._toControlValue(cabecera['id_tipo_flete']),
+      id_centro_costo: this._toControlValue(cabecera['id_centro_costo']),
+      id_detalle_viaje: this._toControlValue(cabecera['id_detalle_viaje']),
+      id_origen_nodo: this._toControlValue(cabecera['id_origen_nodo']),
+      id_destino_nodo: this._toControlValue(cabecera['id_destino_nodo']),
+      id_ruta: this._toControlValue(cabecera['id_ruta']),
+      id_tarifa: this._toControlValue(cabecera['id_tarifa']),
+      fecha_salida: this._formatDate(cabecera['fecha_salida']),
+      hora_salida: this._formatTime(cabecera['hora_salida']),
+      id_empresa_transporte: this._toControlValue(cabecera['id_empresa_transporte']),
+      id_chofer: this._toControlValue(cabecera['id_chofer']),
+      id_camion: this._toControlValue(cabecera['id_camion']),
+      monto_aplicado: cabecera['monto_aplicado'] ?? null,
+      id_cuenta_mayor: this._toControlValue(cabecera['id_cuenta_mayor']),
+      observaciones: this._toControlValue(cabecera['observaciones']),
+    });
+    this.detailRows.set(detalles.map((row) => this._fromExistingRow(row)));
+    this._applyFallbacks(true);
+  }
+
+  private _applyFallbacks(preserveExistingAmount: boolean): void {
+    this._applySapDefaults();
+    this._applyTransportFallbacks();
+    this._syncRouteAndTarifa(preserveExistingAmount);
+  }
+
+  private _applySapDefaults(): void {
+    if (!this.sapSnapshot) return;
+
+    if (!this.getControlValue('id_tipo_flete')) {
+      const sapCodigo = this._normalized(this.sapSnapshot['sap_codigo_tipo_flete']);
+      const match = this.tiposFlete.find((row) => this._normalized(row['sap_codigo']) === sapCodigo);
+      if (match) {
+        this.form.get('id_tipo_flete')?.setValue(String(match['id_tipo_flete']));
+      }
+    }
+
+    if (!this.getControlValue('id_centro_costo')) {
+      const sapCentro = this._normalized(this.sapSnapshot['sap_centro_costo']);
+      const byCentro = this.centrosCosto.find((row) => this._normalized(row['sap_codigo']) === sapCentro);
+      if (byCentro) {
+        this.form.get('id_centro_costo')?.setValue(String(byCentro['id_centro_costo']));
+      } else {
+        const tipo = this.tiposFlete.find(
+          (row) => String(row['id_tipo_flete']) === this.getControlValue('id_tipo_flete')
+        );
+        const fallbackCentro = this._toControlValue(tipo?.['id_centro_costo']);
+        if (fallbackCentro) {
+          this.form.get('id_centro_costo')?.setValue(fallbackCentro);
+        }
+      }
+    }
+
+    if (!this.getControlValue('id_cuenta_mayor')) {
+      const sapCuenta = this._normalized(this.sapSnapshot['sap_cuenta_mayor']);
+      const match = this.cuentasMayor.find((row) => this._normalized(row['codigo']) === sapCuenta);
+      if (match) {
+        this.form.get('id_cuenta_mayor')?.setValue(String(match['id_cuenta_mayor']));
+      }
+    }
+  }
+
+  private _applyTransportFallbacks(): void {
+    const empresaHint = this._toString(this.sapSnapshot?.['sap_empresa_transporte']) || this.flete?.sapEmpresaTransporte || '';
+    const choferHint = this._toString(this.sapSnapshot?.['sap_nombre_chofer']) || this.flete?.sapNombreChofer || '';
+    const patenteHint = this._toString(this.sapSnapshot?.['sap_patente']) || this.flete?.sapPatente || '';
+    const carroHint = this._toString(this.sapSnapshot?.['sap_carro']) || this.flete?.sapCarro || '';
+
+    if (!this.getControlValue('id_empresa_transporte') && empresaHint) {
+      const empresa = this.empresas.find((row) =>
+        this._normalized(row['sap_codigo']) === this._normalized(empresaHint) ||
+        this._normalized(row['razon_social']) === this._normalized(empresaHint) ||
+        this._normalized(row['rut']) === this._normalized(empresaHint)
+      );
+      if (empresa) {
+        this.form.get('id_empresa_transporte')?.setValue(String(empresa['id_empresa']));
+      }
+    }
+
+    if (!this.getControlValue('id_chofer') && choferHint) {
+      const chofer = this.choferes.find((row) =>
+        this._normalized(row['sap_nombre']) === this._normalized(choferHint) ||
+        this._normalized(row['sap_id_fiscal']) === this._normalized(choferHint)
+      );
+      if (chofer) {
+        this.form.get('id_chofer')?.setValue(String(chofer['id_chofer']));
+      }
+    }
+
+    if (!this.getControlValue('id_camion') && (patenteHint || carroHint)) {
+      const camion = this.camiones.find((row) =>
+        (patenteHint && this._normalized(row['sap_patente']) === this._normalized(patenteHint)) ||
+        (carroHint && this._normalized(row['sap_carro']) === this._normalized(carroHint))
+      );
+      if (camion) {
+        this.form.get('id_camion')?.setValue(String(camion['id_camion']));
+      }
+    }
+  }
+
+  private _syncRouteAndTarifa(preserveExistingAmount: boolean): void {
+    const explicitRouteId = this.getControlValue('id_ruta');
+    const currentTarifaId = this.getControlValue('id_tarifa');
+    const currentMonto = this._toNullableNumber(this.form.get('monto_aplicado')?.value);
+    let route = this._findRouteByNodes();
+
+    if (!route && explicitRouteId) {
+      route = this.rutas.find((row) => String(row['id_ruta']) === explicitRouteId) || null;
+      if (route) {
+        this.form.patchValue({
+          id_origen_nodo: this._toControlValue(route['id_origen_nodo']),
+          id_destino_nodo: this._toControlValue(route['id_destino_nodo']),
+        }, { emitEvent: false });
+      }
+    }
+
+    if (!route) {
+      this.form.patchValue({ id_ruta: '', id_tarifa: '' }, { emitEvent: false });
+      if (!preserveExistingAmount) {
+        this.form.get('monto_aplicado')?.setValue(null);
+      }
+      this.resolvedRouteName = '';
+      this.resolvedRouteDistanceKm = null;
+      this.resolvedRouteMonto = preserveExistingAmount ? currentMonto : null;
+      this.resolvedRouteMoneda = '';
+      this.routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+      return;
+    }
+
+    this.form.patchValue({ id_ruta: String(route['id_ruta']) }, { emitEvent: false });
+    this.resolvedRouteName = this._toString(route['nombre_ruta']) || '';
+    this.resolvedRouteDistanceKm = this._toNullableNumber(route['distancia_km']);
+
+    const tarifa = this._findBestTarifaForRoute(String(route['id_ruta']));
+    if (tarifa) {
+      const monto = this._toNullableNumber(tarifa['monto_fijo']);
+      this.form.patchValue(
+        {
+          id_tarifa: this._toControlValue(tarifa['id_tarifa']),
+          monto_aplicado: monto,
+        },
+        { emitEvent: false }
+      );
+      this.resolvedRouteMonto = monto;
+      this.resolvedRouteMoneda = this._toString(tarifa['moneda']) || '';
+      this.routeResolutionHint = this.currentTemporadaLabel
+        ? `Tarifa resuelta para la temporada ${this.currentTemporadaLabel}.`
+        : 'Tarifa vigente resuelta automaticamente.';
+      return;
+    }
+
+    if (!preserveExistingAmount || !currentTarifaId) {
+      this.form.patchValue({ id_tarifa: '' }, { emitEvent: false });
+    }
+    if (!preserveExistingAmount) {
+      this.form.get('monto_aplicado')?.setValue(null);
+    }
+    this.resolvedRouteMonto = preserveExistingAmount ? currentMonto : null;
+    this.resolvedRouteMoneda = '';
+    this.routeResolutionHint = this.getControlValue('id_camion')
+      ? 'No existe una tarifa vigente para esta ruta y camion en la temporada actual.'
+      : 'La ruta se resolvio, pero falta camion o no hay tarifa vigente para estimar el valor.';
+  }
+
+  private _findRouteByNodes(): Record<string, unknown> | null {
+    const origenId = this.getControlValue('id_origen_nodo');
+    const destinoId = this.getControlValue('id_destino_nodo');
+    if (!origenId || !destinoId) return null;
+
+    return (
+      this.rutas.find(
+        (row) =>
+          String(row['id_origen_nodo']) === origenId &&
+          String(row['id_destino_nodo']) === destinoId
+      ) || null
+    );
+  }
+
+  private _findBestTarifaForRoute(routeId: string): Record<string, unknown> | null {
+    const departureDate = this.getControlValue('fecha_salida') || this._formatDate(new Date());
+    const selectedCamion = this.camiones.find((row) => String(row['id_camion']) === this.getControlValue('id_camion')) || null;
+    const selectedTipoCamion = this._toControlValue(selectedCamion?.['id_tipo_camion']);
+
+    const candidates = this.tarifas
+      .filter((row) => String(row['id_ruta']) === routeId)
+      .filter((row) => this._isTarifaVigente(row, departureDate))
+      .sort((a, b) => {
+        const priorityA = Number(a['prioridad'] ?? 999999);
+        const priorityB = Number(b['prioridad'] ?? 999999);
+        if (priorityA !== priorityB) return priorityA - priorityB;
+        return Number(a['id_tarifa'] ?? 0) - Number(b['id_tarifa'] ?? 0);
+      });
+
+    if (candidates.length === 0) return null;
+
+    if (selectedTipoCamion) {
+      const byTipo = candidates.find((row) => String(row['id_tipo_camion']) === selectedTipoCamion);
+      return byTipo || null;
+    }
+
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  private _isTarifaVigente(row: Record<string, unknown>, fechaIso: string): boolean {
+    const start = this._toString(row['vigencia_desde']);
+    const end = this._toString(row['vigencia_hasta']);
+    const active = row['activo'];
+
+    if (active !== undefined && active !== null && Number(active) === 0) return false;
+    if (start && fechaIso < start.slice(0, 10)) return false;
+    if (end && fechaIso > end.slice(0, 10)) return false;
+    return true;
+  }
+
+  private _buildPayload(): { cabecera: Record<string, unknown>; detalles: Record<string, unknown>[] } {
+    const cabecera: Record<string, unknown> = { ...this.form.value };
+    for (const key of Object.keys(cabecera)) {
+      if (cabecera[key] === '' || cabecera[key] === undefined) {
+        cabecera[key] = null;
+      }
+    }
+
+    if (this.sapSnapshot) {
+      for (const key of ['sap_numero_entrega', 'sap_codigo_tipo_flete', 'sap_centro_costo', 'sap_cuenta_mayor']) {
+        const value = this._toString(this.sapSnapshot[key]);
+        if (value) cabecera[key] = value;
+      }
+    }
+
+    delete cabecera['id_origen_nodo'];
+    delete cabecera['id_destino_nodo'];
+    delete cabecera['id_ruta'];
+
+    const detalles = this.detailRows()
+      .map((row) => {
+        const material = this._trimOrNull(row.material);
+        const descripcion = this._trimOrNull(row.descripcion);
+        const cantidad = row.cantidad === '' ? null : Number(row.cantidad);
+        const unidad = this._trimOrNull(row.unidad);
+        const peso = row.peso === '' ? null : Number(row.peso);
+        const id_especie = row.id_especie || null;
+
+        const hasContent = Boolean(
+          id_especie ||
+          material ||
+          descripcion ||
+          unidad ||
+          (cantidad !== null && Number.isFinite(cantidad)) ||
+          (peso !== null && Number.isFinite(peso))
+        );
+
+        if (!hasContent) return null;
+
+        return {
+          id_especie,
+          material,
+          descripcion,
+          cantidad: Number.isFinite(cantidad) ? cantidad : null,
+          unidad: unidad ? unidad.slice(0, 3) : null,
+          peso: Number.isFinite(peso) ? peso : null,
+        };
+      })
+      .filter((row) => row !== null) as Record<string, unknown>[];
+
+    return { cabecera, detalles };
+  }
+
+  private _mapOptions(source: Record<string, unknown>[], valueField: string, labelFields: string[]): SearchableOption[] {
+    return source
+      .map((item) => {
+        const value = item[valueField];
+        if (value === null || value === undefined || value === '') return null;
+        const label = labelFields
+          .map((field) => this._toString(item[field]))
+          .filter((part) => Boolean(part))
+          .join(' - ');
+        return { value: String(value), label: label || String(value) };
+      })
+      .filter((item): item is SearchableOption => item !== null);
+  }
+
+  private _findNodoLabel(id: string): string {
+    if (!id) return '';
+    const node = this.nodos.find((row) => String(row['id_nodo']) === id);
+    return this._toString(node?.['nombre']) || '';
+  }
+
+  private _createEmptyDetailRow(): DetalleDraft {
+    return {
+      rowId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id_especie: '',
+      material: '',
+      descripcion: '',
+      cantidad: '',
+      unidad: '',
+      peso: '',
+      sap_posicion: '',
+      sap_posicion_superior: '',
+      sap_lote: '',
+    };
+  }
+
+  private _fromSapRow(row: Record<string, unknown>): DetalleDraft {
+    const unidad = this._toString(row['sap_unidad_peso']) || '';
+    const cantidad = this._toControlValue(row['sap_cantidad_entregada']);
+    return {
+      ...this._createEmptyDetailRow(),
+      material: this._toControlValue(row['sap_material']),
+      descripcion: this._toControlValue(row['sap_denominacion_material']),
+      cantidad,
+      unidad: unidad.slice(0, 3),
+      peso: unidad.toUpperCase().startsWith('KG') ? cantidad : '',
+      sap_posicion: this._toControlValue(row['sap_posicion']),
+      sap_posicion_superior: this._toControlValue(row['sap_posicion_superior']),
+      sap_lote: this._toControlValue(row['sap_lote']),
+    };
+  }
+
+  private _fromExistingRow(row: Record<string, unknown>): DetalleDraft {
+    return {
+      ...this._createEmptyDetailRow(),
+      id_especie: this._toControlValue(row['id_especie']),
+      material: this._toControlValue(row['material']),
+      descripcion: this._toControlValue(row['descripcion']),
+      cantidad: this._toControlValue(row['cantidad']),
+      unidad: this._toControlValue(row['unidad']),
+      peso: this._toControlValue(row['peso']),
+      sap_posicion: this._toControlValue(row['sap_posicion']),
+      sap_posicion_superior: this._toControlValue(row['sap_posicion_superior']),
+      sap_lote: this._toControlValue(row['sap_lote']),
+    };
+  }
+
+  private _updateDetailRow(rowId: string, patch: Partial<DetalleDraft>): void {
+    this.detailRows.update((rows) => rows.map((row) => (row.rowId === rowId ? { ...row, ...patch } : row)));
+  }
+
+  private _trimOrNull(value: string): string | null {
+    const trimmed = String(value ?? '').trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private _toString(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+    const result = String(value).trim();
+    return result ? result : null;
+  }
+
+  private _toControlValue(value: unknown): string {
+    return this._toString(value) || '';
+  }
+
+  private _toNullableNumber(value: unknown): number | null {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private _normalized(value: unknown): string {
+    return this._toString(value)?.toLowerCase() || '';
+  }
+
+  private _formatDate(value: unknown): string {
+    if (!value) return '';
+    if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    const raw = String(value);
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(raw);
+    return isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+  }
+
+  private _formatTime(value: unknown): string {
+    if (!value) return '';
+    if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(11, 16);
+    const raw = String(value);
+    const match = raw.match(/(\d{2}:\d{2})(?::\d{2})?/);
+    if (match) return match[1];
+    const parsed = new Date(raw);
+    return isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(11, 16);
   }
 }

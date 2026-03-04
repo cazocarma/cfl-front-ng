@@ -21,6 +21,38 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'facturas',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/facturas/facturas.component').then(
+        (m) => m.FacturasComponent
+      ),
+  },
+  {
+    path: 'planillas-sap',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/planillas-sap/planillas-sap.component').then(
+        (m) => m.PlanillasSapComponent
+      ),
+  },
+  {
+    path: 'estadisticas',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/estadisticas/estadisticas.component').then(
+        (m) => m.EstadisticasComponent
+      ),
+  },
+  {
+    path: 'auditoria',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/auditoria/auditoria.component').then(
+        (m) => m.AuditoriaComponent
+      ),
+  },
+  {
     path: 'mantenedores',
     canActivate: [authGuard],
     loadComponent: () =>
