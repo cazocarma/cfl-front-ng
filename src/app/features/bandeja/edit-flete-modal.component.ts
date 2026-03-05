@@ -19,6 +19,7 @@ import {
 } from './searchable-combobox.component';
 
 type ModalTab = 'cabecera' | 'detalles';
+export type ModalMode = 'edit' | 'view';
 
 interface DetalleDraft {
   rowId: string;
@@ -74,6 +75,7 @@ interface TarifaListResponse {
 export class EditFleteModalComponent implements OnChanges {
   @Input() flete: FleteTabla | null = null;
   @Input() visible = false;
+  @Input() mode: ModalMode = 'edit';
   @Output() guardado = new EventEmitter<void>();
   @Output() cerrado = new EventEmitter<void>();
 
@@ -160,9 +162,37 @@ export class EditFleteModalComponent implements OnChanges {
     if (changes['visible']?.currentValue === true) {
       this._resetState();
       this._seedBaseForm();
+      this._applyFormMode();
       this._loadCatalogos();
       this._loadFleteContext();
+      return;
     }
+
+    if (changes['mode'] && this.visible) {
+      this._applyFormMode();
+    }
+  }
+
+  isReadOnly(): boolean {
+    return this.mode === 'view';
+  }
+
+  getModalTitle(): string {
+    if (this.isReadOnly()) {
+      if (!this.flete) return 'Ver flete manual';
+      if (this.flete.kind === 'candidato') return `Ver candidato SAP #${this.flete.numeroGuia}`;
+      return `Ver flete #${this.flete.numeroGuia}`;
+    }
+
+    if (!this.flete) return 'Ingreso manual de flete';
+    if (this.flete.kind === 'candidato') return `Crear flete desde SAP #${this.flete.numeroGuia}`;
+    return `Editar flete #${this.flete.numeroGuia}`;
+  }
+
+  getModalSubtitle(): string {
+    return this.isReadOnly()
+      ? 'Informacion en modo solo lectura'
+      : 'Completa la cabecera y revisa los detalles';
   }
 
   showSapSnapshot(): boolean {
@@ -174,7 +204,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   canManageDetailRows(): boolean {
-    return !this.isSapBacked();
+    return !this.isReadOnly() && !this.isSapBacked();
   }
 
   hasResolvedRoute(): boolean {
@@ -225,6 +255,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   setControlValue(key: string, value: string): void {
+    if (this.isReadOnly()) return;
     this.form.get(key)?.setValue(value);
     if (key === 'id_tipo_flete' && !this.getControlValue('id_centro_costo')) {
       const tipo = this.tiposFlete.find((row) => String(row['id_tipo_flete']) === value);
@@ -251,6 +282,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   setRouteNodeValue(key: 'id_origen_nodo' | 'id_destino_nodo', value: string): void {
+    if (this.isReadOnly()) return;
     this.form.get(key)?.setValue(value);
     this._syncRouteAndTarifa(true);
   }
@@ -284,18 +316,22 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   setDetalleEspecieValue(rowId: string, value: string): void {
+    if (this.isReadOnly()) return;
     this._updateDetailRow(rowId, { id_especie: value });
   }
 
   addDetailRow(): void {
+    if (this.isReadOnly()) return;
     this.detailRows.update((rows) => [...rows, this._createEmptyDetailRow()]);
   }
 
   removeDetailRow(rowId: string): void {
+    if (this.isReadOnly()) return;
     this.detailRows.update((rows) => rows.filter((row) => row.rowId !== rowId));
   }
 
   updateDetailField(rowId: string, field: keyof DetalleDraft, value: string): void {
+    if (this.isReadOnly()) return;
     this._updateDetailRow(rowId, { [field]: value } as Partial<DetalleDraft>);
   }
 
@@ -306,6 +342,10 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   onGuardar(): void {
+    if (this.isReadOnly()) {
+      return;
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.activeTab.set('cabecera');
@@ -351,6 +391,14 @@ export class EditFleteModalComponent implements OnChanges {
     this.resolvedRouteMonto = null;
     this.resolvedRouteMoneda = '';
     this.routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+  }
+
+  private _applyFormMode(): void {
+    if (this.isReadOnly()) {
+      this.form.disable({ emitEvent: false });
+      return;
+    }
+    this.form.enable({ emitEvent: false });
   }
 
   private _seedBaseForm(): void {

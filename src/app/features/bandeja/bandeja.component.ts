@@ -1,6 +1,6 @@
 import { Component, computed, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
 import {
   adaptCandidato,
@@ -16,7 +16,9 @@ import {
 } from '../../core/models/flete.model';
 import { AuthService } from '../../core/services/auth.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
-import { EditFleteModalComponent } from './edit-flete-modal.component';
+import { EditFleteModalComponent, ModalMode } from './edit-flete-modal.component';
+
+type ConfirmActionType = 'descartar' | 'anular';
 
 @Component({
   selector: 'app-bandeja',
@@ -30,15 +32,23 @@ export class BandejaComponent implements OnInit {
     const u = this.auth.getCurrentUser();
     return u ? (u.nombre ? `${u.nombre} ${u.apellido ?? ''}`.trim() : u.username) : 'Usuario';
   }
-  get userRole(): string { return this.auth.getCurrentUser()?.role ?? ''; }
+
+  get userRole(): string {
+    const fromContext = this.authRoles()[0];
+    if (fromContext) return fromContext;
+    return this.auth.getCurrentUser()?.role ?? '';
+  }
+
   get roleLabel(): string {
     const map: Record<string, string> = {
-      ingresador:    'Ingresador',
-      autorizador:   'Autorizador',
+      ingresador: 'Ingresador',
+      autorizador: 'Autorizador',
       administrador: 'Administrador',
     };
-    return map[this.userRole] ?? this.userRole;
+    const normalizedRole = this._normalizedUserRole();
+    return map[normalizedRole] ?? this.userRole;
   }
+
   get userInitials(): string {
     return this.userName.split(' ').map(w => w[0]?.toUpperCase() ?? '').slice(0, 2).join('');
   }
@@ -47,31 +57,45 @@ export class BandejaComponent implements OnInit {
   activeTab = signal<'candidatos' | 'en_curso'>('candidatos');
 
   /* ── Data ─────────────────────────────────────── */
-  allFletes         = signal<FleteTabla[]>([]);
-  loading           = signal(false);
-  showUserMenu      = signal(false);
+  allFletes = signal<FleteTabla[]>([]);
+  loading = signal(false);
+  showUserMenu = signal(false);
   mobileSidebarOpen = signal(false);
 
+  /* ── Auth context (dinamico por DB) ───────────── */
+  authContextLoaded = signal(false);
+  authContextLoading = signal(false);
+  authPermissions = signal<Set<string>>(new Set());
+  authRoles = signal<string[]>([]);
+
   /* ── Toast ────────────────────────────────────── */
-  toastMsg      = signal('');
-  toastIsError  = signal(false);
+  toastMsg = signal('');
+  toastIsError = signal(false);
   private _toastTimer?: ReturnType<typeof setTimeout>;
 
-  /* ── Modal edición ────────────────────────────── */
-  editModalFlete   = signal<FleteTabla | null>(null);
+  /* ── Modal edición / vista ────────────────────── */
+  editModalFlete = signal<FleteTabla | null>(null);
   editModalVisible = signal(false);
+  editModalMode = signal<ModalMode>('edit');
+
+  /* ── Confirmación descartar/anular ────────────── */
+  confirmActionVisible = signal(false);
+  confirmActionType = signal<ConfirmActionType | null>(null);
+  confirmActionFlete = signal<FleteTabla | null>(null);
+  confirmActionMotivo = signal('');
+  confirmActionSaving = signal(false);
 
   /* ── Selección para folio ─────────────────────── */
   selectedIds = signal<Set<string>>(new Set());
 
   /* ── Paginación server-side ───────────────────── */
-  currentPage      = signal(1);
-  itemsPerPage     = signal(25);
+  currentPage = signal(1);
+  itemsPerPage = signal(25);
   totalServerItems = signal(0);
   serverTotalPages = signal(0);
 
   /* ── Filtros ──────────────────────────────────── */
-  guiaFilter   = signal('');
+  guiaFilter = signal('');
   estadoFilter = signal<LifecycleStatus | 'all'>('all');
 
   /* ── Computed ─────────────────────────────────── */
@@ -87,7 +111,7 @@ export class BandejaComponent implements OnInit {
   });
 
   pageNumbers = computed(() => {
-    const total   = this.totalPages();
+    const total = this.totalPages();
     const current = this.currentPage();
     if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
     const pages: (number | '...')[] = [1];
@@ -100,44 +124,44 @@ export class BandejaComponent implements OnInit {
     return pages;
   });
 
-  /* ── Opciones estáticas ──────────────────────── */
+  /* ── Opciones estáticas ───────────────────────── */
   estadoOptions: { value: LifecycleStatus | 'all'; label: string }[] = [
-    { value: 'all',            label: 'Todos los estados' },
-    { value: 'DETECTADO',      label: 'Detectado' },
-    { value: 'ACTUALIZADO',    label: 'Actualizado' },
-    { value: 'EN_REVISION',    label: 'En revisión' },
-    { value: 'COMPLETADO',     label: 'Completado' },
+    { value: 'all', label: 'Todos (sin anulados)' },
+    { value: 'DETECTADO', label: 'Detectado' },
+    { value: 'ACTUALIZADO', label: 'Actualizado' },
+    { value: 'EN_REVISION', label: 'En revisión' },
+    { value: 'COMPLETADO', label: 'Completado' },
     { value: 'ASIGNADO_FOLIO', label: 'Asignado folio' },
-    { value: 'FACTURADO',      label: 'Facturado' },
-    { value: 'ANULADO',        label: 'Anulado' },
+    { value: 'FACTURADO', label: 'Facturado' },
+    { value: 'ANULADO', label: 'Anulado' },
   ];
   itemsPerPageOptions = [10, 25, 50, 100];
 
-  /* ── Helpers de template ─────────────────────── */
+  /* ── Helpers de template ──────────────────────── */
   readonly ESTADO_LABELS = ESTADO_LABELS;
-  readonly ESTADO_BADGE  = ESTADO_BADGE;
-  readonly ESTADO_DOT    = ESTADO_DOT;
-  readonly ESTADO_HINT   = ESTADO_HINT;
+  readonly ESTADO_BADGE = ESTADO_BADGE;
+  readonly ESTADO_DOT = ESTADO_DOT;
+  readonly ESTADO_HINT = ESTADO_HINT;
 
   constructor(
-    private auth:   AuthService,
+    private auth: AuthService,
     private cflApi: CflApiService,
-    private router: Router,
   ) {}
 
   ngOnInit(): void {
+    this._loadAuthContext();
     this.loadFletes();
   }
 
-  /* ── Carga de datos ──────────────────────────── */
+  /* ── Carga de datos ───────────────────────────── */
   loadFletes(): void {
     this.loading.set(true);
     this.selectedIds.set(new Set());
 
-    const page      = this.currentPage();
+    const page = this.currentPage();
     const page_size = this.itemsPerPage();
-    const search    = this.guiaFilter().trim() || undefined;
-    const estado    = this.estadoFilter() !== 'all' ? this.estadoFilter() : undefined;
+    const search = this.guiaFilter().trim() || undefined;
+    const estado = this.estadoFilter() !== 'all' ? this.estadoFilter() : undefined;
 
     if (this.activeTab() === 'candidatos') {
       this.cflApi.getMissingFletes({ page, page_size, search }).subscribe({
@@ -148,12 +172,13 @@ export class BandejaComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          this._showToast(err?.error?.error ?? 'Error cargando candidatos SAP', true);
           this.loading.set(false);
+          if (this._handleAuthorizationError(err)) return;
+          this._showToast(err?.error?.error ?? 'Error cargando candidatos SAP', true);
         },
       });
     } else {
-      this.cflApi.getCompletosSinFolio({ page, page_size, estado }).subscribe({
+      this.cflApi.getCompletosSinFolio({ page, page_size, search, estado }).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as FleteEnCursoRow[]).map(adaptFleteEnCurso));
           this.totalServerItems.set(res.pagination.total);
@@ -161,14 +186,15 @@ export class BandejaComponent implements OnInit {
           this.loading.set(false);
         },
         error: (err) => {
-          this._showToast(err?.error?.error ?? 'Error cargando fletes en curso', true);
           this.loading.set(false);
+          if (this._handleAuthorizationError(err)) return;
+          this._showToast(err?.error?.error ?? 'Error cargando fletes en curso', true);
         },
       });
     }
   }
 
-  /* ── Tabs ────────────────────────────────────── */
+  /* ── Tabs ─────────────────────────────────────── */
   setTab(tab: 'candidatos' | 'en_curso'): void {
     if (this.activeTab() === tab) return;
     this.activeTab.set(tab);
@@ -178,7 +204,7 @@ export class BandejaComponent implements OnInit {
     this.loadFletes();
   }
 
-  /* ── Filtros ─────────────────────────────────── */
+  /* ── Filtros ──────────────────────────────────── */
   applyFilters(): void {
     this.currentPage.set(1);
     this.loadFletes();
@@ -195,7 +221,7 @@ export class BandejaComponent implements OnInit {
     return this.guiaFilter() !== '' || this.estadoFilter() !== 'all';
   }
 
-  /* ── Paginación ──────────────────────────────── */
+  /* ── Paginación ───────────────────────────────── */
   prevPage(): void {
     if (this.currentPage() > 1) {
       this.currentPage.update(p => p - 1);
@@ -252,35 +278,141 @@ export class BandejaComponent implements OnInit {
     this.selectedIds.set(new Set());
   }
 
-  /* ── Acciones de flete ───────────────────────── */
-  ingresarFlete(flete: FleteTabla): void {
-    if (!flete.idSapEntrega) return;
-    this.cflApi.ingresarFletePendiente(flete.idSapEntrega).subscribe({
-      next: () => {
-        this._showToast('Flete ingresado correctamente');
-        this.loadFletes();
-      },
-      error: (err) => this._showToast(err?.error?.error ?? 'Error al ingresar flete', true),
-    });
-  }
+  /* ── Acciones de flete ────────────────────────── */
+  openViewModal(flete: FleteTabla): void {
+    if (!this.canViewFlete()) {
+      this._showActionBlockedToast();
+      return;
+    }
 
-  anularFlete(flete: FleteTabla): void {
-    if (!flete.idCabeceraFlete) return;
-    this.cflApi.anularFlete(flete.idCabeceraFlete).subscribe({
-      next: () => {
-        this._showToast('Flete anulado');
-        this.loadFletes();
-      },
-      error: (err) => this._showToast(err?.error?.error ?? 'Error al anular flete', true),
-    });
-  }
-
-  /* ── Modal edición ────────────────────────────── */
-  openEditModal(flete: FleteTabla | null): void {
+    this.editModalMode.set('view');
     this.editModalFlete.set(flete);
     this.editModalVisible.set(true);
   }
 
+  openEditModal(flete: FleteTabla | null): void {
+    if (!this.canEditForFlete(flete)) {
+      this._showActionBlockedToast();
+      return;
+    }
+
+    this.editModalMode.set('edit');
+    this.editModalFlete.set(flete);
+    this.editModalVisible.set(true);
+  }
+
+  openConfirmAction(action: ConfirmActionType, flete: FleteTabla): void {
+    if (action === 'descartar' && !this.canDescartar()) {
+      this._showActionBlockedToast();
+      return;
+    }
+
+    if (action === 'anular' && !this.canAnularFlete(flete)) {
+      this._showActionBlockedToast();
+      return;
+    }
+
+    this.confirmActionType.set(action);
+    this.confirmActionFlete.set(flete);
+    this.confirmActionMotivo.set('');
+    this.confirmActionSaving.set(false);
+    this.confirmActionVisible.set(true);
+  }
+
+  closeConfirmAction(): void {
+    if (this.confirmActionSaving()) return;
+    this.confirmActionVisible.set(false);
+    this.confirmActionType.set(null);
+    this.confirmActionFlete.set(null);
+    this.confirmActionMotivo.set('');
+  }
+
+  confirmActionTitle(): string {
+    return this.confirmActionType() === 'anular' ? 'Confirmar anulación' : 'Confirmar descarte';
+  }
+
+  confirmActionSubmitLabel(): string {
+    if (this.confirmActionSaving()) {
+      return this.confirmActionType() === 'anular' ? 'Anulando...' : 'Descartando...';
+    }
+    return this.confirmActionType() === 'anular' ? 'Anular flete' : 'Descartar ingreso SAP';
+  }
+
+  confirmActionDescription(): string {
+    const flete = this.confirmActionFlete();
+    const guia = flete?.numeroGuia || '-';
+    if (this.confirmActionType() === 'anular') {
+      return `Se anulará el flete ${guia}. Ingresa un motivo para continuar.`;
+    }
+    return `Se descartará la entrega SAP ${guia}. Ingresa un motivo para continuar.`;
+  }
+
+  confirmActionPlaceholder(): string {
+    return this.confirmActionType() === 'anular'
+      ? 'Motivo de anulación'
+      : 'Motivo de descarte';
+  }
+
+  onConfirmMotivoChange(value: string): void {
+    this.confirmActionMotivo.set(value);
+  }
+
+  ejecutarConfirmacionAccion(): void {
+    const action = this.confirmActionType();
+    const flete = this.confirmActionFlete();
+    if (!action || !flete) return;
+
+    const motivo = this.confirmActionMotivo().trim();
+    if (!motivo) {
+      this._showToast('Debes ingresar un motivo para continuar', true);
+      return;
+    }
+
+    this.confirmActionSaving.set(true);
+
+    if (action === 'descartar') {
+      if (!flete.idSapEntrega) {
+        this.confirmActionSaving.set(false);
+        return;
+      }
+
+      this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo }).subscribe({
+        next: () => {
+          this.confirmActionSaving.set(false);
+          this.closeConfirmAction();
+          this._showToast('Ingreso SAP descartado');
+          this.loadFletes();
+        },
+        error: (err) => {
+          this.confirmActionSaving.set(false);
+          if (this._handleAuthorizationError(err)) return;
+          this._showToast(err?.error?.error ?? 'Error al descartar ingreso SAP', true);
+        },
+      });
+      return;
+    }
+
+    if (!flete.idCabeceraFlete) {
+      this.confirmActionSaving.set(false);
+      return;
+    }
+
+    this.cflApi.anularFlete(flete.idCabeceraFlete, { motivo }).subscribe({
+      next: () => {
+        this.confirmActionSaving.set(false);
+        this.closeConfirmAction();
+        this._showToast('Flete anulado');
+        this.loadFletes();
+      },
+      error: (err) => {
+        this.confirmActionSaving.set(false);
+        if (this._handleAuthorizationError(err)) return;
+        this._showToast(err?.error?.error ?? 'Error al anular flete', true);
+      },
+    });
+  }
+
+  /* ── Modal edición ────────────────────────────── */
   onEditGuardado(): void {
     this.editModalVisible.set(false);
     this._showToast('Flete guardado correctamente');
@@ -293,6 +425,11 @@ export class BandejaComponent implements OnInit {
 
   /* ── Asignación de folio ──────────────────────── */
   asignarFolioSeleccionados(): void {
+    if (!this.canAssignFolio()) {
+      this._showActionBlockedToast();
+      return;
+    }
+
     const ids = [...this.selectedIds()]
       .filter(id => id.startsWith('cab-'))
       .map(id => Number(id.replace('cab-', '')));
@@ -305,7 +442,10 @@ export class BandejaComponent implements OnInit {
         this.selectedIds.set(new Set());
         this.loadFletes();
       },
-      error: (err) => this._showToast(err?.error?.error ?? 'Error asignando folio', true),
+      error: (err) => {
+        if (this._handleAuthorizationError(err)) return;
+        this._showToast(err?.error?.error ?? 'Error asignando folio', true);
+      },
     });
   }
 
@@ -314,19 +454,54 @@ export class BandejaComponent implements OnInit {
     this.auth.logout();
   }
 
-  /* ── Role checks ─────────────────────────────── */
+  /* ── Permisos / roles ─────────────────────────── */
+  canViewFlete(): boolean {
+    return this._canUseByPermissions(['fletes.candidatos.view', 'fletes.editar', 'fletes.crear']);
+  }
+
+  canEditForFlete(flete: FleteTabla | null): boolean {
+    if (!this._hasValidAuthState()) return false;
+    if (!flete) {
+      return this._canUseByPermissions(['fletes.editar', 'fletes.crear']);
+    }
+    if (flete.kind === 'candidato') {
+      return this._canUseByPermissions(['fletes.crear', 'fletes.editar']);
+    }
+    return this._canUseByPermissions(['fletes.editar']);
+  }
+
   canAssignFolio(): boolean {
-    return ['autorizador', 'administrador'].includes(this.userRole);
+    if (!this._hasValidAuthState()) return false;
+    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
+    return this._canUseByPermissions(['folios.asignar', 'folios.admin']);
   }
 
   canAnular(): boolean {
-    return ['autorizador', 'administrador'].includes(this.userRole);
+    if (!this._hasValidAuthState()) return false;
+    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
+    return this._canUseByPermissions(['fletes.anular']);
   }
 
-  /* ── Formatting ──────────────────────────────── */
+  canDescartar(): boolean {
+    if (!this._hasValidAuthState()) return false;
+    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
+    return this._canUseByPermissions(['fletes.sap.descartar']);
+  }
+
+  canAnularFlete(flete: FleteTabla): boolean {
+    if (!this.canAnular()) return false;
+    if (flete.kind !== 'en_curso') return false;
+    return flete.estado !== 'ANULADO' && flete.estado !== 'FACTURADO';
+  }
+
+  areActionsBlocked(): boolean {
+    return !this._hasValidAuthState();
+  }
+
+  /* ── Formatting ───────────────────────────────── */
   formatMonto(monto: number): string {
     return new Intl.NumberFormat('es-CL', {
-      style:    'currency',
+      style: 'currency',
       currency: 'CLP',
       maximumFractionDigits: 0,
     }).format(monto);
@@ -342,5 +517,101 @@ export class BandejaComponent implements OnInit {
     this.toastMsg.set(msg);
     this.toastIsError.set(isError);
     this._toastTimer = setTimeout(() => this.toastMsg.set(''), 4000);
+  }
+
+  private _showActionBlockedToast(): void {
+    if (!this.auth.isLoggedIn()) {
+      this._showToast('Sesión expirada. Inicia sesión nuevamente.', true);
+      this.auth.logout();
+      return;
+    }
+
+    if (!this.authContextLoaded()) {
+      this._showToast('No se pudo validar tu perfil. Acción bloqueada por seguridad.', true);
+      return;
+    }
+
+    this._showToast('No tienes permisos para ejecutar esta acción', true);
+  }
+
+  private _handleAuthorizationError(err: { status?: number; error?: { error?: string } }): boolean {
+    const status = Number(err?.status || 0);
+    if (status === 401) {
+      this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
+      this.auth.logout();
+      return true;
+    }
+
+    if (status === 403) {
+      this._showToast(err?.error?.error ?? 'No tienes permisos para ejecutar esta acción', true);
+      this._loadAuthContext();
+      return true;
+    }
+
+    return false;
+  }
+
+  private _loadAuthContext(): void {
+    this.authContextLoading.set(true);
+
+    this.cflApi.getAuthContext().subscribe({
+      next: (ctx) => {
+        const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
+          .map((role) => this._normalizeText(role))
+          .filter((role): role is string => Boolean(role));
+        const permissions = (ctx.data.permissions ?? [])
+          .map((permission) => this._normalizeText(permission))
+          .filter((permission): permission is string => Boolean(permission));
+
+        this.authRoles.set(Array.from(new Set(roles)));
+        this.authPermissions.set(new Set(permissions));
+        this.authContextLoaded.set(true);
+        this.authContextLoading.set(false);
+      },
+      error: (err) => {
+        this.authRoles.set([]);
+        this.authPermissions.set(new Set());
+        this.authContextLoaded.set(false);
+        this.authContextLoading.set(false);
+
+        if (this._handleAuthorizationError(err)) return;
+        this._showToast('No fue posible cargar permisos de usuario. Acciones bloqueadas.', true);
+      },
+    });
+  }
+
+  private _hasValidAuthState(): boolean {
+    return this.auth.isLoggedIn() && this.authContextLoaded() && !this.authContextLoading();
+  }
+
+  private _canUseByPermissions(permissionKeys: string[]): boolean {
+    if (!this._hasValidAuthState()) return false;
+    if (this._isAdminContext()) return true;
+    return permissionKeys.some((key) => this._hasPermission(key));
+  }
+
+  private _isAdminContext(): boolean {
+    return this.authRoles().includes('administrador')
+      || this.authRoles().includes('admin')
+      || this._hasPermission('mantenedores.admin');
+  }
+
+  private _hasPermission(permissionKey: string): boolean {
+    return this.authPermissions().has(this._normalizeText(permissionKey) || '');
+  }
+
+  private _hasAnyRole(roles: string[]): boolean {
+    const roleSet = new Set(this.authRoles());
+    return roles.some((role) => roleSet.has((this._normalizeText(role) || '')));
+  }
+
+  private _normalizeText(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized || null;
+  }
+
+  private _normalizedUserRole(): string {
+    return this._normalizeText(this.userRole) || '';
   }
 }

@@ -154,7 +154,12 @@
         </button>
 
         <!-- New manual flete -->
-        <button type="button" (click)="openEditModal(null)" class="btn-primary">
+        <button
+          type="button"
+          (click)="openEditModal(null)"
+          [disabled]="!canEditForFlete(null)"
+          class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
@@ -414,28 +419,29 @@
 
                     <!-- Acciones -->
                     <td class="table-cell text-center">
-                      <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-
-                        <!-- Ingresar (solo candidatos que pueden ingresar) -->
-                        @if (flete.kind === 'candidato' && flete.puedeIngresar) {
-                          <button
-                            type="button"
-                            (click)="ingresarFlete(flete)"
-                            class="btn-icon text-forest-600 hover:text-forest-800"
-                            title="Ingresar flete"
-                          >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M12 4v16m8-8H4"/>
-                            </svg>
-                          </button>
-                        }
+                      <div class="flex items-center justify-center gap-1">
+                        <!-- Ver -->
+                        <button
+                          type="button"
+                          (click)="openViewModal(flete)"
+                          [disabled]="!canViewFlete() || areActionsBlocked()"
+                          class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Ver información del flete"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                        </button>
 
                         <!-- Editar -->
                         <button
                           type="button"
                           (click)="openEditModal(flete)"
-                          class="btn-icon"
+                          [disabled]="!canEditForFlete(flete) || areActionsBlocked()"
+                          class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
                           title="Editar flete"
                         >
                           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -444,13 +450,30 @@
                           </svg>
                         </button>
 
-                        <!-- Anular (role-restricted, solo en_curso) -->
-                        @if (flete.kind === 'en_curso' && canAnular() && flete.estado !== 'ANULADO' && flete.estado !== 'FACTURADO') {
+                        <!-- Descartar (solo candidatos) -->
+                        @if (flete.kind === 'candidato' && canDescartar()) {
                           <button
                             type="button"
-                            (click)="anularFlete(flete)"
-                            class="btn-danger !px-2 !py-2"
-                            title="Anular flete"
+                            (click)="openConfirmAction('descartar', flete)"
+                            [disabled]="areActionsBlocked()"
+                            class="btn-danger !px-2 !py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Descartar ingreso SAP"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                            </svg>
+                          </button>
+                        }
+
+                        <!-- Anular (solo en curso, por permiso) -->
+                        @if (flete.kind === 'en_curso' && canAnular()) {
+                          <button
+                            type="button"
+                            (click)="openConfirmAction('anular', flete)"
+                            [disabled]="!canAnularFlete(flete) || areActionsBlocked()"
+                            class="btn-danger !px-2 !py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            [title]="canAnularFlete(flete) ? 'Anular flete' : 'Este flete no se puede anular'"
                           >
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -576,12 +599,123 @@
   </div>
 }
 
+<!-- ════════════════════════════════════════════════════════════
+     CONFIRMACION DESCARTE / ANULACION
+     ════════════════════════════════════════════════════════════ -->
+@if (confirmActionVisible()) {
+  <div
+    class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in"
+    (click)="closeConfirmAction()"
+  >
+    <div
+      class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden"
+      (click)="$event.stopPropagation()"
+    >
+      <!-- Header con color según acción -->
+      <div
+        class="px-6 py-5"
+        [class]="confirmActionType() === 'anular'
+          ? 'bg-gradient-to-r from-red-600 to-red-500'
+          : 'bg-gradient-to-r from-amber-500 to-amber-400'"
+      >
+        <div class="flex items-center gap-3">
+          @if (confirmActionType() === 'anular') {
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+              </svg>
+            </div>
+          } @else {
+            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </div>
+          }
+          <div>
+            <h3 class="text-base font-bold text-white">{{ confirmActionTitle() }}</h3>
+            <p class="mt-0.5 text-xs text-white/80">{{ confirmActionDescription() }}</p>
+          </div>
+          <button
+            type="button"
+            (click)="closeConfirmAction()"
+            [disabled]="confirmActionSaving()"
+            class="ml-auto rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-40"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-forest-700 mb-2">
+            Motivo <span class="text-red-500">*</span>
+          </label>
+          <textarea
+            class="cfl-input min-h-[100px] resize-y"
+            [placeholder]="confirmActionPlaceholder()"
+            [disabled]="confirmActionSaving()"
+            [ngModel]="confirmActionMotivo()"
+            (ngModelChange)="onConfirmMotivoChange($event)"
+            maxlength="200"
+          ></textarea>
+          <div class="flex items-center justify-between mt-1.5">
+            <p class="text-[11px] text-forest-400">Ingresa el motivo para registrar en auditoría.</p>
+            <span
+              class="text-[11px] tabular-nums"
+              [class]="confirmActionMotivo().length > 180 ? 'text-red-500 font-semibold' : 'text-forest-400'"
+            >
+              {{ confirmActionMotivo().length }}/200
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-end gap-3 border-t border-forest-100 px-6 py-4 bg-forest-50/50">
+        <button
+          type="button"
+          (click)="closeConfirmAction()"
+          [disabled]="confirmActionSaving()"
+          class="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="ejecutarConfirmacionAccion()"
+          [disabled]="confirmActionSaving() || !confirmActionMotivo().trim()"
+          class="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+          [class]="confirmActionType() === 'anular'
+            ? 'bg-red-600 hover:bg-red-700'
+            : 'bg-amber-500 hover:bg-amber-600'"
+        >
+          @if (confirmActionSaving()) {
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          }
+          {{ confirmActionSubmitLabel() }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- ════════════════════════════════════════════════════
      MODAL EDICIÓN DE FLETE
      ════════════════════════════════════════════════════ -->
 <app-edit-flete-modal
   [flete]="editModalFlete()"
   [visible]="editModalVisible()"
+  [mode]="editModalMode()"
   (guardado)="onEditGuardado()"
   (cerrado)="onEditCerrado()"
 />

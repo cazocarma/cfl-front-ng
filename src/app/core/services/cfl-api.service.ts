@@ -47,6 +47,20 @@ export class CflApiService {
     );
   }
 
+  descartarFletePendiente(id: number, body: { motivo?: string | null } = {}): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/descartar`,
+      { motivo: body.motivo ?? null }
+    );
+  }
+
+  restaurarFletePendiente(id: number): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/restaurar`,
+      {}
+    );
+  }
+
   crearCabeceraDesdeCandidato(id: number, body: unknown): Observable<unknown> {
     return this.http.post<unknown>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/crear`,
@@ -61,8 +75,10 @@ export class CflApiService {
     );
   }
 
-  anularFlete(id: number): Observable<unknown> {
-    return this.http.post<unknown>(`${API_BASE}/api/dashboard/fletes/${id}/anular`, {});
+  anularFlete(id: number, body: { motivo?: string | null } = {}): Observable<unknown> {
+    return this.http.post<unknown>(`${API_BASE}/api/dashboard/fletes/${id}/anular`, {
+      motivo: body.motivo ?? null,
+    });
   }
 
   // ── Fletes CRUD ───────────────────────────────────────────────────────────
@@ -178,8 +194,22 @@ export class CflApiService {
   }
 
   // ── Auth context ──────────────────────────────────────────────────────────
-  getAuthContext(): Observable<{ data: { role: string; permissions: string[] } }> {
-    return this.http.get<{ data: { role: string; permissions: string[] } }>(
+  getAuthContext(): Observable<{
+    data: {
+      role: string | null;
+      roles: string[];
+      permissions: string[];
+      source: string | null;
+    };
+  }> {
+    return this.http.get<{
+      data: {
+        role: string | null;
+        roles: string[];
+        permissions: string[];
+        source: string | null;
+      };
+    }>(
       `${API_BASE}/api/auth/context`
     );
   }

@@ -72,10 +72,10 @@ body {
 
   /* Sidebar nav item */
   .nav-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-forest-300 transition-all duration-150 hover:bg-forest-800 hover:text-white cursor-pointer;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-forest-300 hover:bg-forest-800 hover:text-white cursor-pointer;
   }
   .nav-item-active {
-    @apply bg-forest-700 text-white shadow-md;
+    @apply bg-forest-700 text-white;
   }
 
   /* Input */
