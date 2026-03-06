@@ -1,24 +1,30 @@
-<!-- ════════════════════════════════════════════════════
-     CFL Bandeja — Angular 18 + Tailwind + Forest palette
-     ════════════════════════════════════════════════════ -->
+<!-- �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
+     CFL Bandeja � Angular 18 + Tailwind + Forest palette
+     �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"� -->
+<!-- translate-x-0 -translate-x-full (Tailwind safelist hint) -->
 <div class="flex h-screen overflow-hidden bg-forest-50 font-sans">
 
-  <!-- ── SIDEBAR ───────────────────────────────────── -->
+  <!-- Mobile overlay -->
+  @if (mobileSidebarOpen()) {
+    <div class="fixed inset-0 z-40 bg-black/50 md:hidden" (click)="closeMobileSidebar()" aria-hidden="true"></div>
+  }
+
+  <!-- ���� SIDEBAR �������������������������������������������������������������������������� -->
   <aside
-    class="flex w-64 flex-col flex-shrink-0 overflow-hidden"
+    class="fixed inset-y-0 left-0 z-50 flex w-64 flex-shrink-0 flex-col overflow-hidden transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:z-auto"
+    [ngClass]="mobileSidebarOpen() ? 'translate-x-0 shadow-2xl' : '-translate-x-full'"
     style="background: linear-gradient(180deg, #102614 0%, #1e4424 60%, #25522b 100%);"
   >
     <!-- Logo -->
-    <div class="flex items-center gap-3 px-5 py-6 border-b border-forest-800">
-      <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-forest-500/30 ring-1 ring-forest-400/40">
-        <svg class="h-6 w-6 text-forest-300" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20C19 20 22 3 22 3c-1 2-8 2-8 2 0 0-4-2-8 0-6 3-6 9-6 9s2-1 4-1c0 0 1-3 7-3z"/>
-        </svg>
+    <div class="flex items-center gap-2 border-b border-forest-800 px-4 py-4">
+      <img src="/logo.png" alt="Greenvic" class="h-10 w-10 flex-shrink-0 rounded-xl object-contain bg-white/10 p-1" />
+      <div class="min-w-0 flex-1">
+        <div class="text-base font-bold tracking-tight text-white">Greenvic</div>
+        <div class="text-[10px] uppercase tracking-wide text-forest-400 leading-none">Control de Fletes</div>
       </div>
-      <div>
-        <div class="text-base font-bold text-white tracking-tight">CFL</div>
-        <div class="text-[10px] text-forest-400 leading-none tracking-wide uppercase">Control de Fletes</div>
-      </div>
+      <button type="button" (click)="closeMobileSidebar()" class="ml-auto flex-shrink-0 rounded-lg p-1.5 text-forest-400 hover:bg-forest-800 hover:text-white transition md:hidden" aria-label="Cerrar menu">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
 
     <!-- Navigation -->
@@ -26,7 +32,7 @@
       <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-forest-600">Menú principal</p>
 
       <!-- Bandeja (active) -->
-      <a routerLink="/bandeja" class="nav-item nav-item-active">
+      <a routerLink="/bandeja" class="nav-item nav-item-active" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
@@ -37,16 +43,16 @@
         </span>
       </a>
 
-      <a routerLink="/facturas" class="nav-item">
+      <a routerLink="/facturas" class="nav-item" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
         </svg>
         <span>Facturas</span>
-        <!-- PARTE 7: Facturas — pendiente -->
+        <!-- PARTE 7: Facturas � pendiente -->
       </a>
 
-      <a routerLink="/planillas-sap" class="nav-item">
+      <a routerLink="/planillas-sap" class="nav-item" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -54,7 +60,7 @@
         <span>Planillas SAP</span>
       </a>
 
-      <a routerLink="/mantenedores" class="nav-item">
+      <a routerLink="/mantenedores" class="nav-item" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -66,7 +72,7 @@
       <div class="my-3 border-t border-forest-800"></div>
       <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-forest-600">Análisis</p>
 
-      <a routerLink="/estadisticas" class="nav-item">
+      <a routerLink="/estadisticas" class="nav-item" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -74,7 +80,7 @@
         <span>Estadísticas</span>
       </a>
 
-      <a routerLink="/auditoria" class="nav-item">
+      <a routerLink="/auditoria" class="nav-item" (click)="closeMobileSidebar()">
         <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -108,14 +114,16 @@
     </div>
   </aside>
 
-  <!-- ── MAIN CONTENT ───────────────────────────────── -->
-  <main class="flex flex-1 flex-col overflow-hidden">
+  <!-- ���� MAIN CONTENT ������������������������������������������������������������������ -->
+  <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
 
     <!-- Top bar -->
-    <header class="flex flex-shrink-0 items-center justify-between border-b border-forest-100 bg-white px-6 py-4 shadow-sm">
-      <div>
-        <h1 class="text-lg font-bold text-forest-900">Bandeja de Fletes</h1>
-        <p class="text-xs text-forest-500">Gestión y seguimiento de entregas SAP</p>
+    <header class="flex flex-shrink-0 items-center gap-3 border-b border-forest-100 bg-white px-4 py-4 shadow-sm">
+      <!-- Hamburger: solo mobile -->
+      <button type="button" (click)="toggleMobileSidebar()" class="flex-shrink-0 rounded-lg p-2 text-forest-600 transition hover:bg-forest-100 md:hidden" aria-label="Abrir menu"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="min-w-0 flex-1">
+        <h1 class="truncate text-lg font-bold text-forest-900">Bandeja de Fletes</h1>
+        <p class="hidden text-xs text-forest-500 sm:block">Gestión y seguimiento de entregas SAP</p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -143,14 +151,14 @@
           title="Actualizar"
         >
           <svg
-            class="h-4 w-4"
+            class="h-5 w-5"
             [class.animate-spin]="loading()"
             fill="none" stroke="currentColor" viewBox="0 0 24 24"
           >
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          Actualizar
+          <span class="hidden sm:inline">Actualizar</span>
         </button>
 
         <!-- New manual flete -->
@@ -169,9 +177,9 @@
     </header>
 
     <!-- Scrollable content area -->
-    <div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+    <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-5">
 
-      <!-- ── TABS ─────────────────────────────────── -->
+      <!-- ���� TABS ���������������������������������������������������������������������� -->
       <div class="flex gap-1 border-b border-forest-200">
         <button
           type="button"
@@ -205,7 +213,7 @@
         </button>
       </div>
 
-      <!-- ── LOADING STATE ─────────────────────────── -->
+      <!-- ���� LOADING STATE ������������������������������������������������������ -->
       @if (loading()) {
         <div class="flex flex-col items-center justify-center py-20 animate-fade-in">
           <div class="relative mb-4">
@@ -216,12 +224,12 @@
               </svg>
             </div>
           </div>
-          <p class="text-sm font-medium text-forest-600">Cargando fletes…</p>
+          <p class="text-sm font-medium text-forest-600">Cargando fletes⬦</p>
           <p class="text-xs text-forest-400 mt-1">Consultando base de datos</p>
         </div>
       }
 
-      <!-- ── TABLE CARD ────────────────────────────── -->
+      <!-- ���� TABLE CARD ������������������������������������������������������������ -->
       @if (!loading()) {
         <div class="rounded-2xl bg-white shadow-nature overflow-hidden animate-fade-in">
 
@@ -241,7 +249,7 @@
                   <input
                     type="text"
                     class="cfl-input pl-9 w-44"
-                    placeholder="Guía / N° entrega…"
+                    placeholder="Guía / N° entrega⬦"
                     [ngModel]="guiaFilter()"
                     (ngModelChange)="guiaFilter.set($event)"
                     (keyup.enter)="applyFilters()"
@@ -323,7 +331,7 @@
                   <th class="table-header-cell">Fecha</th>
                   <th class="table-header-cell text-right">Monto</th>
                   <th class="table-header-cell">Estado</th>
-                  <th class="table-header-cell text-center">Acciones</th>
+                  <th class="table-header-cell text-center sticky right-0" style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">Acciones</th>
                 </tr>
               </thead>
 
@@ -353,7 +361,7 @@
 
                     <!-- Folio -->
                     <td class="table-cell">
-                      @if (flete.folio !== '—') {
+                      @if (flete.folio !== '�') {
                         <span class="inline-flex items-center gap-1 rounded-md bg-forest-100 px-2 py-0.5 text-xs font-semibold text-forest-800">
                           <svg class="h-3 w-3 text-forest-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -411,14 +419,19 @@
                         <span class="badge-dot" [class]="ESTADO_DOT[flete.estado]"></span>
                         {{ ESTADO_LABELS[flete.estado] }}
                       </span>
-                      <!-- Hint para candidatos que no pueden ingresar -->
-                      @if (flete.kind === 'candidato' && !flete.puedeIngresar && flete.motivoNoIngreso) {
-                        <div class="text-[10px] text-amber-600 mt-0.5">{{ flete.motivoNoIngreso }}</div>
+                      @if (flete.kind === 'en_curso') {
+                        @if (flete.estado === 'EN_REVISION' || flete.estado === 'DETECTADO' || flete.estado === 'ACTUALIZADO') {
+                          <div class="text-[10px] text-amber-600 mt-0.5">Falta completar información</div>
+                        } @else if (flete.estado === 'COMPLETADO') {
+                          <div class="text-[10px] text-forest-500 mt-0.5">Falta asignar folio</div>
+                        } @else if (flete.estado === 'ASIGNADO_FOLIO') {
+                          <div class="text-[10px] text-teal-600 mt-0.5">Disponible para facturar</div>
+                        }
                       }
                     </td>
 
                     <!-- Acciones -->
-                    <td class="table-cell text-center">
+                    <td class="table-cell text-center sticky right-0 bg-white group-hover:bg-forest-50">
                       <div class="flex items-center justify-center gap-1">
                         <!-- Ver -->
                         <button
@@ -519,12 +532,12 @@
             </table>
           </div>
 
-          <!-- ── PAGINATION ──────────────────────────── -->
+          <!-- ���� PAGINATION �������������������������������������������������������� -->
           @if (totalPages() > 1) {
             <div class="flex items-center justify-between border-t border-forest-100 px-5 py-3">
               <p class="text-xs text-forest-500">
                 Mostrando
-                {{ (currentPage() - 1) * itemsPerPage() + 1 }}–{{ paginationEnd() }}
+                {{ (currentPage() - 1) * itemsPerPage() + 1 }}�{{ paginationEnd() }}
                 de {{ totalItems() }}
               </p>
 
@@ -542,7 +555,7 @@
 
                 @for (p of pageNumbers(); track p) {
                   @if (p === '...') {
-                    <span class="px-2 text-forest-400 text-sm">…</span>
+                    <span class="px-2 text-forest-400 text-sm">⬦</span>
                   } @else {
                     <button
                       type="button"
@@ -578,9 +591,9 @@
 
 </div><!-- /layout -->
 
-<!-- ════════════════════════════════════════════════════
+<!-- �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
      TOAST NOTIFICATION
-     ════════════════════════════════════════════════════ -->
+     �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"� -->
 @if (toastMsg()) {
   <div
     class="fixed bottom-6 right-6 z-[100] flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg text-sm font-medium animate-slide-down"
@@ -599,9 +612,9 @@
   </div>
 }
 
-<!-- ════════════════════════════════════════════════════════════
+<!-- �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
      CONFIRMACION DESCARTE / ANULACION
-     ════════════════════════════════════════════════════════════ -->
+     �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"� -->
 @if (confirmActionVisible()) {
   <div
     class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in"
@@ -709,9 +722,9 @@
   </div>
 }
 
-<!-- ════════════════════════════════════════════════════
-     MODAL EDICIÓN DE FLETE
-     ════════════════════════════════════════════════════ -->
+<!-- �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
+     MODAL EDICI�N DE FLETE
+     �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"� -->
 <app-edit-flete-modal
   [flete]="editModalFlete()"
   [visible]="editModalVisible()"

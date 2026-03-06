@@ -10,15 +10,15 @@
 
 @if (config()) {
   <!-- Top bar -->
-  <header class="flex flex-shrink-0 items-center gap-3 border-b border-forest-100 bg-white px-6 py-4 shadow-sm">
+  <header class="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-forest-100 bg-white px-4 py-3 shadow-sm sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-4">
     <button type="button" (click)="goBack()" class="btn-ghost !px-2 !py-2" title="Volver">
       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
     </button>
-    <div class="flex-1">
-      <h1 class="text-lg font-bold text-forest-900">{{ config()!.title }}</h1>
-      <p class="text-xs text-forest-500">{{ config()!.description }}</p>
+    <div class="min-w-0 flex-1">
+      <h1 class="truncate text-lg font-bold text-forest-900">{{ config()!.title }}</h1>
+      <p class="truncate text-xs text-forest-500">{{ config()!.description }}</p>
     </div>
     @if (isAdminOrAutorizador || canEdit()) {
       <button type="button" (click)="openCreate()" class="btn-primary">

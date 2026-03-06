@@ -125,7 +125,7 @@ export class SearchableComboboxComponent implements OnChanges {
     if (!value) {
       this.valueChange.emit('');
     }
-    this.openDropdown();
+    this.isOpen = true;
   }
 
   selectOption(option: SearchableOption | null): void {

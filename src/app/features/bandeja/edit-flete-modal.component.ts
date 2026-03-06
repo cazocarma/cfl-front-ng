@@ -138,7 +138,7 @@ export class EditFleteModalComponent implements OnChanges {
   constructor(private fb: FormBuilder, private cflApi: CflApiService) {
     this.form = this.fb.group({
       numero_entrega: [''],
-      guia_remision: [''],
+      guia_remision: ['', Validators.required],
       tipo_movimiento: ['', Validators.required],
       id_tipo_flete: ['', Validators.required],
       id_centro_costo: ['', Validators.required],
@@ -164,7 +164,6 @@ export class EditFleteModalComponent implements OnChanges {
       this._seedBaseForm();
       this._applyFormMode();
       this._loadCatalogos();
-      this._loadFleteContext();
       return;
     }
 
@@ -465,10 +464,12 @@ export class EditFleteModalComponent implements OnChanges {
         this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
         this._applyFallbacks(true);
         this.loadingCatalogos.set(false);
+        this._loadFleteContext();
       },
       error: () => {
         this.errorMsg.set('Error cargando catalogos. Intenta nuevamente.');
         this.loadingCatalogos.set(false);
+        this._loadFleteContext();
       },
     });
   }

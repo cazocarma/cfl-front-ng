@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
+import { API_BASE } from '../config/api-base';
 
 export interface JwtUser {
   id_usuario: number;
@@ -18,7 +19,6 @@ export interface LoginResponse {
 }
 
 const TOKEN_KEY = 'cfl_auth_token';
-const API_BASE  = 'http://localhost:4000';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {

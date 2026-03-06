@@ -1,8 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-
-export const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api-base';
 
 export interface Pagination {
   page: number;

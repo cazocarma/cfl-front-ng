@@ -192,9 +192,18 @@
                   </div>
 
                   <div class="xl:col-span-2">
-                    <label class="field-label">Numero Guia de Remision</label>
-                    <input type="text" formControlName="guia_remision" class="cfl-input" [readOnly]="isReadOnly()" placeholder="Ej: 001234567890" />
-                    @if (getSapGuiaRemision()) {
+                    <label class="field-label">Numero Guia de Remision *</label>
+                    <input
+                      type="text"
+                      formControlName="guia_remision"
+                      class="cfl-input"
+                      [class.border-red-400]="isInvalid('guia_remision')"
+                      [readOnly]="isReadOnly()"
+                      placeholder="Ej: 001234567890"
+                    />
+                    @if (isInvalid('guia_remision')) {
+                      <p class="mt-1 text-xs font-medium text-red-600">Campo requerido</p>
+                    } @else if (getSapGuiaRemision()) {
                       <p class="mt-1 text-[11px] text-forest-500">SAP: {{ getSapGuiaRemision() }}</p>
                     }
                   </div>

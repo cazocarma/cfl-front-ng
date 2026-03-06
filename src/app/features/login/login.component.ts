@@ -35,10 +35,8 @@ import { AuthService } from '../../core/services/auth.service';
           <div class="px-8 pt-10 pb-8 text-center"
                style="background: linear-gradient(160deg, #1e4424 0%, #348040 100%);">
             <!-- Logo -->
-            <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white/15 backdrop-blur mb-4 ring-2 ring-white/20">
-              <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20C19 20 22 3 22 3c-1 2-8 2-8 2 0 0-4-2-8 0-6 3-6 9-6 9s2-1 4-1c0 0 1-3 7-3z"/>
-              </svg>
+            <div class="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white/10 backdrop-blur mb-4 ring-2 ring-white/20 p-2">
+              <img src="/logo.png" alt="Greenvic" class="w-full h-full object-contain" />
             </div>
             <h1 class="text-2xl font-bold text-white tracking-tight">Control de Fletes</h1>
             <p class="mt-1 text-forest-200 text-sm">Greenvic — Plataforma Logística</p>
