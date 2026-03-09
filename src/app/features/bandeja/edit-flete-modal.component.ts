@@ -457,7 +457,7 @@ export class EditFleteModalComponent implements OnChanges {
         this.centroCostoOptions = this._mapOptions(this.centrosCosto, 'id_centro_costo', ['sap_codigo', 'nombre']);
         this.detalleViajeOptions = this._mapOptions(this.detallesViaje, 'id_detalle_viaje', ['descripcion']);
         this.nodoOptions = this._mapOptions(this.nodos, 'id_nodo', ['nombre']);
-        this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['razon_social', 'rut']);
+        this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['sap_codigo', 'razon_social']);
         this.choferOptions = this._mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
         this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
         this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);

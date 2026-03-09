@@ -28,7 +28,7 @@ type ConfirmActionType = 'descartar' | 'anular';
   templateUrl: './bandeja.component.html',
 })
 export class BandejaComponent implements OnInit {
-  /* ‚¨‚¨ User session ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  User session  */
   get userName(): string {
     const u = this.auth.getCurrentUser();
     return u ? (u.nombre ? `${u.nombre} ${u.apellido ?? ''}`.trim() : u.username) : 'Usuario';
@@ -54,52 +54,52 @@ export class BandejaComponent implements OnInit {
     return this.userName.split(' ').map(w => w[0]?.toUpperCase() ?? '').slice(0, 2).join('');
   }
 
-  /* ‚¨‚¨ Tabs ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Tabs  */
   activeTab = signal<'candidatos' | 'en_curso'>('candidatos');
 
-  /* ‚¨‚¨ Data ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Data  */
   allFletes = signal<FleteTabla[]>([]);
   loading = signal(false);
   showUserMenu = signal(false);
   mobileSidebarOpen = signal(false);
 
-  /* ‚¨‚¨ Auth context (dinamico por DB) ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Auth context (dinamico por DB)  */
   authContextLoaded = signal(false);
   authContextLoading = signal(false);
   authPermissions = signal<Set<string>>(new Set());
   authRoles = signal<string[]>([]);
 
-  /* ‚¨‚¨ Toast ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Toast  */
   toastMsg = signal('');
   toastIsError = signal(false);
   private _toastTimer?: ReturnType<typeof setTimeout>;
 
-  /* ‚¨‚¨ Modal edici√≥n / vista ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Modal edici√≥n / vista  */
   editModalFlete = signal<FleteTabla | null>(null);
   editModalVisible = signal(false);
   editModalMode = signal<ModalMode>('edit');
 
-  /* ‚¨‚¨ Confirmaci√≥n descartar/anular ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Confirmaci√≥n descartar/anular  */
   confirmActionVisible = signal(false);
   confirmActionType = signal<ConfirmActionType | null>(null);
   confirmActionFlete = signal<FleteTabla | null>(null);
   confirmActionMotivo = signal('');
   confirmActionSaving = signal(false);
 
-  /* ‚¨‚¨ Selecci√≥n para folio ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Selecci√≥n para folio  */
   selectedIds = signal<Set<string>>(new Set());
 
-  /* ‚¨‚¨ Paginaci√≥n server-side ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Paginaci√≥n server-side  */
   currentPage = signal(1);
   itemsPerPage = signal(25);
   totalServerItems = signal(0);
   serverTotalPages = signal(0);
 
-  /* ‚¨‚¨ Filtros ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Filtros  */
   guiaFilter = signal('');
   estadoFilter = signal<LifecycleStatus | 'all'>('all');
 
-  /* ‚¨‚¨ Computed ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Computed  */
   paginatedFletes = computed(() => this.allFletes());
 
   totalPages = computed(() => this.serverTotalPages() || 1);
@@ -125,7 +125,7 @@ export class BandejaComponent implements OnInit {
     return pages;
   });
 
-  /* ‚¨‚¨ Opciones est√°ticas ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Opciones est√°ticas  */
   estadoOptions: { value: LifecycleStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'Todos (sin anulados)' },
     { value: 'DETECTADO', label: 'Detectado' },
@@ -138,7 +138,7 @@ export class BandejaComponent implements OnInit {
   ];
   itemsPerPageOptions = [10, 25, 50, 100];
 
-  /* ‚¨‚¨ Helpers de template ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Helpers de template  */
   readonly ESTADO_LABELS = ESTADO_LABELS;
   readonly ESTADO_BADGE = ESTADO_BADGE;
   readonly ESTADO_DOT = ESTADO_DOT;
@@ -154,7 +154,7 @@ export class BandejaComponent implements OnInit {
     this.loadFletes();
   }
 
-  /* ‚¨‚¨ Carga de datos ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Carga de datos  */
   loadFletes(): void {
     this.loading.set(true);
     this.selectedIds.set(new Set());
@@ -195,7 +195,7 @@ export class BandejaComponent implements OnInit {
     }
   }
 
-  /* ‚¨‚¨ Tabs ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Tabs  */
   setTab(tab: 'candidatos' | 'en_curso'): void {
     if (this.activeTab() === tab) return;
     this.activeTab.set(tab);
@@ -205,7 +205,7 @@ export class BandejaComponent implements OnInit {
     this.loadFletes();
   }
 
-  /* ‚¨‚¨ Filtros ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Filtros  */
   applyFilters(): void {
     this.currentPage.set(1);
     this.loadFletes();
@@ -222,7 +222,7 @@ export class BandejaComponent implements OnInit {
     return this.guiaFilter() !== '' || this.estadoFilter() !== 'all';
   }
 
-  /* ‚¨‚¨ Paginaci√≥n ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Paginaci√≥n  */
   prevPage(): void {
     if (this.currentPage() > 1) {
       this.currentPage.update(p => p - 1);
@@ -254,7 +254,7 @@ export class BandejaComponent implements OnInit {
     return Math.min(this.currentPage() * this.itemsPerPage(), this.totalItems());
   }
 
-  /* ‚¨‚¨ Selecci√≥n para folio ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Selecci√≥n para folio  */
   toggleSelect(id: string): void {
     const s = new Set(this.selectedIds());
     if (s.has(id)) s.delete(id);
@@ -279,7 +279,7 @@ export class BandejaComponent implements OnInit {
     this.selectedIds.set(new Set());
   }
 
-  /* ‚¨‚¨ Acciones de flete ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Acciones de flete  */
   openViewModal(flete: FleteTabla): void {
     if (!this.canViewFlete()) {
       this._showActionBlockedToast();
@@ -413,7 +413,7 @@ export class BandejaComponent implements OnInit {
     });
   }
 
-  /* ‚¨‚¨ Modal edici√≥n ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Modal edici√≥n  */
   onEditGuardado(): void {
     this.editModalVisible.set(false);
     this._showToast('Flete guardado correctamente');
@@ -424,7 +424,7 @@ export class BandejaComponent implements OnInit {
     this.editModalVisible.set(false);
   }
 
-  /* ‚¨‚¨ Asignaci√≥n de folio ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Asignaci√≥n de folio  */
   asignarFolioSeleccionados(): void {
     if (!this.canAssignFolio()) {
       this._showActionBlockedToast();
@@ -450,7 +450,7 @@ export class BandejaComponent implements OnInit {
     });
   }
 
-  /* ‚¨‚¨ Auth ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Auth  */
 logout(): void {
     this.auth.logout();
   }
@@ -463,7 +463,7 @@ logout(): void {
     this.mobileSidebarOpen.set(false);
   }
 
-  /* ‚¨‚¨ Permisos / roles ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Permisos / roles  */
   canViewFlete(): boolean {
     return this._canUseByPermissions(['fletes.candidatos.view', 'fletes.editar', 'fletes.crear']);
   }
@@ -507,7 +507,7 @@ logout(): void {
     return !this._hasValidAuthState();
   }
 
-  /* ‚¨‚¨ Formatting ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Formatting  */
   formatMonto(monto: number): string {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -520,7 +520,7 @@ logout(): void {
     return f.id;
   }
 
-  /* ‚¨‚¨ Toast ‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨‚¨ */
+  /*  Toast  */
   private _showToast(msg: string, isError = false): void {
     clearTimeout(this._toastTimer);
     this.toastMsg.set(msg);
