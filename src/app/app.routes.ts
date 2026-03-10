@@ -28,6 +28,24 @@ export const routes: Routes = [
         (m) => m.FacturasComponent
       ),
   },
+  // Rutas de subnivel de facturas — DEBEN ir antes del wildcard **
+  // y antes de la ruta genérica /:id para que 'nueva' no se interprete como id
+  {
+    path: 'facturas/nueva',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/facturas/nueva-factura-wizard.component').then(
+        (m) => m.NuevaFacturaWizardComponent
+      ),
+  },
+  {
+    path: 'facturas/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/facturas/factura-detalle.component').then(
+        (m) => m.FacturaDetalleComponent
+      ),
+  },
   {
     path: 'planillas-sap',
     canActivate: [authGuard],

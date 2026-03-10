@@ -248,6 +248,62 @@ export class CflApiService {
     );
   }
 
+  // ── Facturas: módulo de facturación ───────────────────────────────────────
+
+  getFacturasLista(params: Record<string, unknown> = {}): Observable<{ data: unknown[] }> {
+    return this.http.get<{ data: unknown[] }>(
+      `${API_BASE}/api/facturas`,
+      { params: this._toHttpParams(params) }
+    );
+  }
+
+  getFacturasEmpresasElegibles(): Observable<{ data: unknown[] }> {
+    return this.http.get<{ data: unknown[] }>(`${API_BASE}/api/facturas/empresas-elegibles`);
+  }
+
+  getFacturasFoliosElegibles(idEmpresa: number): Observable<{ data: unknown[] }> {
+    return this.http.get<{ data: unknown[] }>(
+      `${API_BASE}/api/facturas/folios-elegibles`,
+      { params: this._toHttpParams({ id_empresa: idEmpresa }) }
+    );
+  }
+
+  getFacturaPreviewNueva(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: unknown }> {
+    return this.http.post<{ data: unknown }>(`${API_BASE}/api/facturas/preview`, body);
+  }
+
+  generarFacturas(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: unknown }> {
+    return this.http.post<{ data: unknown }>(`${API_BASE}/api/facturas/generar`, body);
+  }
+
+  getFacturaDetalle(id: number): Observable<{ data: unknown }> {
+    return this.http.get<{ data: unknown }>(`${API_BASE}/api/facturas/${id}`);
+  }
+
+  actualizarFactura(id: number, body: { observaciones?: string | null; criterio_agrupacion?: string }): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${API_BASE}/api/facturas/${id}`, body);
+  }
+
+  cambiarEstadoFactura(id: number, estado: string): Observable<{ message: string }> {
+    return this.http.patch<{ message: string }>(`${API_BASE}/api/facturas/${id}/estado`, { estado });
+  }
+
+  agregarFoliosAFactura(id: number, ids_folio: number[]): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${API_BASE}/api/facturas/${id}/folios`, { ids_folio });
+  }
+
+  quitarFolioDeFactura(id: number, folioId: number): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}/folios/${folioId}`);
+  }
+
+  exportarFacturaExcel(id: number): Observable<Blob> {
+    return this.http.get(`${API_BASE}/api/facturas/${id}/export/excel`, { responseType: 'blob' });
+  }
+
+  exportarFacturaPdf(id: number): Observable<Blob> {
+    return this.http.get(`${API_BASE}/api/facturas/${id}/export/pdf`, { responseType: 'blob' });
+  }
+
   private _toHttpParams(obj: Record<string, unknown>): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {
