@@ -121,14 +121,22 @@ export class CflApiService {
     return this.http.delete<{ message: string }>(`${API_BASE}/api/mantenedores/${entity}/${id}`);
   }
 
-  toggleMaintainerActivo(entity: string, id: number, activo: boolean): Observable<unknown> {
+  toggleMaintainerActivo(
+    entity: string,
+    id: number,
+    activo: boolean,
+    fieldName = 'activo',
+  ): Observable<unknown> {
     // Para usuarios se usa el endpoint especial; para el resto se hace PUT con el campo
     if (entity === 'usuarios') {
       return this.http.patch<unknown>(
         `${API_BASE}/api/mantenedores/usuarios/${id}/estado`, { activo }
       );
     }
-    return this.http.put<unknown>(`${API_BASE}/api/mantenedores/${entity}/${id}`, { activo });
+    return this.http.put<unknown>(
+      `${API_BASE}/api/mantenedores/${entity}/${id}`,
+      { [fieldName]: activo },
+    );
   }
 
   // ── Mantenedores: Tarifas ──────────────────────────────────────────────────

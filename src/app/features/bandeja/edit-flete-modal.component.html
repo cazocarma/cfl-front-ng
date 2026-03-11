@@ -70,6 +70,11 @@
                       <span class="text-amber-500">Guía:</span> {{ getSapGuiaRemision() }}
                     </span>
                   }
+                  @if (getSapDestinatario()) {
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
+                      <span class="text-amber-500">Destinatario:</span> {{ getSapDestinatario() }}
+                    </span>
+                  }
                   @if (detailRows().length > 0) {
                     <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
                       <span class="text-amber-500">Posiciones:</span> {{ detailRows().length }}
@@ -192,7 +197,7 @@
                   </div>
 
                   <div class="xl:col-span-2">
-                    <label class="field-label">Numero Guia de Remision *</label>
+                    <label class="field-label">Numero Guia *</label>
                     <input
                       type="text"
                       formControlName="guia_remision"
@@ -283,7 +288,7 @@
                   />
 
                   <div
-                    class="rounded-xl border px-4 py-3 md:col-span-2 xl:col-span-2"
+                    class="rounded-xl border px-4 py-3 md:col-span-2 xl:col-span-2 xl:col-start-3"
                     [class]="hasResolvedMonto() ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50/30' : 'border-forest-100 bg-forest-50/60'"
                   >
                     <p class="text-[10px] font-bold uppercase tracking-widest" [class]="hasResolvedMonto() ? 'text-emerald-600' : 'text-forest-500'">
@@ -307,7 +312,16 @@
                   </svg>
                   <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Asignacion operativa</h3>
                 </div>
-                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
+                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-5">
+                  <app-searchable-combobox
+                    label="Productor"
+                    nullLabel="Sin especificar"
+                    [disabled]="isReadOnly()"
+                    [options]="getProductorOptions()"
+                    [value]="getControlValue('id_productor')"
+                    (valueChange)="setControlValue('id_productor', $event)"
+                  />
+
                   <app-searchable-combobox
                     label="Empresa transporte"
                     nullLabel="Sin especificar"
@@ -344,6 +358,7 @@
                     (valueChange)="setControlValue('id_cuenta_mayor', $event)"
                   />
                 </div>
+
               </section>
 
               <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">

@@ -271,6 +271,41 @@
                   </select>
                 }
 
+                <!-- Filtro de fecha -->
+                <select
+                  class="cfl-select w-48"
+                  [ngModel]="fechaFilterValue()"
+                  (ngModelChange)="onFechaFilterChange($event)"
+                  name="fechaFilter"
+                >
+                  <option value="all">Todos los periodos</option>
+                  @for (opt of periodoOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                  <option value="rango">Rango personalizado...</option>
+                </select>
+
+                <!-- Inputs de rango de fechas -->
+                @if (fechaFilterValue() === 'rango') {
+                  <input
+                    type="date"
+                    class="cfl-input w-36 text-xs"
+                    [ngModel]="fechaDesdeFilter()"
+                    (ngModelChange)="fechaDesdeFilter.set($event); onFechaRangoChange()"
+                    name="fechaDesde"
+                    title="Desde"
+                  />
+                  <span class="text-forest-400 text-xs">→</span>
+                  <input
+                    type="date"
+                    class="cfl-input w-36 text-xs"
+                    [ngModel]="fechaHastaFilter()"
+                    (ngModelChange)="fechaHastaFilter.set($event); onFechaRangoChange()"
+                    name="fechaHasta"
+                    title="Hasta"
+                  />
+                }
+
                 <!-- Clear filters -->
                 @if (hasActiveFilters()) {
                   <button type="button" (click)="clearFilters()" class="btn-ghost text-red-500 hover:bg-red-50 hover:text-red-700">

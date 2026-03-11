@@ -109,6 +109,8 @@ export class EditFleteModalComponent implements OnChanges {
   cuentasMayor: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   especies: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  productores: any[] = [];
 
   tipoFleteOptions: SearchableOption[] = [];
   centroCostoOptions: SearchableOption[] = [];
@@ -119,6 +121,7 @@ export class EditFleteModalComponent implements OnChanges {
   camionOptions: SearchableOption[] = [];
   cuentaMayorOptions: SearchableOption[] = [];
   especieOptions: SearchableOption[] = [];
+  productorOptions: SearchableOption[] = [];
 
   detailRows = signal<DetalleDraft[]>([]);
   sapSnapshot: Record<string, unknown> | null = null;
@@ -131,8 +134,8 @@ export class EditFleteModalComponent implements OnChanges {
   routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
 
   readonly tipoMovimientoOptions: SearchableOption[] = [
-    { value: 'PUSH', label: 'Despacho (PUSH)' },
-    { value: 'PULL', label: 'Retorno (PULL)' },
+    { value: 'PUSH', label: 'Despacho' },
+    { value: 'PULL', label: 'Retorno' },
   ];
 
   constructor(private fb: FormBuilder, private cflApi: CflApiService) {
@@ -152,6 +155,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_empresa_transporte: [''],
       id_chofer: [''],
       id_camion: [''],
+      id_productor: [''],
       monto_aplicado: [null],
       id_cuenta_mayor: [''],
       observaciones: [''],
@@ -220,6 +224,10 @@ export class EditFleteModalComponent implements OnChanges {
 
   getSapGuiaRemision(): string {
     return this._toString(this.sapSnapshot?.['sap_guia_remision']) || this._toString(this.flete?.sapGuiaRemision) || '';
+  }
+
+  getSapDestinatario(): string {
+    return this._toString(this.sapSnapshot?.['sap_destinatario']) || this._toString(this.flete?.sapDestinatario) || '';
   }
 
   getCurrentTemporadaLabel(): string {
@@ -304,6 +312,16 @@ export class EditFleteModalComponent implements OnChanges {
 
   getCuentaMayorOptions(): SearchableOption[] {
     return this.cuentaMayorOptions;
+  }
+
+  getProductorOptions(): SearchableOption[] {
+    return this.productorOptions;
+  }
+
+  getSelectedProductor(): Record<string, unknown> | null {
+    const idProductor = this.getControlValue('id_productor');
+    if (!idProductor) return null;
+    return this.productores.find((row) => String(row['id_productor']) === idProductor) || null;
   }
 
   getEspecieOptions(): SearchableOption[] {
@@ -418,6 +436,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_empresa_transporte: '',
       id_chofer: '',
       id_camion: '',
+      id_productor: this._toControlValue(this.flete?.idProductor),
       monto_aplicado: this.flete?.monto ?? null,
       id_cuenta_mayor: this._toControlValue(this.flete?.idCuentaMayor),
       observaciones: '',
@@ -436,6 +455,7 @@ export class EditFleteModalComponent implements OnChanges {
       empresas: this._safeCatalog('empresas-transporte'),
       choferes: this._safeCatalog('choferes'),
       camiones: this._safeCatalog('camiones'),
+      productores: this._safeCatalog('productores'),
       cuentasMayor: this._safeCatalog('cuentas-mayor'),
       especies: this._safeCatalog('especies'),
     }).subscribe({
@@ -449,10 +469,11 @@ export class EditFleteModalComponent implements OnChanges {
         this.empresas = res.empresas.data as Record<string, unknown>[];
         this.choferes = res.choferes.data as Record<string, unknown>[];
         this.camiones = res.camiones.data as Record<string, unknown>[];
+        this.productores = res.productores.data as Record<string, unknown>[];
         this.cuentasMayor = res.cuentasMayor.data as Record<string, unknown>[];
         this.especies = res.especies.data as Record<string, unknown>[];
         this.currentTemporadaId = res.tarifas.temporada_id ?? null;
-        this.currentTemporadaLabel = this._toString(this.tarifas[0]?.['temporada_codigo']) || '';
+        this.currentTemporadaLabel = this._toString(this.tarifas[0]?.['temporada_nombre']) || this._toString(this.tarifas[0]?.['temporada_codigo']) || '';
         this.tipoFleteOptions = this._mapOptions(this.tiposFlete, 'id_tipo_flete', ['nombre', 'sap_codigo']);
         this.centroCostoOptions = this._mapOptions(this.centrosCosto, 'id_centro_costo', ['sap_codigo', 'nombre']);
         this.detalleViajeOptions = this._mapOptions(this.detallesViaje, 'id_detalle_viaje', ['descripcion']);
@@ -460,6 +481,7 @@ export class EditFleteModalComponent implements OnChanges {
         this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['sap_codigo', 'razon_social']);
         this.choferOptions = this._mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
         this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
+        this.productorOptions = this._mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']);
         this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
         this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
         this._applyFallbacks(true);
@@ -528,6 +550,7 @@ export class EditFleteModalComponent implements OnChanges {
     this.form.patchValue({
       numero_entrega: this._toString(cabecera['sap_numero_entrega']) || this.getControlValue('numero_entrega'),
       guia_remision: this._toString(cabecera['sap_guia_remision']) || this.getControlValue('guia_remision'),
+      id_productor: this._toControlValue(cabecera['id_productor']),
       fecha_salida: this._formatDate(cabecera['sap_fecha_salida']) || this.getControlValue('fecha_salida'),
       hora_salida: this._formatTime(cabecera['sap_hora_salida']) || this.getControlValue('hora_salida'),
     });
@@ -543,6 +566,13 @@ export class EditFleteModalComponent implements OnChanges {
       this.sapSnapshot = {
         sap_numero_entrega: cabecera['sap_numero_entrega'],
         sap_guia_remision: cabecera['sap_guia_remision'],
+        sap_destinatario: cabecera['sap_destinatario'],
+        id_productor: cabecera['id_productor'],
+        productor_id_resuelto: cabecera['productor_id_resuelto'],
+        productor_codigo_proveedor: cabecera['productor_codigo_proveedor'],
+        productor_rut: cabecera['productor_rut'],
+        productor_nombre: cabecera['productor_nombre'],
+        productor_email: cabecera['productor_email'],
         sap_codigo_tipo_flete: cabecera['sap_codigo_tipo_flete'],
         sap_centro_costo: cabecera['sap_centro_costo'],
         sap_cuenta_mayor: cabecera['sap_cuenta_mayor'],
@@ -565,6 +595,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_empresa_transporte: this._toControlValue(cabecera['id_empresa_transporte']),
       id_chofer: this._toControlValue(cabecera['id_chofer']),
       id_camion: this._toControlValue(cabecera['id_camion']),
+      id_productor: this._toControlValue(cabecera['id_productor']),
       monto_aplicado: cabecera['monto_aplicado'] ?? null,
       id_cuenta_mayor: this._toControlValue(cabecera['id_cuenta_mayor']),
       observaciones: this._toControlValue(cabecera['observaciones']),
@@ -575,8 +606,45 @@ export class EditFleteModalComponent implements OnChanges {
 
   private _applyFallbacks(preserveExistingAmount: boolean): void {
     this._applySapDefaults();
+    this._applyProductorFallback();
     this._applyTransportFallbacks();
     this._syncRouteAndTarifa(preserveExistingAmount);
+  }
+
+  private _applyProductorFallback(): void {
+    if (this.getControlValue('id_productor')) return;
+
+    const explicitProductorId =
+      this._toControlValue(this.sapSnapshot?.['id_productor'])
+      || this._toControlValue(this.sapSnapshot?.['productor_id_resuelto'])
+      || this._toControlValue(this.flete?.idProductor);
+    if (explicitProductorId) {
+      this.form.get('id_productor')?.setValue(explicitProductorId);
+      return;
+    }
+
+    const hints = [
+      this._toString(this.sapSnapshot?.['sap_destinatario']),
+      this._toString(this.sapSnapshot?.['productor_codigo_proveedor']),
+      this._toString(this.sapSnapshot?.['productor_rut']),
+      this.flete?.sapDestinatario ?? null,
+      this.flete?.productorCodigoProveedor ?? null,
+      this.flete?.productorRut ?? null,
+    ]
+      .map((value) => this._normalized(value))
+      .filter((value) => Boolean(value));
+
+    if (hints.length === 0) return;
+
+    const match = this.productores.find((row) => {
+      const codigo = this._normalized(row['codigo_proveedor']);
+      const rut = this._normalized(row['rut']);
+      return hints.includes(codigo) || hints.includes(rut);
+    });
+
+    if (match) {
+      this.form.get('id_productor')?.setValue(String(match['id_productor']));
+    }
   }
 
   private _applySapDefaults(): void {
@@ -768,20 +836,21 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _buildPayload(): { cabecera: Record<string, unknown>; detalles: Record<string, unknown>[] } {
-    const cabecera: Record<string, unknown> = { ...this.form.value };
-    for (const key of Object.keys(cabecera)) {
-      if (cabecera[key] === '' || cabecera[key] === undefined) {
-        cabecera[key] = null;
+    const cabeceraForm: Record<string, unknown> = { ...this.form.value };
+    for (const key of Object.keys(cabeceraForm)) {
+      if (cabeceraForm[key] === '' || cabeceraForm[key] === undefined) {
+        cabeceraForm[key] = null;
       }
     }
 
     if (this.sapSnapshot) {
       for (const key of ['sap_numero_entrega', 'sap_codigo_tipo_flete', 'sap_centro_costo', 'sap_cuenta_mayor']) {
         const value = this._toString(this.sapSnapshot[key]);
-        if (value) cabecera[key] = value;
+        if (value) cabeceraForm[key] = value;
       }
     }
 
+    const cabecera = cabeceraForm;
     delete cabecera['id_origen_nodo'];
     delete cabecera['id_destino_nodo'];
     delete cabecera['id_ruta'];
@@ -793,10 +862,10 @@ export class EditFleteModalComponent implements OnChanges {
         const cantidad = row.cantidad === '' ? null : Number(row.cantidad);
         const unidad = this._trimOrNull(row.unidad);
         const peso = row.peso === '' ? null : Number(row.peso);
-        const id_especie = row.id_especie || null;
+        const idEspecie = row.id_especie || null;
 
         const hasContent = Boolean(
-          id_especie ||
+          idEspecie ||
           material ||
           descripcion ||
           unidad ||
@@ -807,7 +876,7 @@ export class EditFleteModalComponent implements OnChanges {
         if (!hasContent) return null;
 
         return {
-          id_especie,
+          id_especie: idEspecie,
           material,
           descripcion,
           cantidad: Number.isFinite(cantidad) ? cantidad : null,

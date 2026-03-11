@@ -203,7 +203,7 @@ export class MantenedorTablaComponent implements OnInit {
     const current = Boolean(row[cfg.softDeleteField]);
     const nuevoValor = !current;
 
-    this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor).subscribe({
+    this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor, cfg.softDeleteField).subscribe({
       next: () => {
         this._showToast(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'}`);
         this._reloadAfterAction();

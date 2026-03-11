@@ -1,6 +1,11 @@
 export interface CandidatoRow {
   id_sap_entrega: number;
   sap_numero_entrega: string;
+  sap_destinatario: string | null;
+  id_productor?: number | null;
+  productor_codigo_proveedor?: string | null;
+  productor_rut?: string | null;
+  productor_nombre?: string | null;
   source_system: string | null;
   estado: string;
   sap_guia_remision: string | null;
@@ -23,6 +28,11 @@ export interface CandidatoRow {
 export interface FleteEnCursoRow {
   id_cabecera_flete: number;
   id_sap_entrega: number | null;
+  id_productor?: number | null;
+  productor_codigo_proveedor?: string | null;
+  productor_rut?: string | null;
+  productor_nombre?: string | null;
+  productor_email?: string | null;
   id_tipo_flete: number | null;
   id_centro_costo: number | null;
   id_detalle_viaje: number | null;
@@ -52,6 +62,7 @@ export interface FleteEnCursoRow {
   guia_remision: string | null;
   numero_entrega: string | null;
   sap_numero_entrega: string | null;
+  sap_destinatario: string | null;
 }
 
 export interface FleteTabla {
@@ -79,8 +90,15 @@ export interface FleteTabla {
   idMovil?: number | null;
   idTarifa?: number | null;
   idCuentaMayor?: number | null;
+  idProductor?: number | null;
   idRuta?: number | null;
+  productorCodigoProveedor?: string | null;
+  productorRut?: string | null;
+  productorNombre?: string | null;
+  productorEmail?: string | null;
+  productorLabel?: string;
   sapNumeroEntrega?: string | null;
+  sapDestinatario?: string | null;
   sapGuiaRemision?: string | null;
   guiaRemision?: string | null;
   numeroEntrega?: string | null;
@@ -91,6 +109,9 @@ export interface FleteTabla {
 }
 
 export function adaptCandidato(row: CandidatoRow): FleteTabla {
+  const productorCodigo = row.productor_codigo_proveedor ?? null;
+  const productorRut = row.productor_rut ?? null;
+  const productorNombre = row.productor_nombre ?? null;
   return {
     kind: 'candidato',
     id: `sap-${row.id_sap_entrega}`,
@@ -109,9 +130,15 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     estado: (row.estado as LifecycleStatus) || 'DETECTADO',
     puedeIngresar: row.puede_ingresar,
     motivoNoIngreso: row.motivo_no_ingreso,
+    idProductor: row.id_productor ?? null,
     idTipoFlete: row.id_tipo_flete ?? null,
     idCentroCosto: row.id_centro_costo ?? null,
+    productorCodigoProveedor: productorCodigo,
+    productorRut,
+    productorNombre,
+    productorLabel: formatProductorLabel(productorCodigo, productorRut, productorNombre, row.sap_destinatario),
     sapNumeroEntrega: row.sap_numero_entrega ?? null,
+    sapDestinatario: row.sap_destinatario ?? null,
     sapGuiaRemision: row.sap_guia_remision ?? null,
     numeroEntrega: row.sap_numero_entrega ?? null,
     sapEmpresaTransporte: row.sap_empresa_transporte ?? null,
@@ -122,6 +149,9 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
 }
 
 export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
+  const productorCodigo = row.productor_codigo_proveedor ?? null;
+  const productorRut = row.productor_rut ?? null;
+  const productorNombre = row.productor_nombre ?? null;
   return {
     kind: 'en_curso',
     id: `cab-${row.id_cabecera_flete}`,
@@ -145,8 +175,15 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     idMovil: row.id_movil ?? null,
     idTarifa: row.id_tarifa ?? null,
     idCuentaMayor: row.id_cuenta_mayor ?? null,
+    idProductor: row.id_productor ?? null,
     idRuta: row.id_ruta ?? null,
+    productorCodigoProveedor: productorCodigo,
+    productorRut,
+    productorNombre,
+    productorEmail: row.productor_email ?? null,
+    productorLabel: formatProductorLabel(productorCodigo, productorRut, productorNombre, row.sap_destinatario),
     sapNumeroEntrega: row.sap_numero_entrega ?? null,
+    sapDestinatario: row.sap_destinatario ?? null,
     sapGuiaRemision: row.sap_guia_remision ?? null,
     guiaRemision: row.guia_remision ?? null,
     numeroEntrega: row.numero_entrega ?? null,
@@ -174,6 +211,23 @@ function formatCamion(
     .map((part) => String(part ?? '').trim())
     .filter(Boolean);
   return parts.length > 0 ? parts.join(' / ') : '-';
+}
+
+function formatProductorLabel(
+  codigo: string | null | undefined,
+  rut: string | null | undefined,
+  nombre: string | null | undefined,
+  sapDestinatario: string | null | undefined,
+): string {
+  const codigoTrim = String(codigo ?? '').trim();
+  const rutTrim = String(rut ?? '').trim();
+  const nombreTrim = String(nombre ?? '').trim();
+  if (codigoTrim && nombreTrim) return `${codigoTrim} - ${nombreTrim}`;
+  if (rutTrim && nombreTrim) return `${rutTrim} - ${nombreTrim}`;
+  if (nombreTrim) return nombreTrim;
+  if (codigoTrim) return codigoTrim;
+  if (rutTrim) return rutTrim;
+  return String(sapDestinatario ?? '').trim() || '-';
 }
 
 export type LifecycleStatus =

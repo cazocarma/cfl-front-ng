@@ -88,6 +88,43 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
 
   // ── Choferes ────────────────────────────────────────────────────────────
   {
+    key: 'productores',
+    title: 'Productores',
+    icon: 'M17 20h5V4H2v16h5m10 0v-8a2 2 0 00-2-2H9a2 2 0 00-2 2v8m10 0H7m8-12h.01M12 8h.01M9 8h.01M15 12h.01M12 12h.01M9 12h.01',
+    description: 'Productores y proveedores SAP asociados a la operacion de fletes.',
+    idField: 'IdProductor',
+    softDeleteField: 'Activo',
+    permiso: 'productores',
+    columnas: [
+      { key: 'CodigoProveedor',    label: 'Codigo',      tipo: 'mono' },
+      { key: 'Rut',                label: 'RUT',         tipo: 'mono' },
+      { key: 'Nombre',             label: 'Nombre',      tipo: 'text' },
+      { key: 'Comuna',             label: 'Comuna',      tipo: 'text' },
+      { key: 'OrganizacionCompra', label: 'Org. Compra', tipo: 'text' },
+      { key: 'Email',              label: 'Email',       tipo: 'text' },
+      { key: 'Activo',             label: 'Activo',      tipo: 'bool' },
+    ],
+    camposCrear: [
+      { key: 'CodigoProveedor',    label: 'Codigo Proveedor',    tipo: 'text',   required: true, placeholder: 'Ej: 10002086' },
+      { key: 'Rut',                label: 'RUT',                 tipo: 'text',   placeholder: 'Ej: 76320743-9' },
+      { key: 'Nombre',             label: 'Nombre',              tipo: 'text',   required: true, placeholder: 'Razon social o nombre' },
+      { key: 'Pais',               label: 'Pais',                tipo: 'text',   placeholder: 'Ej: CL' },
+      { key: 'Region',             label: 'Region',              tipo: 'text',   placeholder: 'Ej: 13' },
+      { key: 'Comuna',             label: 'Comuna',              tipo: 'text',   placeholder: 'Ej: Vitacura' },
+      { key: 'Distrito',           label: 'Distrito',            tipo: 'text',   placeholder: 'Distrito' },
+      { key: 'Calle',              label: 'Calle',               tipo: 'text',   placeholder: 'Direccion' },
+      { key: 'Email',              label: 'Email',               tipo: 'email',  placeholder: 'correo@productor.cl' },
+      { key: 'OrganizacionCompra', label: 'Organizacion Compra', tipo: 'text',   placeholder: 'Ej: 1000' },
+      { key: 'MonedaPedido',       label: 'Moneda Pedido',       tipo: 'text',   placeholder: 'Ej: CLP' },
+      { key: 'CondicionPago',      label: 'Condicion Pago',      tipo: 'text',   placeholder: 'Ej: C030' },
+      { key: 'Incoterm',           label: 'Incoterm',            tipo: 'text',   placeholder: 'Incoterm' },
+      { key: 'Sociedad',           label: 'Sociedad',            tipo: 'text',   placeholder: 'Ej: 1000' },
+      { key: 'CuentaAsociada',     label: 'Cuenta Asociada',     tipo: 'text',   placeholder: 'Cuenta contable' },
+      { key: 'Activo',             label: 'Activo',              tipo: 'boolean' },
+    ],
+  },
+
+  {
     key: 'choferes',
     title: 'Choferes',
     icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',

@@ -98,6 +98,9 @@ export class BandejaComponent implements OnInit {
   /*  Filtros  */
   guiaFilter = signal('');
   estadoFilter = signal<LifecycleStatus | 'all'>('all');
+  fechaFilterValue = signal('all'); // 'all' | 'YYYY-MM' | 'rango'
+  fechaDesdeFilter = signal('');
+  fechaHastaFilter = signal('');
 
   /*  Computed  */
   paginatedFletes = computed(() => this.allFletes());
@@ -124,6 +127,19 @@ export class BandejaComponent implements OnInit {
     pages.push(total);
     return pages;
   });
+
+  /*  Opciones de periodo (mes actual + 5 anteriores, dinámico)  */
+  readonly periodoOptions: { value: string; label: string }[] = (() => {
+    const now = new Date();
+    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = `${meses[d.getMonth()]} ${d.getFullYear()}`;
+      return { value, label };
+    });
+  })();
 
   /*  Opciones estáticas  */
   estadoOptions: { value: LifecycleStatus | 'all'; label: string }[] = [
@@ -164,8 +180,21 @@ export class BandejaComponent implements OnInit {
     const search = this.guiaFilter().trim() || undefined;
     const estado = this.estadoFilter() !== 'all' ? this.estadoFilter() : undefined;
 
+    let fecha_desde: string | undefined;
+    let fecha_hasta: string | undefined;
+    const fv = this.fechaFilterValue();
+    if (fv !== 'all' && fv !== 'rango') {
+      const [year, month] = fv.split('-').map(Number);
+      fecha_desde = `${year}-${String(month).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      fecha_hasta = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else if (fv === 'rango') {
+      fecha_desde = this.fechaDesdeFilter() || undefined;
+      fecha_hasta = this.fechaHastaFilter() || undefined;
+    }
+
     if (this.activeTab() === 'candidatos') {
-      this.cflApi.getMissingFletes({ page, page_size, search }).subscribe({
+      this.cflApi.getMissingFletes({ page, page_size, search, fecha_desde, fecha_hasta }).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as CandidatoRow[]).map(adaptCandidato));
           this.totalServerItems.set(res.pagination.total);
@@ -179,7 +208,7 @@ export class BandejaComponent implements OnInit {
         },
       });
     } else {
-      this.cflApi.getCompletosSinFolio({ page, page_size, search, estado }).subscribe({
+      this.cflApi.getCompletosSinFolio({ page, page_size, search, estado, fecha_desde, fecha_hasta }).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as FleteEnCursoRow[]).map(adaptFleteEnCurso));
           this.totalServerItems.set(res.pagination.total);
@@ -202,6 +231,9 @@ export class BandejaComponent implements OnInit {
     this.currentPage.set(1);
     this.guiaFilter.set('');
     this.estadoFilter.set('all');
+    this.fechaFilterValue.set('all');
+    this.fechaDesdeFilter.set('');
+    this.fechaHastaFilter.set('');
     this.loadFletes();
   }
 
@@ -214,12 +246,35 @@ export class BandejaComponent implements OnInit {
   clearFilters(): void {
     this.guiaFilter.set('');
     this.estadoFilter.set('all');
+    this.fechaFilterValue.set('all');
+    this.fechaDesdeFilter.set('');
+    this.fechaHastaFilter.set('');
     this.currentPage.set(1);
     this.loadFletes();
   }
 
   hasActiveFilters(): boolean {
-    return this.guiaFilter() !== '' || this.estadoFilter() !== 'all';
+    if (this.guiaFilter() !== '') return true;
+    if (this.estadoFilter() !== 'all') return true;
+    const fv = this.fechaFilterValue();
+    if (fv !== 'all' && fv !== 'rango') return true;
+    if (fv === 'rango' && (this.fechaDesdeFilter() || this.fechaHastaFilter())) return true;
+    return false;
+  }
+
+  onFechaFilterChange(value: string): void {
+    this.fechaFilterValue.set(value);
+    if (value !== 'rango') {
+      this.fechaDesdeFilter.set('');
+      this.fechaHastaFilter.set('');
+      this.currentPage.set(1);
+      this.loadFletes();
+    }
+  }
+
+  onFechaRangoChange(): void {
+    this.currentPage.set(1);
+    this.loadFletes();
   }
 
   /*  Paginación  */

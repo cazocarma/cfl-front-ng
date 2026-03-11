@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "ng": "ng",
-    "start": "ng serve --host 0.0.0.0 --port 3000",
+    "start": "ng serve --host 0.0.0.0 --port 3000 --allowed-hosts all",
     "build": "ng build",
     "watch": "ng build --watch --configuration development"
   },
@@ -20,6 +20,11 @@
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.0"
+  },
+  "overrides": {
+    "tar": "^7.4.3",
+    "glob": "^13.0.0",
+    "critters": "npm:beasties@^0.2.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^18.2.0",
