@@ -22,8 +22,16 @@ FROM nginx:1.27-alpine AS runtime
 # Remove default nginx content
 RUN rm -rf /usr/share/nginx/html/*
 
-# Copy built app (Angular 18 outputs to dist/<project>/browser)
-COPY --from=builder /app/dist/cfl-front-ng/browser /usr/share/nginx/html
+# Copy built app. Angular may emit either:
+# - dist/<project>/...
+# - dist/<project>/browser/...
+COPY --from=builder /app/dist/cfl-front-ng /tmp/dist
+RUN if [ -d /tmp/dist/browser ]; then \
+      cp -a /tmp/dist/browser/. /usr/share/nginx/html/; \
+    else \
+      cp -a /tmp/dist/. /usr/share/nginx/html/; \
+    fi \
+    && rm -rf /tmp/dist
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
