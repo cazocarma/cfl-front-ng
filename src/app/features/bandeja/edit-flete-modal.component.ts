@@ -107,6 +107,8 @@ export class EditFleteModalComponent implements OnChanges {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   cuentasMayor: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  imputacionesFlete: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   especies: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   productores: any[] = [];
@@ -119,6 +121,7 @@ export class EditFleteModalComponent implements OnChanges {
   choferOptions: SearchableOption[] = [];
   camionOptions: SearchableOption[] = [];
   cuentaMayorOptions: SearchableOption[] = [];
+  imputacionFleteOptions: SearchableOption[] = [];
   especieOptions: SearchableOption[] = [];
   productorOptions: SearchableOption[] = [];
 
@@ -143,6 +146,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: ['', Validators.required],
       tipo_movimiento: ['', Validators.required],
       id_tipo_flete: ['', Validators.required],
+      id_imputacion_flete: [''],
       id_centro_costo: ['', Validators.required],
       id_detalle_viaje: [''],
       id_origen_nodo: [''],
@@ -263,13 +267,15 @@ export class EditFleteModalComponent implements OnChanges {
   setControlValue(key: string, value: string): void {
     if (this.isReadOnly()) return;
     this.form.get(key)?.setValue(value);
-    if (key === 'id_tipo_flete' && !this.getControlValue('id_centro_costo')) {
-      const tipo = this.tiposFlete.find((row) => String(row['id_tipo_flete']) === value);
-      const centro = this._toControlValue(tipo?.['id_centro_costo']);
-      if (centro) {
-        this.form.get('id_centro_costo')?.setValue(centro);
-      }
+
+    if (key === 'id_imputacion_flete') {
+      this._applyImputacionSelection(value);
     }
+
+    if (key === 'id_tipo_flete' || key === 'id_centro_costo' || key === 'id_cuenta_mayor') {
+      this._syncImputacionFromFields();
+    }
+
     if (key === 'id_camion' || key === 'fecha_salida') {
       this._syncRouteAndTarifa(true);
     }
@@ -280,7 +286,14 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getCentroCostoOptions(): SearchableOption[] {
-    return this.centroCostoOptions;
+    const tipoId = this.getControlValue('id_tipo_flete');
+    if (!tipoId) return this.centroCostoOptions;
+
+    const imputaciones = this._getImputacionesByTipo(tipoId);
+    if (imputaciones.length === 0) return this.centroCostoOptions;
+
+    const allowedCentro = new Set(imputaciones.map((row) => String(row['id_centro_costo'])));
+    return this.centroCostoOptions.filter((opt) => allowedCentro.has(opt.value));
   }
 
   getDetalleViajeOptions(): SearchableOption[] {
@@ -310,7 +323,28 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getCuentaMayorOptions(): SearchableOption[] {
-    return this.cuentaMayorOptions;
+    const tipoId = this.getControlValue('id_tipo_flete');
+    if (!tipoId) return this.cuentaMayorOptions;
+
+    const centroId = this.getControlValue('id_centro_costo');
+    let imputaciones = this._getImputacionesByTipo(tipoId);
+    if (centroId) {
+      imputaciones = imputaciones.filter((row) => String(row['id_centro_costo']) === centroId);
+    }
+    if (imputaciones.length === 0) return this.cuentaMayorOptions;
+
+    const allowedCuenta = new Set(imputaciones.map((row) => String(row['id_cuenta_mayor'])));
+    return this.cuentaMayorOptions.filter((opt) => allowedCuenta.has(opt.value));
+  }
+
+  getImputacionFleteOptions(): SearchableOption[] {
+    const tipoId = this.getControlValue('id_tipo_flete');
+    if (!tipoId) return this.imputacionFleteOptions;
+
+    const allowedImputacion = new Set(
+      this._getImputacionesByTipo(tipoId).map((row) => String(row['id_imputacion_flete']))
+    );
+    return this.imputacionFleteOptions.filter((opt) => allowedImputacion.has(opt.value));
   }
 
   getProductorOptions(): SearchableOption[] {
@@ -424,6 +458,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: this.flete?.guiaRemision ?? '',
       tipo_movimiento: 'PUSH',
       id_tipo_flete: this._toControlValue(this.flete?.idTipoFlete),
+      id_imputacion_flete: this._toControlValue(this.flete?.idImputacionFlete),
       id_centro_costo: this._toControlValue(this.flete?.idCentroCosto),
       id_detalle_viaje: this._toControlValue(this.flete?.idDetalleViaje),
       id_origen_nodo: '',
@@ -456,6 +491,7 @@ export class EditFleteModalComponent implements OnChanges {
       camiones: this._safeCatalog('camiones'),
       productores: this._safeCatalog('productores'),
       cuentasMayor: this._safeCatalog('cuentas-mayor'),
+      imputacionesFlete: this._safeCatalog('imputaciones-flete'),
       especies: this._safeCatalog('especies'),
     }).subscribe({
       next: (res) => {
@@ -470,6 +506,7 @@ export class EditFleteModalComponent implements OnChanges {
         this.camiones = res.camiones.data as Record<string, unknown>[];
         this.productores = res.productores.data as Record<string, unknown>[];
         this.cuentasMayor = res.cuentasMayor.data as Record<string, unknown>[];
+        this.imputacionesFlete = res.imputacionesFlete.data as Record<string, unknown>[];
         this.especies = res.especies.data as Record<string, unknown>[];
         this.currentTemporadaId = res.tarifas.temporada_id ?? null;
         this.currentTemporadaLabel = this._toString(this.tarifas[0]?.['temporada_nombre']) || this._toString(this.tarifas[0]?.['temporada_codigo']) || '';
@@ -482,6 +519,11 @@ export class EditFleteModalComponent implements OnChanges {
         this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
         this.productorOptions = this._mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']);
         this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
+        this.imputacionFleteOptions = this._mapOptions(
+          this.imputacionesFlete,
+          'id_imputacion_flete',
+          ['tipo_flete_nombre', 'centro_costo_sap_codigo', 'cuenta_mayor_codigo']
+        );
         this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
         this._applyFallbacks(true);
         this.loadingCatalogos.set(false);
@@ -583,6 +625,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: this._toControlValue(cabecera['guia_remision']),
       tipo_movimiento: this._toControlValue(cabecera['tipo_movimiento']) || 'PUSH',
       id_tipo_flete: this._toControlValue(cabecera['id_tipo_flete']),
+      id_imputacion_flete: this._toControlValue(cabecera['id_imputacion_flete']),
       id_centro_costo: this._toControlValue(cabecera['id_centro_costo']),
       id_detalle_viaje: this._toControlValue(cabecera['id_detalle_viaje']),
       id_origen_nodo: this._toControlValue(cabecera['id_origen_nodo']),
@@ -607,6 +650,7 @@ export class EditFleteModalComponent implements OnChanges {
     this._applySapDefaults();
     this._applyProductorFallback();
     this._applyTransportFallbacks();
+    this._syncImputacionFromFields();
     this._syncRouteAndTarifa(preserveExistingAmount);
   }
 
@@ -657,29 +701,134 @@ export class EditFleteModalComponent implements OnChanges {
       }
     }
 
+    const tipoId = this.getControlValue('id_tipo_flete');
+    const sapCentro = this._normalized(this.sapSnapshot['sap_centro_costo']);
+    const sapCuenta = this._normalized(this.sapSnapshot['sap_cuenta_mayor']);
+
+    if (tipoId && !this.getControlValue('id_imputacion_flete')) {
+      const imputacionSap = this._getImputacionesByTipo(tipoId).find((row) =>
+        this._normalized(row['centro_costo_sap_codigo']) === sapCentro
+        && this._normalized(row['cuenta_mayor_codigo']) === sapCuenta
+      );
+      if (imputacionSap) {
+        this.form.patchValue({
+          id_imputacion_flete: this._toControlValue(imputacionSap['id_imputacion_flete']),
+          id_centro_costo: this._toControlValue(imputacionSap['id_centro_costo']),
+          id_cuenta_mayor: this._toControlValue(imputacionSap['id_cuenta_mayor']),
+        }, { emitEvent: false });
+      }
+    }
+
     if (!this.getControlValue('id_centro_costo')) {
-      const sapCentro = this._normalized(this.sapSnapshot['sap_centro_costo']);
       const byCentro = this.centrosCosto.find((row) => this._normalized(row['sap_codigo']) === sapCentro);
       if (byCentro) {
         this.form.get('id_centro_costo')?.setValue(String(byCentro['id_centro_costo']));
-      } else {
-        const tipo = this.tiposFlete.find(
-          (row) => String(row['id_tipo_flete']) === this.getControlValue('id_tipo_flete')
-        );
-        const fallbackCentro = this._toControlValue(tipo?.['id_centro_costo']);
-        if (fallbackCentro) {
-          this.form.get('id_centro_costo')?.setValue(fallbackCentro);
-        }
       }
     }
 
     if (!this.getControlValue('id_cuenta_mayor')) {
-      const sapCuenta = this._normalized(this.sapSnapshot['sap_cuenta_mayor']);
       const match = this.cuentasMayor.find((row) => this._normalized(row['codigo']) === sapCuenta);
       if (match) {
         this.form.get('id_cuenta_mayor')?.setValue(String(match['id_cuenta_mayor']));
       }
     }
+  }
+
+  private _isRowActive(row: Record<string, unknown>): boolean {
+    const raw = row['activo'];
+    if (raw === null || raw === undefined) return true;
+    return raw === true || raw === 1 || String(raw).toLowerCase() === 'true';
+  }
+
+  private _getImputacionesByTipo(tipoId: string): Record<string, unknown>[] {
+    return this.imputacionesFlete.filter((row) =>
+      String(row['id_tipo_flete']) === tipoId && this._isRowActive(row)
+    );
+  }
+
+  private _findImputacionById(idImputacion: string): Record<string, unknown> | null {
+    if (!idImputacion) return null;
+    return this.imputacionesFlete.find((row) =>
+      String(row['id_imputacion_flete']) === idImputacion
+    ) || null;
+  }
+
+  private _applyImputacionSelection(idImputacion: string): void {
+    const imputacion = this._findImputacionById(idImputacion);
+    if (!imputacion) {
+      return;
+    }
+
+    this.form.patchValue({
+      id_tipo_flete: this._toControlValue(imputacion['id_tipo_flete']),
+      id_centro_costo: this._toControlValue(imputacion['id_centro_costo']),
+      id_cuenta_mayor: this._toControlValue(imputacion['id_cuenta_mayor']),
+      id_imputacion_flete: this._toControlValue(imputacion['id_imputacion_flete']),
+    }, { emitEvent: false });
+  }
+
+  private _syncImputacionFromFields(): void {
+    const tipoId = this.getControlValue('id_tipo_flete');
+    if (!tipoId) {
+      this.form.patchValue({ id_imputacion_flete: '' }, { emitEvent: false });
+      return;
+    }
+
+    const imputaciones = this._getImputacionesByTipo(tipoId);
+    if (imputaciones.length === 0) {
+      this.form.patchValue({ id_imputacion_flete: '' }, { emitEvent: false });
+      return;
+    }
+
+    const centroId = this.getControlValue('id_centro_costo');
+    const cuentaId = this.getControlValue('id_cuenta_mayor');
+
+    const exact = imputaciones.find((row) =>
+      String(row['id_centro_costo']) === centroId
+      && String(row['id_cuenta_mayor']) === cuentaId
+    );
+    if (exact) {
+      this.form.patchValue({
+        id_imputacion_flete: this._toControlValue(exact['id_imputacion_flete']),
+      }, { emitEvent: false });
+      return;
+    }
+
+    if (!centroId && !cuentaId && imputaciones.length === 1) {
+      const only = imputaciones[0];
+      this.form.patchValue({
+        id_imputacion_flete: this._toControlValue(only['id_imputacion_flete']),
+        id_centro_costo: this._toControlValue(only['id_centro_costo']),
+        id_cuenta_mayor: this._toControlValue(only['id_cuenta_mayor']),
+      }, { emitEvent: false });
+      return;
+    }
+
+    if (centroId && !cuentaId) {
+      const byCentro = imputaciones.filter((row) => String(row['id_centro_costo']) === centroId);
+      if (byCentro.length === 1) {
+        const only = byCentro[0];
+        this.form.patchValue({
+          id_imputacion_flete: this._toControlValue(only['id_imputacion_flete']),
+          id_cuenta_mayor: this._toControlValue(only['id_cuenta_mayor']),
+        }, { emitEvent: false });
+        return;
+      }
+    }
+
+    if (!centroId && cuentaId) {
+      const byCuenta = imputaciones.filter((row) => String(row['id_cuenta_mayor']) === cuentaId);
+      if (byCuenta.length === 1) {
+        const only = byCuenta[0];
+        this.form.patchValue({
+          id_imputacion_flete: this._toControlValue(only['id_imputacion_flete']),
+          id_centro_costo: this._toControlValue(only['id_centro_costo']),
+        }, { emitEvent: false });
+        return;
+      }
+    }
+
+    this.form.patchValue({ id_imputacion_flete: '' }, { emitEvent: false });
   }
 
   private _applyTransportFallbacks(): void {

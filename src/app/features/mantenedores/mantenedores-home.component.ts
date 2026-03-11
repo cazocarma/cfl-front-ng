@@ -5,6 +5,29 @@ import { CflApiService } from '../../core/services/cfl-api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { MANTENEDORES_CONFIG, MantenedorConfig } from './mantenedor.config';
 
+const MANTENEDOR_FRECUENCIA_ORDEN = [
+  'imputaciones-flete',
+  'tipos-flete',
+  'folios',
+  'tarifas',
+  'detalles-viaje',
+  'rutas',
+  'nodos',
+  'centros-costo',
+  'cuentas-mayor',
+  'tipos-camion',
+  'camiones',
+  'choferes',
+  'empresas-transporte',
+  'productores',
+  'temporadas',
+  'usuarios',
+] as const;
+
+const MANTENEDOR_FRECUENCIA_MAP = new Map<string, number>(
+  MANTENEDOR_FRECUENCIA_ORDEN.map((key, index) => [key, index])
+);
+
 @Component({
     selector: 'app-mantenedores-home',
     imports: [DecimalPipe],
@@ -29,6 +52,15 @@ export class MantenedoresHomeComponent implements OnInit {
     this._loadResumenYPermisos();
   }
 
+  private _orderByFrecuencia(configs: MantenedorConfig[]): MantenedorConfig[] {
+    return [...configs].sort((a, b) => {
+      const pa = MANTENEDOR_FRECUENCIA_MAP.get(a.key) ?? Number.MAX_SAFE_INTEGER;
+      const pb = MANTENEDOR_FRECUENCIA_MAP.get(b.key) ?? Number.MAX_SAFE_INTEGER;
+      if (pa !== pb) return pa - pb;
+      return a.title.localeCompare(b.title);
+    });
+  }
+
   private _loadResumenYPermisos(): void {
     this.loading.set(true);
 
@@ -46,13 +78,13 @@ export class MantenedoresHomeComponent implements OnInit {
           return permissions.has(`mantenedores.view.${cfg.permiso}`);
         });
 
-        this.cardsVisibles.set(visibles);
+        this.cardsVisibles.set(this._orderByFrecuencia(visibles));
         this._loadConteos();
       },
       error: () => {
         // Si falla el contexto (usuario normal sin permiso explícito),
         // mostrar todas las cards igualmente y dejar que el backend rechace 403
-        this.cardsVisibles.set(MANTENEDORES_CONFIG);
+        this.cardsVisibles.set(this._orderByFrecuencia(MANTENEDORES_CONFIG));
         this._loadConteos();
       },
     });

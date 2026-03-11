@@ -21,6 +21,8 @@ export interface CandidatoRow {
   tipo_flete_nombre: string | null;
   id_tipo_flete: number | null;
   id_centro_costo: number | null;
+  id_cuenta_mayor?: number | null;
+  id_imputacion_flete?: number | null;
   puede_ingresar: boolean;
   motivo_no_ingreso: string | null;
 }
@@ -39,6 +41,7 @@ export interface FleteEnCursoRow {
   id_movil: number | null;
   id_tarifa: number | null;
   id_cuenta_mayor: number | null;
+  id_imputacion_flete?: number | null;
   id_ruta: number | null;
   folio_numero: string | null;
   estado: string;
@@ -90,6 +93,7 @@ export interface FleteTabla {
   idMovil?: number | null;
   idTarifa?: number | null;
   idCuentaMayor?: number | null;
+  idImputacionFlete?: number | null;
   idProductor?: number | null;
   idRuta?: number | null;
   productorCodigoProveedor?: string | null;
@@ -133,6 +137,8 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     idProductor: row.id_productor ?? null,
     idTipoFlete: row.id_tipo_flete ?? null,
     idCentroCosto: row.id_centro_costo ?? null,
+    idCuentaMayor: row.id_cuenta_mayor ?? null,
+    idImputacionFlete: row.id_imputacion_flete ?? null,
     productorCodigoProveedor: productorCodigo,
     productorRut,
     productorNombre,
@@ -175,6 +181,7 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     idMovil: row.id_movil ?? null,
     idTarifa: row.id_tarifa ?? null,
     idCuentaMayor: row.id_cuenta_mayor ?? null,
+    idImputacionFlete: row.id_imputacion_flete ?? null,
     idProductor: row.id_productor ?? null,
     idRuta: row.id_ruta ?? null,
     productorCodigoProveedor: productorCodigo,

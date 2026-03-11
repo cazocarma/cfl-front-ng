@@ -235,6 +235,15 @@
                   />
 
                   <app-searchable-combobox
+                    label="Imputacion flete"
+                    nullLabel="Auto por reglas"
+                    [disabled]="isReadOnly()"
+                    [options]="getImputacionFleteOptions()"
+                    [value]="getControlValue('id_imputacion_flete')"
+                    (valueChange)="setControlValue('id_imputacion_flete', $event)"
+                  />
+
+                  <app-searchable-combobox
                     label="Centro de costo"
                     [required]="true"
                     [invalid]="isInvalid('id_centro_costo')"
