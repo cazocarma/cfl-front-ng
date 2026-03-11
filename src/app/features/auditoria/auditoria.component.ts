@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, signal } from '@angular/core';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
@@ -12,10 +12,9 @@ interface AuditoriaOverviewData {
 }
 
 @Component({
-  selector: 'app-auditoria',
-  standalone: true,
-  imports: [CommonModule, WorkspaceShellComponent],
-  template: `
+    selector: 'app-auditoria',
+    imports: [WorkspaceShellComponent],
+    template: `
     <app-workspace-shell
       title="Auditoría"
       subtitle="Trazabilidad de acciones de usuario, entidades impactadas y actividad reciente."
@@ -150,7 +149,7 @@ interface AuditoriaOverviewData {
         </section>
       </div>
     </app-workspace-shell>
-  `,
+  `
 })
 export class AuditoriaComponent implements OnInit {
   readonly loading = signal(false);

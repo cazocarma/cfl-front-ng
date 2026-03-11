@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -16,10 +16,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 type Step = 1 | 2 | 3 | 4 | 5;
 
 @Component({
-  selector: 'app-nueva-factura-wizard',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, WorkspaceShellComponent],
-  template: `
+    selector: 'app-nueva-factura-wizard',
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    template: `
     <app-workspace-shell title="Nueva Factura" subtitle="Generación de facturas internas de transporte." activeSection="facturas">
 
       <!-- Stepper -->
@@ -327,7 +326,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
       </div>
 
     </app-workspace-shell>
-  `,
+  `
 })
 export class NuevaFacturaWizardComponent implements OnInit {
   readonly steps = [

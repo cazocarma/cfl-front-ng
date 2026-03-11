@@ -8,7 +8,7 @@ import {
   signal,
   SimpleChanges,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { CflApiService } from '../../../core/services/cfl-api.service';
@@ -36,10 +36,9 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
 }
 
 @Component({
-  selector: 'app-usuario-form-modal',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule],
-  template: `
+    selector: 'app-usuario-form-modal',
+    imports: [ReactiveFormsModule, FormsModule],
+    template: `
     @if (visible) {
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -232,11 +231,11 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
       </div>
     }
   `,
-  styles: [`
+    styles: [`
     .field-label {
       @apply block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5;
     }
-  `],
+  `]
 })
 export class UsuarioFormModalComponent implements OnChanges {
   @Input() row: Record<string, unknown> | null = null;

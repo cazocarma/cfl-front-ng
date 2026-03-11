@@ -6,11 +6,10 @@ import { AuthService } from '../../core/services/auth.service';
 import { MANTENEDORES_CONFIG, MantenedorConfig } from './mantenedor.config';
 
 @Component({
-  selector: 'app-mantenedores-home',
-  standalone: true,
-  imports: [DecimalPipe],
-  host: { class: 'flex flex-1 flex-col overflow-hidden' },
-  templateUrl: './mantenedores-home.component.html',
+    selector: 'app-mantenedores-home',
+    imports: [DecimalPipe],
+    host: { class: 'flex flex-1 flex-col overflow-hidden' },
+    templateUrl: './mantenedores-home.component.html'
 })
 export class MantenedoresHomeComponent implements OnInit {
   // Cards visibles según permisos del usuario

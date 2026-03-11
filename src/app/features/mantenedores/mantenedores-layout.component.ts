@@ -1,13 +1,12 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
-  selector: 'app-mantenedores-layout',
-  standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
-  template: `
+    selector: 'app-mantenedores-layout',
+    imports: [CommonModule, RouterOutlet, RouterLink],
+    template: `
     <!-- translate-x-0 -translate-x-full (Tailwind safelist hint) -->
     <div class="flex h-screen overflow-hidden bg-forest-50 font-sans">
 
@@ -135,7 +134,7 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
       </main>
     </div>
-  `,
+  `
 })
 export class MantenedoresLayoutComponent {
   sidebarOpen = signal(false);

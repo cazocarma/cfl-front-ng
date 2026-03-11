@@ -4,10 +4,9 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
-  selector: 'app-login',
-  standalone: true,
-  imports: [FormsModule],
-  template: `
+    selector: 'app-login',
+    imports: [FormsModule],
+    template: `
     <!-- Full-screen nature gradient backdrop -->
     <div
       class="min-h-screen flex items-center justify-center relative overflow-hidden"
@@ -139,7 +138,7 @@ import { AuthService } from '../../core/services/auth.service';
         </div>
       </div>
     </div>
-  `,
+  `
 })
 export class LoginComponent {
   email    = signal('');

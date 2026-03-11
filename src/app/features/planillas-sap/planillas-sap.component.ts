@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, computed, signal } from '@angular/core';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
@@ -26,10 +26,9 @@ interface PlanillasOverviewData {
 }
 
 @Component({
-  selector: 'app-planillas-sap',
-  standalone: true,
-  imports: [CommonModule, WorkspaceShellComponent],
-  template: `
+    selector: 'app-planillas-sap',
+    imports: [WorkspaceShellComponent],
+    template: `
     <app-workspace-shell
       title="Planillas SAP"
       subtitle="Agrupación de facturas por período y centro de costo. La salida Excel queda preparada pero no se emite aún."
@@ -204,7 +203,7 @@ interface PlanillasOverviewData {
         </section>
       </div>
     </app-workspace-shell>
-  `,
+  `
 })
 export class PlanillasSapComponent implements OnInit {
   readonly loading = signal(false);

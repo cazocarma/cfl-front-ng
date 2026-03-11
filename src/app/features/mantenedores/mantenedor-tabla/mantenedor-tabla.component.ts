@@ -1,5 +1,5 @@
 import { Component, computed, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
@@ -7,22 +7,18 @@ import { CflApiService } from '../../../core/services/cfl-api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { MantenedorConfig, MANTENEDORES_MAP } from '../mantenedor.config';
 import { MantenedorFormModalComponent } from '../mantenedor-form/mantenedor-form-modal.component';
-import { UsuarioFormModalComponent } from '../usuarios/usuario-form-modal.component';
 import { FolioDetalleModalComponent } from '../folios/folio-detalle-modal.component';
 
 @Component({
-  selector: 'app-mantenedor-tabla',
-  standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    RouterLink,
-    MantenedorFormModalComponent,
-    UsuarioFormModalComponent,
-    FolioDetalleModalComponent,
-  ],
-  host: { class: 'flex flex-1 flex-col overflow-hidden' },
-  templateUrl: './mantenedor-tabla.component.html',
+    selector: 'app-mantenedor-tabla',
+    imports: [
+        CommonModule,
+        FormsModule,
+        MantenedorFormModalComponent,
+        FolioDetalleModalComponent,
+    ],
+    host: { class: 'flex flex-1 flex-col overflow-hidden' },
+    templateUrl: './mantenedor-tabla.component.html'
 })
 export class MantenedorTablaComponent implements OnInit {
   /* ── Config de entidad ─────────────────────────────────────── */

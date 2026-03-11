@@ -7,15 +7,14 @@ import {
   signal,
   SimpleChanges,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { CflApiService } from '../../../core/services/cfl-api.service';
 
 @Component({
-  selector: 'app-folio-detalle-modal',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    selector: 'app-folio-detalle-modal',
+    imports: [FormsModule],
+    template: `
     @if (visible) {
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -204,7 +203,7 @@ import { CflApiService } from '../../../core/services/cfl-api.service';
         </div>
       </div>
     }
-  `,
+  `
 })
 export class FolioDetalleModalComponent implements OnChanges {
   @Input() folio: Record<string, unknown> = {};

@@ -6,7 +6,7 @@ import {
   Output,
   SimpleChanges,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 export interface SearchableOption {
   value: string;
@@ -14,10 +14,9 @@ export interface SearchableOption {
 }
 
 @Component({
-  selector: 'app-searchable-combobox',
-  standalone: true,
-  imports: [CommonModule],
-  template: `
+    selector: 'app-searchable-combobox',
+    imports: [],
+    template: `
     <div class="grid gap-2">
       @if (label) {
         <label class="field-label">{{ label }}{{ required ? ' *' : '' }}</label>
@@ -67,7 +66,7 @@ export interface SearchableOption {
       }
     </div>
   `,
-  styles: [`
+    styles: [`
     .field-label {
       @apply block text-xs font-semibold text-forest-700 uppercase tracking-wider;
     }
@@ -87,7 +86,7 @@ export interface SearchableOption {
     .combobox-empty {
       @apply px-3 py-2 text-xs text-forest-400;
     }
-  `],
+  `]
 })
 export class SearchableComboboxComponent implements OnChanges {
   @Input() label = '';

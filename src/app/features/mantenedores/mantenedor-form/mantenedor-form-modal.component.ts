@@ -7,7 +7,7 @@ import {
   SimpleChanges,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
@@ -19,10 +19,9 @@ import { UsuarioFormModalComponent } from '../usuarios/usuario-form-modal.compon
 type EntityOptions = Record<string, Record<string, unknown>[]>;
 
 @Component({
-  selector: 'app-mantenedor-form-modal',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, UsuarioFormModalComponent],
-  template: `
+    selector: 'app-mantenedor-form-modal',
+    imports: [ReactiveFormsModule, UsuarioFormModalComponent],
+    template: `
     <!-- Delegación a modal especial para usuarios -->
     @if (config.tipoEspecial === 'usuarios') {
       <app-usuario-form-modal
@@ -243,7 +242,7 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
         </div>
       </div>
     }
-  `,
+  `
 })
 export class MantenedorFormModalComponent implements OnChanges {
   @Input() config!: MantenedorConfig;

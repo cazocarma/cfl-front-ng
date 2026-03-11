@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink } from '@angular/router';
 
 import {
   adaptCandidato,
@@ -22,10 +22,9 @@ import { EditFleteModalComponent, ModalMode } from './edit-flete-modal.component
 type ConfirmActionType = 'descartar' | 'anular';
 
 @Component({
-  selector: 'app-bandeja',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive, EditFleteModalComponent],
-  templateUrl: './bandeja.component.html',
+    selector: 'app-bandeja',
+    imports: [CommonModule, FormsModule, RouterLink, EditFleteModalComponent],
+    templateUrl: './bandeja.component.html'
 })
 export class BandejaComponent implements OnInit {
   /*  User session  */

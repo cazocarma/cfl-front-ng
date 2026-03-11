@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -8,10 +8,9 @@ import { CflApiService } from '../../core/services/cfl-api.service';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 @Component({
-  selector: 'app-factura-detalle',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, WorkspaceShellComponent],
-  template: `
+    selector: 'app-factura-detalle',
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    template: `
     <app-workspace-shell [title]="factura() ? 'Factura ' + factura()!.numero_factura : 'Detalle de Factura'"
                          subtitle="Cabecera, folios y movimientos de la factura."
                          activeSection="facturas">
@@ -363,7 +362,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
       }
 
     </app-workspace-shell>
-  `,
+  `
 })
 export class FacturaDetalleComponent implements OnInit {
   readonly loading           = signal(false);

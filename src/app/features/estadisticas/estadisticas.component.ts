@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, signal } from '@angular/core';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
@@ -13,10 +13,9 @@ interface EstadisticasOverviewData {
 }
 
 @Component({
-  selector: 'app-estadisticas',
-  standalone: true,
-  imports: [CommonModule, WorkspaceShellComponent],
-  template: `
+    selector: 'app-estadisticas',
+    imports: [WorkspaceShellComponent],
+    template: `
     <app-workspace-shell
       title="Estadísticas"
       subtitle="Resumen operativo y financiero construido desde cabeceras de flete, folios y facturas."
@@ -218,7 +217,7 @@ interface EstadisticasOverviewData {
         </section>
       </div>
     </app-workspace-shell>
-  `,
+  `
 })
 export class EstadisticasComponent implements OnInit {
   readonly loading = signal(false);

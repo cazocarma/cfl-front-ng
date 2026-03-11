@@ -13,10 +13,9 @@ type WorkspaceSection =
   | 'auditoria';
 
 @Component({
-  selector: 'app-workspace-shell',
-  standalone: true,
-  imports: [CommonModule, RouterLink],
-  templateUrl: './workspace-shell.component.html',
+    selector: 'app-workspace-shell',
+    imports: [CommonModule, RouterLink],
+    templateUrl: './workspace-shell.component.html'
 })
 export class WorkspaceShellComponent {
   @Input() title = '';

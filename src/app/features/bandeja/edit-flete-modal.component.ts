@@ -7,7 +7,7 @@ import {
   SimpleChanges,
   signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Observable, catchError, forkJoin, of } from 'rxjs';
 
@@ -54,11 +54,10 @@ interface TarifaListResponse {
 }
 
 @Component({
-  selector: 'app-edit-flete-modal',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SearchableComboboxComponent],
-  templateUrl: './edit-flete-modal.component.html',
-  styles: [`
+    selector: 'app-edit-flete-modal',
+    imports: [ReactiveFormsModule, SearchableComboboxComponent],
+    templateUrl: './edit-flete-modal.component.html',
+    styles: [`
     .field-label {
       @apply block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5;
     }
@@ -70,7 +69,7 @@ interface TarifaListResponse {
     .route-node {
       @apply min-w-[120px] rounded-xl border border-forest-200 bg-white px-3 py-2 text-center text-xs font-semibold text-forest-800 shadow-sm;
     }
-  `],
+  `]
 })
 export class EditFleteModalComponent implements OnChanges {
   @Input() flete: FleteTabla | null = null;
