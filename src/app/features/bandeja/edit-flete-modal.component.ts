@@ -1,15 +1,19 @@
 import {
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
   OnChanges,
   Output,
   SimpleChanges,
+  computed,
+  inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Observable, catchError, forkJoin, of } from 'rxjs';
+import { Observable, catchError, forkJoin, of, retry } from 'rxjs';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { FleteTabla } from '../../core/models/flete.model';
@@ -34,6 +38,20 @@ interface DetalleDraft {
   sap_lote: string;
 }
 
+interface DetalleGrupo {
+  /** Clave de agrupación: material normalizado en mayúsculas, o rowId si no tiene material. */
+  materialKey: string;
+  material: string;
+  descripcion: string;
+  cantidad_total: number;
+  peso_total: number;
+  unidad: string;
+  id_especie: string;
+  rowIds: string[];
+  lotes: string[];
+  posicion_count: number;
+}
+
 interface DashboardDetalleResponse {
   data?: {
     cabecera?: Record<string, unknown>;
@@ -51,6 +69,26 @@ interface FleteDetalleResponse {
 interface TarifaListResponse {
   data?: unknown[];
   temporada_id?: number | null;
+}
+
+interface CatalogCacheSnapshot {
+  loadedAt: number;
+  tiposFlete: Record<string, unknown>[];
+  tiposCamion: Record<string, unknown>[];
+  centrosCosto: Record<string, unknown>[];
+  detallesViaje: Record<string, unknown>[];
+  nodos: Record<string, unknown>[];
+  rutas: Record<string, unknown>[];
+  tarifas: Record<string, unknown>[];
+  empresas: Record<string, unknown>[];
+  choferes: Record<string, unknown>[];
+  camiones: Record<string, unknown>[];
+  cuentasMayor: Record<string, unknown>[];
+  imputacionesFlete: Record<string, unknown>[];
+  especies: Record<string, unknown>[];
+  productores: Record<string, unknown>[];
+  temporadaId: number | null;
+  temporadaLabel: string;
 }
 
 @Component({
@@ -72,6 +110,9 @@ interface TarifaListResponse {
   `]
 })
 export class EditFleteModalComponent implements OnChanges {
+  private static readonly CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+  private static catalogCache: CatalogCacheSnapshot | null = null;
+
   @Input() flete: FleteTabla | null = null;
   @Input() visible = false;
   @Input() mode: ModalMode = 'edit';
@@ -88,6 +129,8 @@ export class EditFleteModalComponent implements OnChanges {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tiposFlete: any[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tiposCamion: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   centrosCosto: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,18 +157,55 @@ export class EditFleteModalComponent implements OnChanges {
   productores: any[] = [];
 
   tipoFleteOptions: SearchableOption[] = [];
+  tipoCamionOptions: SearchableOption[] = [];
   centroCostoOptions: SearchableOption[] = [];
   detalleViajeOptions: SearchableOption[] = [];
   nodoOptions: SearchableOption[] = [];
+  origenNodoOptions: SearchableOption[] = [];
+  destinoNodoOptions: SearchableOption[] = [];
   empresaOptions: SearchableOption[] = [];
   choferOptions: SearchableOption[] = [];
   camionOptions: SearchableOption[] = [];
   cuentaMayorOptions: SearchableOption[] = [];
-  imputacionFleteOptions: SearchableOption[] = [];
   especieOptions: SearchableOption[] = [];
   productorOptions: SearchableOption[] = [];
+  destinoHintLabel = 'Selecciona un origen para filtrar los destinos con tarifa vigente.';
 
   detailRows = signal<DetalleDraft[]>([]);
+
+  /** Vista agrupada por material (o por rowId si no hay material). */
+  readonly groupedRows = computed<DetalleGrupo[]>(() => {
+    const rows = this.detailRows();
+    const groups = new Map<string, DetalleGrupo>();
+    for (const row of rows) {
+      const mat = row.material.trim().toUpperCase();
+      const key = mat || row.rowId;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          materialKey: key,
+          material: row.material,
+          descripcion: row.descripcion,
+          cantidad_total: Number(row.cantidad) || 0,
+          peso_total: Number(row.peso) || 0,
+          unidad: row.unidad,
+          id_especie: row.id_especie,
+          rowIds: [row.rowId],
+          lotes: row.sap_lote ? [row.sap_lote] : [],
+          posicion_count: 1,
+        });
+      } else {
+        const g = groups.get(key)!;
+        g.cantidad_total += Number(row.cantidad) || 0;
+        g.peso_total += Number(row.peso) || 0;
+        g.rowIds.push(row.rowId);
+        g.posicion_count++;
+        if (row.sap_lote && !g.lotes.includes(row.sap_lote)) g.lotes.push(row.sap_lote);
+        if (!g.id_especie && row.id_especie) g.id_especie = row.id_especie;
+      }
+    }
+    return Array.from(groups.values());
+  });
+
   sapSnapshot: Record<string, unknown> | null = null;
   currentTemporadaId: number | null = null;
   currentTemporadaLabel = '';
@@ -134,11 +214,15 @@ export class EditFleteModalComponent implements OnChanges {
   resolvedRouteMonto: number | null = null;
   resolvedRouteMoneda = '';
   routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+  private imputacionesByTipo = new Map<string, Record<string, unknown>[]>();
+  private imputacionesById = new Map<string, Record<string, unknown>>();
 
   readonly tipoMovimientoOptions: SearchableOption[] = [
     { value: 'PUSH', label: 'Despacho' },
     { value: 'PULL', label: 'Retorno' },
   ];
+
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(private fb: FormBuilder, private cflApi: CflApiService) {
     this.form = this.fb.group({
@@ -146,6 +230,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: ['', Validators.required],
       tipo_movimiento: ['', Validators.required],
       id_tipo_flete: ['', Validators.required],
+      id_tipo_camion: [''],
       id_imputacion_flete: [''],
       id_centro_costo: ['', Validators.required],
       id_detalle_viaje: [''],
@@ -266,7 +351,29 @@ export class EditFleteModalComponent implements OnChanges {
 
   setControlValue(key: string, value: string): void {
     if (this.isReadOnly()) return;
+    const previousValue = this.getControlValue(key);
     this.form.get(key)?.setValue(value);
+
+    if (key === 'id_tipo_flete' && value !== previousValue) {
+      this.form.patchValue(
+        {
+          id_imputacion_flete: '',
+          id_centro_costo: '',
+          id_cuenta_mayor: '',
+        },
+        { emitEvent: false }
+      );
+    }
+
+    if (key === 'id_centro_costo' && value !== previousValue) {
+      this.form.patchValue(
+        {
+          id_imputacion_flete: '',
+          id_cuenta_mayor: '',
+        },
+        { emitEvent: false }
+      );
+    }
 
     if (key === 'id_imputacion_flete') {
       this._applyImputacionSelection(value);
@@ -276,7 +383,23 @@ export class EditFleteModalComponent implements OnChanges {
       this._syncImputacionFromFields();
     }
 
-    if (key === 'id_camion' || key === 'fecha_salida') {
+    if (key === 'id_tipo_camion' && value !== previousValue) {
+      const selectedCamionId = this.getControlValue('id_camion');
+      if (selectedCamionId) {
+        const selectedCamion = this.camiones.find((row) => String(row['id_camion']) === selectedCamionId) || null;
+        const selectedCamionTipo = this._toControlValue(selectedCamion?.['id_tipo_camion']);
+        if (selectedCamionTipo && selectedCamionTipo !== value) {
+          this.form.patchValue({ id_camion: '' }, { emitEvent: false });
+        }
+      }
+    }
+
+    if (key === 'id_camion') {
+      this._syncTipoCamionFromCamion(value);
+    }
+
+    if (key === 'id_camion' || key === 'id_tipo_camion' || key === 'fecha_salida') {
+      this._refreshRouteNodeFilters(false);
       this._syncRouteAndTarifa(true);
     }
   }
@@ -285,12 +408,16 @@ export class EditFleteModalComponent implements OnChanges {
     return this.tipoFleteOptions;
   }
 
+  getTipoCamionOptions(): SearchableOption[] {
+    return this.tipoCamionOptions;
+  }
+
   getCentroCostoOptions(): SearchableOption[] {
     const tipoId = this.getControlValue('id_tipo_flete');
-    if (!tipoId) return this.centroCostoOptions;
+    if (!tipoId) return [];
 
     const imputaciones = this._getImputacionesByTipo(tipoId);
-    if (imputaciones.length === 0) return this.centroCostoOptions;
+    if (imputaciones.length === 0) return [];
 
     const allowedCentro = new Set(imputaciones.map((row) => String(row['id_centro_costo'])));
     return this.centroCostoOptions.filter((opt) => allowedCentro.has(opt.value));
@@ -302,8 +429,26 @@ export class EditFleteModalComponent implements OnChanges {
 
   setRouteNodeValue(key: 'id_origen_nodo' | 'id_destino_nodo', value: string): void {
     if (this.isReadOnly()) return;
+    const previousValue = this.getControlValue(key);
     this.form.get(key)?.setValue(value);
+    if (key === 'id_origen_nodo') {
+      this._refreshRouteNodeFilters(value !== previousValue);
+    } else {
+      this._refreshRouteNodeFilters(false);
+    }
     this._syncRouteAndTarifa(true);
+  }
+
+  getOrigenNodoOptions(): SearchableOption[] {
+    return this.origenNodoOptions;
+  }
+
+  getDestinoNodoOptions(): SearchableOption[] {
+    return this.destinoNodoOptions;
+  }
+
+  getDestinoHint(): string {
+    return this.destinoHintLabel;
   }
 
   getNodoOptions(): SearchableOption[] {
@@ -319,32 +464,71 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getCamionOptions(): SearchableOption[] {
-    return this.camionOptions;
+    const selectedTipoCamion = this.getControlValue('id_tipo_camion');
+    if (!selectedTipoCamion) return this.camionOptions;
+
+    const allowedCamion = new Set(
+      this.camiones
+        .filter((row) => this._toControlValue(row['id_tipo_camion']) === selectedTipoCamion)
+        .map((row) => this._toControlValue(row['id_camion']))
+        .filter((id) => Boolean(id))
+    );
+
+    const selectedCamion = this.getControlValue('id_camion');
+    return this.camionOptions.filter((opt) => allowedCamion.has(opt.value) || opt.value === selectedCamion);
+  }
+
+  getCamionHint(): string {
+    const selectedTipoCamion = this.getControlValue('id_tipo_camion');
+    if (!selectedTipoCamion) return 'Selecciona tipo de camion para acotar opciones.';
+    const total = this.getCamionOptions().length;
+    return total > 0
+      ? `Mostrando ${total} camion(es) del tipo seleccionado.`
+      : 'No hay camiones activos para el tipo seleccionado.';
+  }
+
+  isCentroCostoDisabled(): boolean {
+    return this.isReadOnly() || !this.getControlValue('id_tipo_flete');
+  }
+
+  isCuentaMayorDisabled(): boolean {
+    return this.isReadOnly() || !this.getControlValue('id_tipo_flete') || !this.getControlValue('id_centro_costo');
+  }
+
+  hasImputacionResuelta(): boolean {
+    return Boolean(this.getControlValue('id_imputacion_flete'));
+  }
+
+  getImputacionHintLabel(): string {
+    const idImputacion = this.getControlValue('id_imputacion_flete');
+    if (!idImputacion) {
+      return 'Se resolvera automaticamente al definir tipo de flete, centro de costo y cuenta mayor.';
+    }
+
+    const imputacion = this._findImputacionById(idImputacion);
+    if (!imputacion) {
+      return 'Imputacion automatica aplicada por reglas activas.';
+    }
+
+    const tipo = this._toString(imputacion['tipo_flete_nombre']) || this._toString(imputacion['tipo_flete_sap_codigo']) || 'Tipo';
+    const centro = this._toString(imputacion['centro_costo_sap_codigo']) || this._toString(imputacion['centro_costo_nombre']) || 'Centro';
+    const cuenta = this._toString(imputacion['cuenta_mayor_codigo']) || this._toString(imputacion['cuenta_mayor_glosa']) || 'Cuenta';
+    return `Regla aplicada: ${tipo} | ${centro} | ${cuenta}`;
   }
 
   getCuentaMayorOptions(): SearchableOption[] {
     const tipoId = this.getControlValue('id_tipo_flete');
-    if (!tipoId) return this.cuentaMayorOptions;
+    if (!tipoId) return [];
 
     const centroId = this.getControlValue('id_centro_costo');
+    if (!centroId) return [];
+
     let imputaciones = this._getImputacionesByTipo(tipoId);
-    if (centroId) {
-      imputaciones = imputaciones.filter((row) => String(row['id_centro_costo']) === centroId);
-    }
-    if (imputaciones.length === 0) return this.cuentaMayorOptions;
+    imputaciones = imputaciones.filter((row) => String(row['id_centro_costo']) === centroId);
+    if (imputaciones.length === 0) return [];
 
     const allowedCuenta = new Set(imputaciones.map((row) => String(row['id_cuenta_mayor'])));
     return this.cuentaMayorOptions.filter((opt) => allowedCuenta.has(opt.value));
-  }
-
-  getImputacionFleteOptions(): SearchableOption[] {
-    const tipoId = this.getControlValue('id_tipo_flete');
-    if (!tipoId) return this.imputacionFleteOptions;
-
-    const allowedImputacion = new Set(
-      this._getImputacionesByTipo(tipoId).map((row) => String(row['id_imputacion_flete']))
-    );
-    return this.imputacionFleteOptions.filter((opt) => allowedImputacion.has(opt.value));
   }
 
   getProductorOptions(): SearchableOption[] {
@@ -385,9 +569,62 @@ export class EditFleteModalComponent implements OnChanges {
     this._updateDetailRow(rowId, { [field]: value } as Partial<DetalleDraft>);
   }
 
+  // --- Group-level edits ------------------------------------------------
+
+  /** Actualiza la especie de TODOS los detalles del grupo (SAP y manual). */
+  updateGroupEspecie(materialKey: string, value: string): void {
+    if (this.isReadOnly()) return;
+    this.detailRows.update(rows => rows.map(row => {
+      const k = row.material.trim().toUpperCase() || row.rowId;
+      return k === materialKey ? { ...row, id_especie: value } : row;
+    }));
+  }
+
+  /**
+   * Actualiza un campo de todos los detalles del grupo (solo fletes manuales).
+   * Si el grupo tiene más de una fila, consolida a la primera y elimina el resto.
+   */
+  updateGroupField(materialKey: string, field: 'material' | 'descripcion' | 'cantidad' | 'unidad' | 'peso', value: string): void {
+    if (this.isReadOnly() || this.isSapBacked()) return;
+    this.detailRows.update(rows => {
+      const groupIds = rows
+        .filter(r => (r.material.trim().toUpperCase() || r.rowId) === materialKey)
+        .map(r => r.rowId);
+
+      if (groupIds.length <= 1) {
+        return rows.map(row => {
+          const k = row.material.trim().toUpperCase() || row.rowId;
+          return k === materialKey ? { ...row, [field]: value } : row;
+        });
+      }
+      // Grupo con múltiples filas: consolidar en la primera, eliminar el resto
+      const firstId = groupIds[0];
+      return rows
+        .filter(r => r.rowId === firstId || (r.material.trim().toUpperCase() || r.rowId) !== materialKey)
+        .map(row => row.rowId === firstId ? { ...row, [field]: value } : row);
+    });
+  }
+
+  /** Elimina todos los detalles del grupo (solo fletes manuales). */
+  removeDetailGroup(materialKey: string): void {
+    if (this.isReadOnly()) return;
+    this.detailRows.update(rows => rows.filter(row =>
+      (row.material.trim().toUpperCase() || row.rowId) !== materialKey
+    ));
+  }
+
+  /** Formatea un número para mostrar en plantilla. */
+  formatNum(value: number, decimals: number): string {
+    if (!value && value !== 0) return '-';
+    return new Intl.NumberFormat('es-CL', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(value);
+  }
+
   onBackdropClick(event: MouseEvent): void {
     if ((event.target as HTMLElement) === event.currentTarget) {
-      this.cerrado.emit();
+      return;
     }
   }
 
@@ -416,7 +653,7 @@ export class EditFleteModalComponent implements OnChanges {
       obs$ = this.cflApi.crearFleteManual(payload);
     }
 
-    obs$.subscribe({
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving.set(false);
         this.guardado.emit();
@@ -434,6 +671,9 @@ export class EditFleteModalComponent implements OnChanges {
     this.activeTab.set('cabecera');
     this.sapSnapshot = null;
     this.detailRows.set([]);
+    this.origenNodoOptions = [];
+    this.destinoNodoOptions = [];
+    this.destinoHintLabel = 'Selecciona un origen para filtrar los destinos con tarifa vigente.';
     this.currentTemporadaId = null;
     this.currentTemporadaLabel = '';
     this.resolvedRouteName = '';
@@ -458,6 +698,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: this.flete?.guiaRemision ?? '',
       tipo_movimiento: 'PUSH',
       id_tipo_flete: this._toControlValue(this.flete?.idTipoFlete),
+      id_tipo_camion: '',
       id_imputacion_flete: this._toControlValue(this.flete?.idImputacionFlete),
       id_centro_costo: this._toControlValue(this.flete?.idCentroCosto),
       id_detalle_viaje: this._toControlValue(this.flete?.idDetalleViaje),
@@ -478,9 +719,21 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _loadCatalogos(): void {
+    const cached = EditFleteModalComponent.catalogCache;
+    if (cached && (Date.now() - cached.loadedAt) < EditFleteModalComponent.CATALOG_CACHE_TTL_MS) {
+      this._applyCatalogSnapshot(cached);
+      this._applyFallbacks(true);
+      this._loadFleteContext();
+      if ((cached.productores?.length || 0) === 0) {
+        this._loadProductoresDeferred();
+      }
+      return;
+    }
+
     this.loadingCatalogos.set(true);
     forkJoin({
       tiposFlete: this._safeCatalog('tipos-flete'),
+      tiposCamion: this._safeCatalog('tipos-camion'),
       centrosCosto: this._safeCatalog('centros-costo'),
       detallesViaje: this._safeCatalog('detalles-viaje'),
       nodos: this._safeCatalog('nodos'),
@@ -489,13 +742,13 @@ export class EditFleteModalComponent implements OnChanges {
       empresas: this._safeCatalog('empresas-transporte'),
       choferes: this._safeCatalog('choferes'),
       camiones: this._safeCatalog('camiones'),
-      productores: this._safeCatalog('productores'),
       cuentasMayor: this._safeCatalog('cuentas-mayor'),
       imputacionesFlete: this._safeCatalog('imputaciones-flete'),
       especies: this._safeCatalog('especies'),
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.tiposFlete = res.tiposFlete.data as Record<string, unknown>[];
+        this.tiposCamion = res.tiposCamion.data as Record<string, unknown>[];
         this.centrosCosto = res.centrosCosto.data as Record<string, unknown>[];
         this.detallesViaje = res.detallesViaje.data as Record<string, unknown>[];
         this.nodos = res.nodos.data as Record<string, unknown>[];
@@ -504,30 +757,49 @@ export class EditFleteModalComponent implements OnChanges {
         this.empresas = res.empresas.data as Record<string, unknown>[];
         this.choferes = res.choferes.data as Record<string, unknown>[];
         this.camiones = res.camiones.data as Record<string, unknown>[];
-        this.productores = res.productores.data as Record<string, unknown>[];
+        this.productores = [];
         this.cuentasMayor = res.cuentasMayor.data as Record<string, unknown>[];
         this.imputacionesFlete = res.imputacionesFlete.data as Record<string, unknown>[];
         this.especies = res.especies.data as Record<string, unknown>[];
         this.currentTemporadaId = res.tarifas.temporada_id ?? null;
         this.currentTemporadaLabel = this._toString(this.tarifas[0]?.['temporada_nombre']) || this._toString(this.tarifas[0]?.['temporada_codigo']) || '';
         this.tipoFleteOptions = this._mapOptions(this.tiposFlete, 'id_tipo_flete', ['nombre', 'sap_codigo']);
+        this.tipoCamionOptions = this._mapOptions(this.tiposCamion, 'id_tipo_camion', ['nombre', 'categoria']);
         this.centroCostoOptions = this._mapOptions(this.centrosCosto, 'id_centro_costo', ['sap_codigo', 'nombre']);
         this.detalleViajeOptions = this._mapOptions(this.detallesViaje, 'id_detalle_viaje', ['descripcion']);
         this.nodoOptions = this._mapOptions(this.nodos, 'id_nodo', ['nombre']);
         this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['sap_codigo', 'razon_social']);
         this.choferOptions = this._mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
         this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
-        this.productorOptions = this._mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']);
+        this.productorOptions = [];
         this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
-        this.imputacionFleteOptions = this._mapOptions(
-          this.imputacionesFlete,
-          'id_imputacion_flete',
-          ['tipo_flete_nombre', 'centro_costo_sap_codigo', 'cuenta_mayor_codigo']
-        );
+        this._rebuildImputacionIndexes();
         this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
+
+        EditFleteModalComponent.catalogCache = {
+          loadedAt: Date.now(),
+          tiposFlete: this.tiposFlete,
+          tiposCamion: this.tiposCamion,
+          centrosCosto: this.centrosCosto,
+          detallesViaje: this.detallesViaje,
+          nodos: this.nodos,
+          rutas: this.rutas,
+          tarifas: this.tarifas,
+          empresas: this.empresas,
+          choferes: this.choferes,
+          camiones: this.camiones,
+          cuentasMayor: this.cuentasMayor,
+          imputacionesFlete: this.imputacionesFlete,
+          especies: this.especies,
+          productores: [],
+          temporadaId: this.currentTemporadaId,
+          temporadaLabel: this.currentTemporadaLabel,
+        };
+
         this._applyFallbacks(true);
         this.loadingCatalogos.set(false);
         this._loadFleteContext();
+        this._loadProductoresDeferred();
       },
       error: () => {
         this.errorMsg.set('Error cargando catalogos. Intenta nuevamente.');
@@ -540,7 +812,7 @@ export class EditFleteModalComponent implements OnChanges {
   private _loadFleteContext(): void {
     if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
       this.detailLoading.set(true);
-      this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega).subscribe({
+      this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           this._hydrateCandidate(res as DashboardDetalleResponse);
           this.detailLoading.set(false);
@@ -555,7 +827,7 @@ export class EditFleteModalComponent implements OnChanges {
 
     if (this.flete?.kind === 'en_curso' && this.flete.idCabeceraFlete) {
       this.detailLoading.set(true);
-      this.cflApi.getFleteById(this.flete.idCabeceraFlete).subscribe({
+      this.cflApi.getFleteById(this.flete.idCabeceraFlete).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           this._hydrateExisting(res as FleteDetalleResponse);
           this.detailLoading.set(false);
@@ -574,13 +846,66 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _safeCatalog(entity: string): Observable<{ data: unknown[] }> {
-    return this.cflApi.listMaintainerRows(entity).pipe(catchError(() => of({ data: [] })));
+    return this.cflApi.listMaintainerRows(entity).pipe(
+      retry(1),
+      catchError(() => of({ data: [] }))
+    );
   }
 
   private _safeTarifas(): Observable<TarifaListResponse> {
     return this.cflApi.listTarifas().pipe(
+      retry(1),
       catchError(() => of({ data: [], temporada_id: null }))
     );
+  }
+
+  private _loadProductoresDeferred(): void {
+    this._safeCatalog('productores').pipe(takeUntilDestroyed(this.destroyRef)).subscribe((res) => {
+      this.productores = res.data as Record<string, unknown>[];
+      this.productorOptions = this._mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']);
+      this._applyProductorFallback();
+
+      const cached = EditFleteModalComponent.catalogCache;
+      if (cached) {
+        EditFleteModalComponent.catalogCache = {
+          ...cached,
+          loadedAt: Date.now(),
+          productores: this.productores,
+        };
+      }
+    });
+  }
+
+  private _applyCatalogSnapshot(snapshot: CatalogCacheSnapshot): void {
+    this.tiposFlete = snapshot.tiposFlete;
+    this.tiposCamion = snapshot.tiposCamion || [];
+    this.centrosCosto = snapshot.centrosCosto;
+    this.detallesViaje = snapshot.detallesViaje;
+    this.nodos = snapshot.nodos;
+    this.rutas = snapshot.rutas;
+    this.tarifas = snapshot.tarifas;
+    this.empresas = snapshot.empresas;
+    this.choferes = snapshot.choferes;
+    this.camiones = snapshot.camiones;
+    this.cuentasMayor = snapshot.cuentasMayor;
+    this.imputacionesFlete = snapshot.imputacionesFlete;
+    this.especies = snapshot.especies;
+    this.productores = snapshot.productores;
+    this.currentTemporadaId = snapshot.temporadaId;
+    this.currentTemporadaLabel = snapshot.temporadaLabel;
+
+    this.tipoFleteOptions = this._mapOptions(this.tiposFlete, 'id_tipo_flete', ['nombre', 'sap_codigo']);
+    this.tipoCamionOptions = this._mapOptions(this.tiposCamion, 'id_tipo_camion', ['nombre', 'categoria']);
+    this.centroCostoOptions = this._mapOptions(this.centrosCosto, 'id_centro_costo', ['sap_codigo', 'nombre']);
+    this.detalleViajeOptions = this._mapOptions(this.detallesViaje, 'id_detalle_viaje', ['descripcion']);
+    this.nodoOptions = this._mapOptions(this.nodos, 'id_nodo', ['nombre']);
+    this.empresaOptions = this._mapOptions(this.empresas, 'id_empresa', ['sap_codigo', 'razon_social']);
+    this.choferOptions = this._mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
+    this.camionOptions = this._mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
+    this.productorOptions = this._mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']);
+    this.cuentaMayorOptions = this._mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
+    this._rebuildImputacionIndexes();
+    this.especieOptions = this._mapOptions(this.especies, 'id_especie', ['glosa']);
   }
 
   private _hydrateCandidate(response: DashboardDetalleResponse): void {
@@ -625,6 +950,7 @@ export class EditFleteModalComponent implements OnChanges {
       guia_remision: this._toControlValue(cabecera['guia_remision']),
       tipo_movimiento: this._toControlValue(cabecera['tipo_movimiento']) || 'PUSH',
       id_tipo_flete: this._toControlValue(cabecera['id_tipo_flete']),
+      id_tipo_camion: this._toControlValue(cabecera['id_tipo_camion']),
       id_imputacion_flete: this._toControlValue(cabecera['id_imputacion_flete']),
       id_centro_costo: this._toControlValue(cabecera['id_centro_costo']),
       id_detalle_viaje: this._toControlValue(cabecera['id_detalle_viaje']),
@@ -650,8 +976,11 @@ export class EditFleteModalComponent implements OnChanges {
     this._applySapDefaults();
     this._applyProductorFallback();
     this._applyTransportFallbacks();
+    this._syncTipoCamionFromCamion();
     this._syncImputacionFromFields();
+    this._refreshRouteNodeFilters(false);
     this._syncRouteAndTarifa(preserveExistingAmount);
+    this._refreshRouteNodeFilters(false);
   }
 
   private _applyProductorFallback(): void {
@@ -741,16 +1070,13 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _getImputacionesByTipo(tipoId: string): Record<string, unknown>[] {
-    return this.imputacionesFlete.filter((row) =>
-      String(row['id_tipo_flete']) === tipoId && this._isRowActive(row)
-    );
+    if (!tipoId) return [];
+    return this.imputacionesByTipo.get(tipoId) || [];
   }
 
   private _findImputacionById(idImputacion: string): Record<string, unknown> | null {
     if (!idImputacion) return null;
-    return this.imputacionesFlete.find((row) =>
-      String(row['id_imputacion_flete']) === idImputacion
-    ) || null;
+    return this.imputacionesById.get(idImputacion) || null;
   }
 
   private _applyImputacionSelection(idImputacion: string): void {
@@ -816,19 +1142,33 @@ export class EditFleteModalComponent implements OnChanges {
       }
     }
 
-    if (!centroId && cuentaId) {
-      const byCuenta = imputaciones.filter((row) => String(row['id_cuenta_mayor']) === cuentaId);
-      if (byCuenta.length === 1) {
-        const only = byCuenta[0];
-        this.form.patchValue({
-          id_imputacion_flete: this._toControlValue(only['id_imputacion_flete']),
-          id_centro_costo: this._toControlValue(only['id_centro_costo']),
-        }, { emitEvent: false });
-        return;
+    this.form.patchValue({ id_imputacion_flete: '' }, { emitEvent: false });
+  }
+
+  private _rebuildImputacionIndexes(): void {
+    this.imputacionesByTipo.clear();
+    this.imputacionesById.clear();
+
+    for (const row of this.imputacionesFlete) {
+      if (!this._isRowActive(row)) continue;
+
+      const idImputacion = this._toControlValue(row['id_imputacion_flete']);
+      const tipoId = this._toControlValue(row['id_tipo_flete']);
+
+      if (idImputacion) {
+        this.imputacionesById.set(idImputacion, row);
+      }
+      if (!tipoId) {
+        continue;
+      }
+
+      const existing = this.imputacionesByTipo.get(tipoId);
+      if (existing) {
+        existing.push(row);
+      } else {
+        this.imputacionesByTipo.set(tipoId, [row]);
       }
     }
-
-    this.form.patchValue({ id_imputacion_flete: '' }, { emitEvent: false });
   }
 
   private _applyTransportFallbacks(): void {
@@ -867,6 +1207,116 @@ export class EditFleteModalComponent implements OnChanges {
         this.form.get('id_camion')?.setValue(String(camion['id_camion']));
       }
     }
+  }
+
+  private _syncTipoCamionFromCamion(camionIdOverride?: string): void {
+    const camionId = camionIdOverride ?? this.getControlValue('id_camion');
+    if (!camionId) return;
+
+    const camion = this.camiones.find((row) => String(row['id_camion']) === camionId) || null;
+    const camionTipo = this._toControlValue(camion?.['id_tipo_camion']);
+    if (!camionTipo) return;
+
+    const currentTipo = this.getControlValue('id_tipo_camion');
+    if (currentTipo !== camionTipo) {
+      this.form.patchValue({ id_tipo_camion: camionTipo }, { emitEvent: false });
+    }
+  }
+
+  private _getEffectiveTipoCamionId(): string {
+    const explicitTipo = this.getControlValue('id_tipo_camion');
+    if (explicitTipo) return explicitTipo;
+
+    const selectedCamion = this.camiones.find((row) => String(row['id_camion']) === this.getControlValue('id_camion')) || null;
+    return this._toControlValue(selectedCamion?.['id_tipo_camion']);
+  }
+
+  private _getSeasonTarifas(routeId?: string): Record<string, unknown>[] {
+    const departureDate = this.getControlValue('fecha_salida') || this._formatDate(new Date());
+    return this.tarifas
+      .filter((row) => !routeId || String(row['id_ruta']) === routeId)
+      .filter((row) => this._isTarifaVigente(row, departureDate));
+  }
+
+  private _getEligibleTarifasForDestino(routeId?: string): Record<string, unknown>[] {
+    const selectedTipoCamion = this._getEffectiveTipoCamionId();
+    return this._getSeasonTarifas(routeId)
+      .filter((row) => !selectedTipoCamion || String(row['id_tipo_camion']) === selectedTipoCamion);
+  }
+
+  private _getAllowedRouteIdsForOrigen(): Set<string> {
+    const routeIds = this._getSeasonTarifas()
+      .map((row) => this._toControlValue(row['id_ruta']))
+      .filter((value) => Boolean(value));
+    return new Set(routeIds);
+  }
+
+  private _getAllowedRouteIdsForDestino(): Set<string> {
+    const routeIds = this._getEligibleTarifasForDestino()
+      .map((row) => this._toControlValue(row['id_ruta']))
+      .filter((value) => Boolean(value));
+    return new Set(routeIds);
+  }
+
+  private _getAllowedOriginNodeIds(): Set<string> {
+    const allowedRouteIds = this._getAllowedRouteIdsForOrigen();
+    const origins = this.rutas
+      .filter((row) => this._isRowActive(row))
+      .filter((row) => allowedRouteIds.has(this._toControlValue(row['id_ruta'])))
+      .map((row) => this._toControlValue(row['id_origen_nodo']))
+      .filter((value) => Boolean(value));
+    return new Set(origins);
+  }
+
+  private _getAllowedDestinationNodeIds(origenId: string): Set<string> {
+    if (!origenId) return new Set();
+
+    const allowedRouteIds = this._getAllowedRouteIdsForDestino();
+    const destinations = this.rutas
+      .filter((row) => this._isRowActive(row))
+      .filter((row) => this._toControlValue(row['id_origen_nodo']) === origenId)
+      .filter((row) => allowedRouteIds.has(this._toControlValue(row['id_ruta'])))
+      .map((row) => this._toControlValue(row['id_destino_nodo']))
+      .filter((value) => Boolean(value));
+    return new Set(destinations);
+  }
+
+  private _refreshRouteNodeFilters(clearInvalidDestinoOnOriginChange: boolean): void {
+    const selectedOrigen = this.getControlValue('id_origen_nodo');
+    let selectedDestino = this.getControlValue('id_destino_nodo');
+
+    const allowedOrigen = this._getAllowedOriginNodeIds();
+    if (allowedOrigen.size === 0) {
+      this.origenNodoOptions = this.nodoOptions;
+    } else {
+      this.origenNodoOptions = this.nodoOptions.filter(
+        (opt) => allowedOrigen.has(opt.value) || opt.value === selectedOrigen
+      );
+    }
+
+    if (!selectedOrigen) {
+      this.destinoNodoOptions = [];
+      this.destinoHintLabel = 'Selecciona un origen para filtrar los destinos con tarifa vigente.';
+      return;
+    }
+
+    const allowedDestino = this._getAllowedDestinationNodeIds(selectedOrigen);
+    if (clearInvalidDestinoOnOriginChange && selectedDestino && !allowedDestino.has(selectedDestino)) {
+      this.form.patchValue({ id_destino_nodo: '', id_ruta: '', id_tarifa: '' }, { emitEvent: false });
+      selectedDestino = '';
+    }
+
+    this.destinoNodoOptions = this.nodoOptions.filter(
+      (opt) => allowedDestino.has(opt.value) || opt.value === selectedDestino
+    );
+    const hasTipoCamion = Boolean(this._getEffectiveTipoCamionId());
+    this.destinoHintLabel = allowedDestino.size === 0
+      ? (hasTipoCamion
+        ? 'No hay destinos con tarifa vigente para este origen y tipo de camion en la temporada actual.'
+        : 'No hay destinos con tarifa vigente para este origen en la temporada actual.')
+      : (hasTipoCamion
+        ? 'Destinos filtrados por origen, temporada activa y tipo de camion.'
+        : 'Destinos filtrados por origen y temporada activa.');
   }
 
   private _syncRouteAndTarifa(preserveExistingAmount: boolean): void {
@@ -928,9 +1378,9 @@ export class EditFleteModalComponent implements OnChanges {
     }
     this.resolvedRouteMonto = preserveExistingAmount ? currentMonto : null;
     this.resolvedRouteMoneda = '';
-    this.routeResolutionHint = this.getControlValue('id_camion')
-      ? 'No existe una tarifa vigente para esta ruta y camion en la temporada actual.'
-      : 'La ruta se resolvio, pero falta camion o no hay tarifa vigente para estimar el valor.';
+    this.routeResolutionHint = this._getEffectiveTipoCamionId()
+      ? 'No existe una tarifa vigente para esta ruta y tipo de camion en la temporada actual.'
+      : 'La ruta se resolvio, pero falta tipo de camion o no hay tarifa vigente para estimar el valor.';
   }
 
   private _findRouteByNodes(): Record<string, unknown> | null {
@@ -948,13 +1398,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _findBestTarifaForRoute(routeId: string): Record<string, unknown> | null {
-    const departureDate = this.getControlValue('fecha_salida') || this._formatDate(new Date());
-    const selectedCamion = this.camiones.find((row) => String(row['id_camion']) === this.getControlValue('id_camion')) || null;
-    const selectedTipoCamion = this._toControlValue(selectedCamion?.['id_tipo_camion']);
-
-    const candidates = this.tarifas
-      .filter((row) => String(row['id_ruta']) === routeId)
-      .filter((row) => this._isTarifaVigente(row, departureDate))
+    const candidates = this._getEligibleTarifasForDestino(routeId)
       .sort((a, b) => {
         const priorityA = Number(a['prioridad'] ?? 999999);
         const priorityB = Number(b['prioridad'] ?? 999999);
@@ -963,12 +1407,7 @@ export class EditFleteModalComponent implements OnChanges {
       });
 
     if (candidates.length === 0) return null;
-
-    if (selectedTipoCamion) {
-      const byTipo = candidates.find((row) => String(row['id_tipo_camion']) === selectedTipoCamion);
-      return byTipo || null;
-    }
-
+    if (this._getEffectiveTipoCamionId()) return candidates[0];
     return candidates.length === 1 ? candidates[0] : null;
   }
 
@@ -999,6 +1438,7 @@ export class EditFleteModalComponent implements OnChanges {
     }
 
     const cabecera = cabeceraForm;
+    delete cabecera['id_tipo_camion'];
     delete cabecera['id_origen_nodo'];
     delete cabecera['id_destino_nodo'];
     delete cabecera['id_ruta'];

@@ -1,11 +1,16 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
+  OnDestroy,
   Output,
   SimpleChanges,
+  computed,
+  signal,
 } from '@angular/core';
+import { NgStyle } from '@angular/common';
 
 
 export interface SearchableOption {
@@ -15,7 +20,7 @@ export interface SearchableOption {
 
 @Component({
     selector: 'app-searchable-combobox',
-    imports: [],
+    imports: [NgStyle],
     template: `
     <div class="grid gap-2">
       @if (label) {
@@ -42,7 +47,7 @@ export interface SearchableOption {
         </span>
 
         @if (isOpen && !disabled) {
-          <div class="combobox-dropdown">
+          <div class="combobox-dropdown" [ngStyle]="dropdownStyle">
             <button type="button" (mousedown)="selectOption(null)" class="combobox-clear">
               {{ nullLabel }}
             </button>
@@ -72,7 +77,14 @@ export interface SearchableOption {
     }
 
     .combobox-dropdown {
-      @apply absolute top-full left-0 right-0 z-30 mt-1 max-h-52 overflow-y-auto rounded-xl border border-forest-200 bg-white shadow-lg;
+      position: fixed;
+      z-index: 9999;
+      max-height: 208px;
+      overflow-y: auto;
+      border-radius: 0.75rem;
+      border: 1px solid theme('colors.forest.200');
+      background: white;
+      box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15), 0 4px 6px -2px rgb(0 0 0 / 0.08);
     }
 
     .combobox-clear {
@@ -88,7 +100,7 @@ export interface SearchableOption {
     }
   `]
 })
-export class SearchableComboboxComponent implements OnChanges {
+export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   @Input() label = '';
   @Input() placeholder = 'Buscar...';
   @Input() nullLabel = 'Sin seleccionar';
@@ -100,9 +112,33 @@ export class SearchableComboboxComponent implements OnChanges {
   @Input() value: string | null = '';
   @Output() valueChange = new EventEmitter<string>();
 
-  searchText = '';
+  readonly searchText = signal('');
   displayText = '';
   isOpen = false;
+  openUpward = false;
+  dropdownStyle: Record<string, string> = {};
+
+  readonly filteredOptions = computed(() => {
+    const query = this.searchText().trim().toLowerCase();
+    if (!query) return this.options;
+    return this.options.filter(opt => opt.label.toLowerCase().includes(query));
+  });
+
+  private _closeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  private _scrollHandler = (event: Event) => {
+    if (this._el.nativeElement.contains(event.target as Node)) return;
+    this._closeImmediate();
+  };
+
+  constructor(private _el: ElementRef) {}
+
+  ngOnDestroy(): void {
+    this._removeScrollListener();
+    if (this._closeTimeoutId !== null) {
+      clearTimeout(this._closeTimeoutId);
+    }
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['value'] || changes['options']) {
@@ -110,16 +146,8 @@ export class SearchableComboboxComponent implements OnChanges {
     }
   }
 
-  filteredOptions(): SearchableOption[] {
-    const query = this.searchText.trim().toLowerCase();
-    if (!query) {
-      return this.options;
-    }
-    return this.options.filter((opt) => opt.label.toLowerCase().includes(query));
-  }
-
   onInput(value: string): void {
-    this.searchText = value;
+    this.searchText.set(value);
     this.displayText = value;
     if (!value) {
       this.valueChange.emit('');
@@ -129,11 +157,11 @@ export class SearchableComboboxComponent implements OnChanges {
 
   selectOption(option: SearchableOption | null): void {
     if (!option) {
-      this.searchText = '';
+      this.searchText.set('');
       this.displayText = '';
       this.valueChange.emit('');
     } else {
-      this.searchText = option.label;
+      this.searchText.set(option.label);
       this.displayText = option.label;
       this.valueChange.emit(option.value);
     }
@@ -142,21 +170,61 @@ export class SearchableComboboxComponent implements OnChanges {
 
   openDropdown(): void {
     if (!this.disabled) {
-      this.searchText = '';
+      this.searchText.set('');
+      this._calcDirection();
       this.isOpen = true;
+      this._addScrollListener();
+    }
+  }
+
+  private _calcDirection(): void {
+    const input: HTMLElement = this._el.nativeElement.querySelector('input');
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
+    const dropdownHeight = 220;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    this.openUpward = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
+    if (this.openUpward) {
+      this.dropdownStyle = {
+        top: `${rect.top - dropdownHeight + 8}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+      };
+    } else {
+      this.dropdownStyle = {
+        top: `${rect.bottom + 4}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+      };
     }
   }
 
   closeDropdownDelayed(): void {
-    setTimeout(() => {
-      this.isOpen = false;
-      this._syncDisplayText();
+    this._closeTimeoutId = setTimeout(() => {
+      this._closeTimeoutId = null;
+      this._closeImmediate();
     }, 180);
+  }
+
+  private _closeImmediate(): void {
+    this.isOpen = false;
+    this._syncDisplayText();
+    this._removeScrollListener();
+  }
+
+  private _addScrollListener(): void {
+    document.addEventListener('scroll', this._scrollHandler, { capture: true, passive: true });
+  }
+
+  private _removeScrollListener(): void {
+    document.removeEventListener('scroll', this._scrollHandler, { capture: true });
   }
 
   private _syncDisplayText(): void {
     const selected = this.options.find((opt) => opt.value === String(this.value ?? ''));
-    this.searchText = selected?.label ?? '';
-    this.displayText = this.searchText;
+    const label = selected?.label ?? '';
+    this.searchText.set(label);
+    this.displayText = label;
   }
 }

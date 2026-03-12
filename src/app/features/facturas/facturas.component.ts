@@ -3,8 +3,10 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { FacturaListItem, EstadoFactura } from '../../core/models/factura.model';
+import { EstadoFactura, FacturaListItem } from '../../core/models/factura.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { estadoChipClass, estadoLabel } from '../../core/utils/factura.utils';
+import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 @Component({
@@ -19,7 +21,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <label class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Empresa</label>
           <input
             type="text"
-            [(ngModel)]="filtroEmpresa"
+            [ngModel]="filtroEmpresa()"
+            (ngModelChange)="filtroEmpresa.set($event)"
             placeholder="Buscar empresa..."
             class="rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200"
           />
@@ -28,7 +31,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
         <div class="flex flex-col gap-1">
           <label class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Estado</label>
           <select
-            [(ngModel)]="filtroEstado"
+            [ngModel]="filtroEstado()"
+            (ngModelChange)="filtroEstado.set($event)"
             class="rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200"
           >
             <option value="">Todos</option>
@@ -42,7 +46,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <label class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Desde</label>
           <input
             type="date"
-            [(ngModel)]="filtroDesde"
+            [ngModel]="filtroDesde()"
+            (ngModelChange)="filtroDesde.set($event)"
             class="rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200"
           />
         </div>
@@ -51,7 +56,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <label class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Hasta</label>
           <input
             type="date"
-            [(ngModel)]="filtroHasta"
+            [ngModel]="filtroHasta()"
+            (ngModelChange)="filtroHasta.set($event)"
             class="rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200"
           />
         </div>
@@ -99,11 +105,11 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                 <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
                   <th class="px-4 py-3">N° Factura</th>
                   <th class="px-4 py-3">Empresa</th>
-                  <th class="px-4 py-3">Criterio</th>
+                  <th class="px-4 py-3">Centro de Costo</th>
                   <th class="px-4 py-3 text-center">Folios</th>
                   <th class="px-4 py-3 text-right">Monto Total</th>
                   <th class="px-4 py-3">Estado</th>
-                  <th class="px-4 py-3">Fecha</th>
+                  <th class="px-4 py-3">Fecha Emisión</th>
                   <th class="px-4 py-3 sticky right-0 bg-white">Acciones</th>
                 </tr>
               </thead>
@@ -112,9 +118,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                   <tr class="hover:bg-forest-50 transition">
                     <td class="px-4 py-3 font-semibold text-forest-900">{{ fac.numero_factura }}</td>
                     <td class="px-4 py-3 text-forest-700">{{ fac.empresa_nombre }}</td>
-                    <td class="px-4 py-3 text-forest-600">
-                      {{ criterioLabel(fac.criterio_agrupacion) }}
-                    </td>
+                    <td class="px-4 py-3 text-forest-600 text-xs">{{ fac.centro_costos || '—' }}</td>
                     <td class="px-4 py-3 text-center font-medium text-forest-800">{{ fac.cantidad_folios }}</td>
                     <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ formatCLP(fac.monto_total) }}</td>
                     <td class="px-4 py-3">
@@ -125,28 +129,52 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     </td>
                     <td class="px-4 py-3 text-forest-600">{{ formatDate(fac.fecha_emision) }}</td>
                     <td class="px-4 py-3 sticky right-0 bg-white">
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-1">
+                        <!-- Ver / Editar -->
                         <a [routerLink]="['/facturas', fac.id_factura]"
-                           class="text-xs font-semibold text-forest-600 hover:text-forest-900 transition">
-                          {{ fac.estado === 'borrador' ? 'Editar' : 'Ver' }}
+                           [title]="fac.estado === 'borrador' ? 'Editar' : 'Ver'"
+                           class="inline-flex items-center justify-center rounded-lg p-1.5 text-forest-500 transition hover:bg-forest-100 hover:text-forest-800">
+                          @if (fac.estado === 'borrador') {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                          } @else {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                          }
                         </a>
                         @if (fac.estado !== 'anulada') {
-                          <button type="button"
+                          <!-- Excel -->
+                          <button type="button" title="Descargar Excel"
                                   (click)="descargarExcel(fac)"
-                                  class="text-xs font-semibold text-teal-600 hover:text-teal-900 transition">
-                            Excel
+                                  class="inline-flex items-center justify-center rounded-lg p-1.5 text-teal-600 transition hover:bg-teal-50 hover:text-teal-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
+                            </svg>
                           </button>
-                          <button type="button"
+                          <!-- PDF -->
+                          <button type="button" title="Descargar PDF"
                                   (click)="descargarPdf(fac)"
-                                  class="text-xs font-semibold text-teal-600 hover:text-teal-900 transition">
-                            PDF
+                                  class="inline-flex items-center justify-center rounded-lg p-1.5 text-teal-600 transition hover:bg-teal-50 hover:text-teal-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
                           </button>
                         }
                         @if (fac.estado === 'borrador') {
-                          <button type="button"
+                          <!-- Anular -->
+                          <button type="button" title="Anular factura"
                                   (click)="confirmarAnular(fac)"
-                                  class="text-xs font-semibold text-red-600 hover:text-red-800 transition">
-                            Anular
+                                  class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                            </svg>
                           </button>
                         }
                       </div>
@@ -193,22 +221,23 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
   `
 })
 export class FacturasComponent implements OnInit {
-  readonly loading = signal(false);
-  readonly error   = signal('');
-  readonly facturas = signal<FacturaListItem[]>([]);
+  readonly loading        = signal(false);
+  readonly error          = signal('');
+  readonly facturas       = signal<FacturaListItem[]>([]);
   readonly facturaAAnular = signal<FacturaListItem | null>(null);
-  readonly anulando = signal(false);
+  readonly anulando       = signal(false);
 
-  filtroEmpresa = '';
-  filtroEstado  = '';
-  filtroDesde   = '';
-  filtroHasta   = '';
+  readonly filtroEmpresa = signal('');
+  readonly filtroEstado  = signal<EstadoFactura | ''>('');
+  readonly filtroDesde   = signal('');
+  readonly filtroHasta   = signal('');
 
   readonly facturasFiltradas = computed(() => {
-    const q = this.filtroEmpresa.toLowerCase().trim();
+    const q = this.filtroEmpresa().toLowerCase().trim();
+    const estado = this.filtroEstado();
     return this.facturas().filter(f => {
       if (q && !f.empresa_nombre.toLowerCase().includes(q)) return false;
-      if (this.filtroEstado && f.estado !== this.filtroEstado) return false;
+      if (estado && f.estado !== estado) return false;
       return true;
     });
   });
@@ -224,13 +253,13 @@ export class FacturasComponent implements OnInit {
     this.error.set('');
 
     const params: Record<string, unknown> = {};
-    if (this.filtroEstado) params['estado']  = this.filtroEstado;
-    if (this.filtroDesde)  params['desde']   = this.filtroDesde;
-    if (this.filtroHasta)  params['hasta']   = this.filtroHasta;
+    if (this.filtroEstado()) params['estado'] = this.filtroEstado();
+    if (this.filtroDesde())  params['desde']  = this.filtroDesde();
+    if (this.filtroHasta())  params['hasta']  = this.filtroHasta();
 
     this.cflApi.getFacturasLista(params).subscribe({
       next: (res) => {
-        this.facturas.set(res.data as FacturaListItem[]);
+        this.facturas.set(res.data);
         this.loading.set(false);
       },
       error: (err) => {
@@ -241,10 +270,10 @@ export class FacturasComponent implements OnInit {
   }
 
   limpiarFiltros(): void {
-    this.filtroEmpresa = '';
-    this.filtroEstado  = '';
-    this.filtroDesde   = '';
-    this.filtroHasta   = '';
+    this.filtroEmpresa.set('');
+    this.filtroEstado.set('');
+    this.filtroDesde.set('');
+    this.filtroHasta.set('');
     this.cargarFacturas();
   }
 
@@ -271,56 +300,20 @@ export class FacturasComponent implements OnInit {
 
   descargarExcel(fac: FacturaListItem): void {
     this.cflApi.exportarFacturaExcel(fac.id_factura).subscribe({
-      next: (blob) => this._triggerDownload(blob, `factura-${fac.numero_factura}.xlsx`),
+      next: (blob) => triggerDownload(blob, `factura-${fac.numero_factura}.xlsx`),
       error: () => alert('Error al descargar Excel.'),
     });
   }
 
   descargarPdf(fac: FacturaListItem): void {
     this.cflApi.exportarFacturaPdf(fac.id_factura).subscribe({
-      next: (blob) => this._triggerDownload(blob, `factura-${fac.numero_factura}.pdf`),
+      next: (blob) => triggerDownload(blob, `factura-${fac.numero_factura}.pdf`),
       error: () => alert('Error al descargar PDF.'),
     });
   }
 
-  private _triggerDownload(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  criterioLabel(criterio: string | null): string {
-    if (criterio === 'centro_costo') return 'Centro de Costo';
-    if (criterio === 'tipo_flete')   return 'Tipo de Flete';
-    return '-';
-  }
-
-  estadoLabel(estado: EstadoFactura): string {
-    const labels: Record<EstadoFactura, string> = {
-      borrador: 'Borrador',
-      emitida: 'Emitida',
-      anulada: 'Anulada',
-    };
-    return labels[estado] ?? estado;
-  }
-
-  estadoChipClass(estado: EstadoFactura): string {
-    if (estado === 'emitida')  return 'bg-emerald-100 text-emerald-700';
-    if (estado === 'anulada')  return 'bg-red-100 text-red-700';
-    return 'bg-slate-100 text-slate-700';
-  }
-
-  formatCLP(v: unknown): string {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
-      .format(Number(v) || 0);
-  }
-
-  formatDate(v: unknown): string {
-    if (!v) return '-';
-    const d = new Date(String(v));
-    return isNaN(d.getTime()) ? '-' : new Intl.DateTimeFormat('es-CL').format(d);
-  }
+  readonly estadoLabel    = estadoLabel;
+  readonly estadoChipClass = estadoChipClass;
+  readonly formatCLP      = formatCLP;
+  readonly formatDate     = formatDate;
 }

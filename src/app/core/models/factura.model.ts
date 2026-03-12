@@ -75,6 +75,7 @@ export interface FacturaListItem {
   created_at: string;
   updated_at: string;
   cantidad_folios: number;
+  centro_costos: string | null;
 }
 
 export interface FacturaDetalle extends FacturaListItem {

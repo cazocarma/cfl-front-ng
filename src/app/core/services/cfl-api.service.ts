@@ -2,6 +2,13 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../config/api-base';
+import {
+  EmpresaElegible,
+  FacturaDetalle,
+  FacturaListItem,
+  FolioElegible,
+  PreviewResult,
+} from '../models/factura.model';
 
 export interface Pagination {
   page: number;
@@ -258,34 +265,34 @@ export class CflApiService {
 
   // ── Facturas: módulo de facturación ───────────────────────────────────────
 
-  getFacturasLista(params: Record<string, unknown> = {}): Observable<{ data: unknown[] }> {
-    return this.http.get<{ data: unknown[] }>(
+  getFacturasLista(params: Record<string, unknown> = {}): Observable<{ data: FacturaListItem[] }> {
+    return this.http.get<{ data: FacturaListItem[] }>(
       `${API_BASE}/api/facturas`,
       { params: this._toHttpParams(params) }
     );
   }
 
-  getFacturasEmpresasElegibles(): Observable<{ data: unknown[] }> {
-    return this.http.get<{ data: unknown[] }>(`${API_BASE}/api/facturas/empresas-elegibles`);
+  getFacturasEmpresasElegibles(): Observable<{ data: EmpresaElegible[] }> {
+    return this.http.get<{ data: EmpresaElegible[] }>(`${API_BASE}/api/facturas/empresas-elegibles`);
   }
 
-  getFacturasFoliosElegibles(idEmpresa: number): Observable<{ data: unknown[] }> {
-    return this.http.get<{ data: unknown[] }>(
+  getFacturasFoliosElegibles(idEmpresa: number, desde?: string, hasta?: string): Observable<{ data: FolioElegible[] }> {
+    return this.http.get<{ data: FolioElegible[] }>(
       `${API_BASE}/api/facturas/folios-elegibles`,
-      { params: this._toHttpParams({ id_empresa: idEmpresa }) }
+      { params: this._toHttpParams({ id_empresa: idEmpresa, desde, hasta }) }
     );
   }
 
-  getFacturaPreviewNueva(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: unknown }> {
-    return this.http.post<{ data: unknown }>(`${API_BASE}/api/facturas/preview`, body);
+  getFacturaPreviewNueva(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: PreviewResult }> {
+    return this.http.post<{ data: PreviewResult }>(`${API_BASE}/api/facturas/preview`, body);
   }
 
   generarFacturas(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: unknown }> {
     return this.http.post<{ data: unknown }>(`${API_BASE}/api/facturas/generar`, body);
   }
 
-  getFacturaDetalle(id: number): Observable<{ data: unknown }> {
-    return this.http.get<{ data: unknown }>(`${API_BASE}/api/facturas/${id}`);
+  getFacturaDetalle(id: number): Observable<{ data: FacturaDetalle }> {
+    return this.http.get<{ data: FacturaDetalle }>(`${API_BASE}/api/facturas/${id}`);
   }
 
   actualizarFactura(id: number, body: { observaciones?: string | null; criterio_agrupacion?: string }): Observable<{ message: string }> {

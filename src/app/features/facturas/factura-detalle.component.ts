@@ -1,15 +1,16 @@
 
 import { Component, OnInit, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
-import { EstadoFactura, FacturaDetalle, FolioElegible } from '../../core/models/factura.model';
+import { FacturaDetalle } from '../../core/models/factura.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { estadoChipClass, estadoLabel } from '../../core/utils/factura.utils';
+import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 @Component({
     selector: 'app-factura-detalle',
-    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    imports: [RouterLink, WorkspaceShellComponent],
     template: `
     <app-workspace-shell [title]="factura() ? 'Factura ' + factura()!.numero_factura : 'Detalle de Factura'"
                          subtitle="Cabecera, folios y movimientos de la factura."
@@ -63,8 +64,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
               <p class="mt-1 text-sm font-semibold text-forest-900">{{ formatDate(factura()!.fecha_emision) }}</p>
             </div>
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Criterio agrupación</p>
-              <p class="mt-1 text-sm font-semibold text-forest-900">{{ criterioLabel(factura()!.criterio_agrupacion) }}</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Agrupación</p>
+              <p class="mt-1 text-sm font-semibold text-forest-900">Centro de Costo</p>
             </div>
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
               <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Folios</p>
@@ -76,24 +77,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             </div>
           </div>
 
-          <!-- Observaciones (editable si Borrador) -->
-          @if (factura()!.estado === 'borrador') {
-            <div class="mt-5">
-              <label class="block text-xs font-semibold uppercase tracking-widest text-forest-500">Observaciones</label>
-              <textarea
-                [(ngModel)]="observacionesEdit"
-                rows="2"
-                placeholder="Agrega observaciones opcionales..."
-                class="mt-2 w-full rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200"
-              ></textarea>
-              <button type="button"
-                      (click)="guardarObservaciones()"
-                      [disabled]="guardandoObs()"
-                      class="mt-2 rounded-xl bg-forest-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-forest-700 disabled:opacity-50">
-                {{ guardandoObs() ? 'Guardando...' : 'Guardar observaciones' }}
-              </button>
-            </div>
-          } @else if (factura()!.observaciones) {
+          <!-- Observaciones (solo lectura) -->
+          @if (factura()!.observaciones) {
             <div class="mt-4 rounded-xl border border-forest-100 bg-forest-50 px-4 py-3">
               <p class="text-xs font-semibold uppercase tracking-widest text-forest-500">Observaciones</p>
               <p class="mt-1 text-sm text-forest-700">{{ factura()!.observaciones }}</p>
@@ -107,11 +92,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                       (click)="confirmarEmitir()"
                       class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">
                 Emitir factura
-              </button>
-              <button type="button"
-                      (click)="abrirModalAgregarFolios()"
-                      class="rounded-xl border border-forest-200 bg-white px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
-                + Agregar folios
               </button>
             }
             @if (factura()!.estado !== 'anulada') {
@@ -147,10 +127,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                   <th class="px-3 py-3">Centro de Costo</th>
                   <th class="px-3 py-3 text-center">Movimientos</th>
                   <th class="px-3 py-3 text-right">Monto</th>
-                  <th class="px-3 py-3">Periodo</th>
-                  @if (factura()!.estado === 'borrador') {
-                    <th class="px-3 py-3">Acción</th>
-                  }
+                  <th class="px-3 py-3">Período</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-forest-100">
@@ -165,19 +142,10 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     <td class="px-3 py-3 text-xs text-forest-500">
                       {{ formatDate(folio.periodo_desde) }} – {{ formatDate(folio.periodo_hasta) }}
                     </td>
-                    @if (factura()!.estado === 'borrador') {
-                      <td class="px-3 py-3">
-                        <button type="button"
-                                (click)="confirmarQuitarFolio(folio.id_folio, folio.folio_numero)"
-                                class="text-xs font-semibold text-red-600 hover:text-red-800 transition">
-                          Quitar
-                        </button>
-                      </td>
-                    }
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="6" class="px-3 py-5 text-center text-sm text-forest-500">Sin folios asociados.</td>
+                    <td colspan="5" class="px-3 py-5 text-center text-sm text-forest-500">Sin folios asociados.</td>
                   </tr>
                 }
               </tbody>
@@ -198,12 +166,11 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             <table class="min-w-full divide-y divide-forest-100 text-sm">
               <thead>
                 <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                  <th class="px-3 py-3">N° Guía</th>
+                  <th class="px-3 py-3">N° Guía / Entrega</th>
                   <th class="px-3 py-3">Folio</th>
                   <th class="px-3 py-3">Tipo Flete</th>
                   <th class="px-3 py-3">Centro Costo</th>
                   <th class="px-3 py-3">Ruta</th>
-                  <th class="px-3 py-3">Empresa Transp.</th>
                   <th class="px-3 py-3">Fecha</th>
                   <th class="px-3 py-3 text-right">Monto</th>
                 </tr>
@@ -218,13 +185,12 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     <td class="px-3 py-3 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.centro_costo || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.ruta || '-' }}</td>
-                    <td class="px-3 py-3 text-forest-600">{{ m.empresa_nombre || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ formatDate(m.fecha_salida) }}</td>
                     <td class="px-3 py-3 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="8" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
+                    <td colspan="7" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
                   </tr>
                 }
               </tbody>
@@ -240,7 +206,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Emitir factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              Una vez emitida, la factura quedará en estado <strong>Emitida</strong> y no podrá editarse.
+              Una vez emitida, la factura quedará en estado <strong>Emitida</strong> y no podrá modificarse.
               ¿Confirmas?
             </p>
             <div class="mt-4 flex justify-end gap-3">
@@ -280,87 +246,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
         </div>
       }
 
-      <!-- Modal: Confirmar quitar folio -->
-      @if (folioAQuitar()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Quitar folio</h3>
-            <p class="mt-2 text-sm text-forest-600">
-              Se quitará el folio <strong>{{ folioAQuitar()?.numero }}</strong> de esta factura.
-              Sus movimientos volverán al estado <em>Asignado Folio</em>.
-            </p>
-            <div class="mt-4 flex justify-end gap-3">
-              <button type="button" (click)="folioAQuitar.set(null)"
-                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
-                Cancelar
-              </button>
-              <button type="button" (click)="quitarFolio()" [disabled]="quitandoFolio()"
-                      class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
-                {{ quitandoFolio() ? 'Quitando...' : 'Quitar folio' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- Modal: Agregar folios -->
-      @if (mostrarModalAgregarFolios()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Agregar folios elegibles</h3>
-
-            @if (loadingFoliosElegibles()) {
-              <p class="mt-4 text-sm text-forest-500">Cargando folios disponibles...</p>
-            } @else if (foliosElegibles().length === 0) {
-              <p class="mt-4 text-sm text-forest-500">No hay folios elegibles adicionales para esta empresa.</p>
-            } @else {
-              <div class="mt-4 max-h-72 overflow-y-auto">
-                <table class="min-w-full divide-y divide-forest-100 text-sm">
-                  <thead class="sticky top-0 bg-white">
-                    <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                      <th class="px-3 py-2 w-10"><input type="checkbox" (change)="toggleTodosFoliosNuevos($any($event.target).checked)" class="rounded" /></th>
-                      <th class="px-3 py-2">Folio</th>
-                      <th class="px-3 py-2">Centro Costo</th>
-                      <th class="px-3 py-2 text-center">Movimientos</th>
-                      <th class="px-3 py-2 text-right">Monto</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-forest-100">
-                    @for (f of foliosElegibles(); track f.id_folio) {
-                      <tr [class.bg-teal-50]="esFolioNuevoSeleccionado(f.id_folio)">
-                        <td class="px-3 py-2">
-                          <input type="checkbox"
-                                 [checked]="esFolioNuevoSeleccionado(f.id_folio)"
-                                 (change)="toggleFolioNuevo(f.id_folio, $any($event.target).checked)"
-                                 class="rounded" />
-                        </td>
-                        <td class="px-3 py-2 font-semibold text-forest-900">{{ f.folio_numero }}</td>
-                        <td class="px-3 py-2 text-forest-600">{{ f.centro_costo || '-' }}</td>
-                        <td class="px-3 py-2 text-center text-forest-800">{{ f.total_movimientos }}</td>
-                        <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(f.monto_neto_estimado) }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            }
-
-            <div class="mt-4 flex justify-end gap-3">
-              <button type="button" (click)="mostrarModalAgregarFolios.set(false)"
-                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
-                Cancelar
-              </button>
-              <button type="button"
-                      (click)="agregarFoliosSeleccionados()"
-                      [disabled]="foliosNuevosSeleccionados().length === 0 || agregandoFolios()"
-                      class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
-                {{ agregandoFolios() ? 'Agregando...' : 'Agregar ' + foliosNuevosSeleccionados().length + ' folio(s)' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
     </app-workspace-shell>
   `
 })
@@ -368,19 +253,9 @@ export class FacturaDetalleComponent implements OnInit {
   readonly loading           = signal(false);
   readonly error             = signal('');
   readonly factura           = signal<FacturaDetalle | null>(null);
-  readonly guardandoObs      = signal(false);
   readonly cambiandoEstado   = signal(false);
-  readonly quitandoFolio     = signal(false);
-  readonly agregandoFolios   = signal(false);
-  readonly loadingFoliosElegibles = signal(false);
   readonly showConfirmEmitir = signal(false);
   readonly showConfirmAnular = signal(false);
-  readonly mostrarModalAgregarFolios = signal(false);
-  readonly folioAQuitar      = signal<{ id: number; numero: string } | null>(null);
-  readonly foliosElegibles   = signal<FolioElegible[]>([]);
-  readonly foliosNuevosSeleccionados = signal<number[]>([]);
-
-  observacionesEdit = '';
 
   private idFactura = 0;
 
@@ -392,35 +267,16 @@ export class FacturaDetalleComponent implements OnInit {
 
   ngOnInit(): void {
     this.idFactura = Number(this.route.snapshot.paramMap.get('id')) || 0;
-    if (!this.idFactura) {
-      this.router.navigate(['/facturas']);
-      return;
-    }
-    this.cargar();
+    if (!this.idFactura) { this.router.navigate(['/facturas']); return; }
+    this.loadFacturaData();
   }
 
-  cargar(): void {
+  private loadFacturaData(): void {
     this.loading.set(true);
     this.error.set('');
     this.cflApi.getFacturaDetalle(this.idFactura).subscribe({
-      next: (res) => {
-        const f = res.data as FacturaDetalle;
-        this.factura.set(f);
-        this.observacionesEdit = f.observaciones ?? '';
-        this.loading.set(false);
-      },
-      error: (err) => {
-        this.error.set(err?.error?.error ?? 'No se pudo cargar la factura.');
-        this.loading.set(false);
-      },
-    });
-  }
-
-  guardarObservaciones(): void {
-    this.guardandoObs.set(true);
-    this.cflApi.actualizarFactura(this.idFactura, { observaciones: this.observacionesEdit || null }).subscribe({
-      next: () => { this.guardandoObs.set(false); this.cargar(); },
-      error: () => this.guardandoObs.set(false),
+      next: (res) => { this.factura.set(res.data); this.loading.set(false); },
+      error: (err) => { this.error.set(err?.error?.error ?? 'No se pudo cargar la factura.'); this.loading.set(false); },
     });
   }
 
@@ -430,7 +286,7 @@ export class FacturaDetalleComponent implements OnInit {
   emitirFactura(): void {
     this.cambiandoEstado.set(true);
     this.cflApi.cambiarEstadoFactura(this.idFactura, 'emitida').subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmEmitir.set(false); this.cargar(); },
+      next: () => { this.cambiandoEstado.set(false); this.showConfirmEmitir.set(false); this.loadFacturaData(); },
       error: (err) => { alert(err?.error?.error ?? 'Error al emitir.'); this.cambiandoEstado.set(false); },
     });
   }
@@ -438,121 +294,27 @@ export class FacturaDetalleComponent implements OnInit {
   anularFactura(): void {
     this.cambiandoEstado.set(true);
     this.cflApi.cambiarEstadoFactura(this.idFactura, 'anulada').subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmAnular.set(false); this.cargar(); },
+      next: () => { this.cambiandoEstado.set(false); this.showConfirmAnular.set(false); this.loadFacturaData(); },
       error: (err) => { alert(err?.error?.error ?? 'Error al anular.'); this.cambiandoEstado.set(false); },
-    });
-  }
-
-  confirmarQuitarFolio(id: number, numero: string): void {
-    this.folioAQuitar.set({ id, numero });
-  }
-
-  quitarFolio(): void {
-    const f = this.folioAQuitar();
-    if (!f) return;
-    this.quitandoFolio.set(true);
-    this.cflApi.quitarFolioDeFactura(this.idFactura, f.id).subscribe({
-      next: () => { this.quitandoFolio.set(false); this.folioAQuitar.set(null); this.cargar(); },
-      error: (err) => { alert(err?.error?.error ?? 'Error al quitar folio.'); this.quitandoFolio.set(false); },
-    });
-  }
-
-  abrirModalAgregarFolios(): void {
-    const fac = this.factura();
-    if (!fac) return;
-    this.foliosNuevosSeleccionados.set([]);
-    this.loadingFoliosElegibles.set(true);
-    this.mostrarModalAgregarFolios.set(true);
-
-    this.cflApi.getFacturasFoliosElegibles(fac.id_empresa).subscribe({
-      next: (res) => {
-        // Excluir folios que ya están en la factura
-        const yaAsociados = new Set(fac.folios.map(f => f.id_folio));
-        this.foliosElegibles.set((res.data as FolioElegible[]).filter(f => !yaAsociados.has(f.id_folio)));
-        this.loadingFoliosElegibles.set(false);
-      },
-      error: () => this.loadingFoliosElegibles.set(false),
-    });
-  }
-
-  esFolioNuevoSeleccionado(id: number): boolean {
-    return this.foliosNuevosSeleccionados().includes(id);
-  }
-
-  toggleFolioNuevo(id: number, checked: boolean): void {
-    if (checked) {
-      this.foliosNuevosSeleccionados.update(l => [...l, id]);
-    } else {
-      this.foliosNuevosSeleccionados.update(l => l.filter(x => x !== id));
-    }
-  }
-
-  toggleTodosFoliosNuevos(checked: boolean): void {
-    this.foliosNuevosSeleccionados.set(checked ? this.foliosElegibles().map(f => f.id_folio) : []);
-  }
-
-  agregarFoliosSeleccionados(): void {
-    const ids = this.foliosNuevosSeleccionados();
-    if (!ids.length) return;
-    this.agregandoFolios.set(true);
-    this.cflApi.agregarFoliosAFactura(this.idFactura, ids).subscribe({
-      next: () => {
-        this.agregandoFolios.set(false);
-        this.mostrarModalAgregarFolios.set(false);
-        this.cargar();
-      },
-      error: (err) => {
-        alert(err?.error?.error ?? 'Error al agregar folios.');
-        this.agregandoFolios.set(false);
-      },
     });
   }
 
   descargarExcel(): void {
     this.cflApi.exportarFacturaExcel(this.idFactura).subscribe({
-      next: (blob) => this._dl(blob, `factura-${this.factura()?.numero_factura}.xlsx`),
+      next: (blob) => triggerDownload(blob, `factura-${this.factura()?.numero_factura}.xlsx`),
       error: () => alert('Error al descargar Excel.'),
     });
   }
 
   descargarPdf(): void {
     this.cflApi.exportarFacturaPdf(this.idFactura).subscribe({
-      next: (blob) => this._dl(blob, `factura-${this.factura()?.numero_factura}.pdf`),
+      next: (blob) => triggerDownload(blob, `factura-${this.factura()?.numero_factura}.pdf`),
       error: () => alert('Error al descargar PDF.'),
     });
   }
 
-  private _dl(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  criterioLabel(c: string | null): string {
-    if (c === 'centro_costo') return 'Centro de Costo';
-    if (c === 'tipo_flete')   return 'Tipo de Flete';
-    return '-';
-  }
-
-  estadoLabel(estado: EstadoFactura): string {
-    return { borrador: 'Borrador', emitida: 'Emitida', anulada: 'Anulada' }[estado] ?? estado;
-  }
-
-  estadoChipClass(estado: EstadoFactura): string {
-    if (estado === 'emitida') return 'bg-emerald-100 text-emerald-700';
-    if (estado === 'anulada') return 'bg-red-100 text-red-700';
-    return 'bg-slate-100 text-slate-700';
-  }
-
-  formatCLP(v: unknown): string {
-    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })
-      .format(Number(v) || 0);
-  }
-
-  formatDate(v: unknown): string {
-    if (!v) return '-';
-    const d = new Date(String(v));
-    return isNaN(d.getTime()) ? '-' : new Intl.DateTimeFormat('es-CL').format(d);
-  }
+  readonly estadoLabel     = estadoLabel;
+  readonly estadoChipClass = estadoChipClass;
+  readonly formatCLP       = formatCLP;
+  readonly formatDate      = formatDate;
 }
