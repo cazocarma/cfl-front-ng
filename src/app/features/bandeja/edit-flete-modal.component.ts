@@ -112,6 +112,7 @@ interface CatalogCacheSnapshot {
 export class EditFleteModalComponent implements OnChanges {
   private static readonly CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
   private static catalogCache: CatalogCacheSnapshot | null = null;
+  private contextVersion = 0;
 
   @Input() flete: FleteTabla | null = null;
   @Input() visible = false;
@@ -251,11 +252,11 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['visible']?.currentValue === true) {
-      this._resetState();
-      this._seedBaseForm();
-      this._applyFormMode();
-      this._loadCatalogos();
+    const opened = changes['visible']?.currentValue === true;
+    const fleteChangedWhileVisible = this.visible && !!changes['flete'] && !opened;
+
+    if (opened || fleteChangedWhileVisible) {
+      this._initializeModalState();
       return;
     }
 
@@ -666,6 +667,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _resetState(): void {
+    this.contextVersion += 1;
     this.errorMsg.set('');
     this.detailError.set('');
     this.activeTab.set('cabecera');
@@ -681,6 +683,13 @@ export class EditFleteModalComponent implements OnChanges {
     this.resolvedRouteMonto = null;
     this.resolvedRouteMoneda = '';
     this.routeResolutionHint = 'Selecciona origen y destino para resolver la ruta.';
+  }
+
+  private _initializeModalState(): void {
+    this._resetState();
+    this._seedBaseForm();
+    this._applyFormMode();
+    this._loadCatalogos();
   }
 
   private _applyFormMode(): void {
@@ -810,14 +819,18 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _loadFleteContext(): void {
+    const contextVersion = this.contextVersion;
+
     if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
       this.detailLoading.set(true);
       this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
+          if (!this._isCurrentContext(contextVersion)) return;
           this._hydrateCandidate(res as DashboardDetalleResponse);
           this.detailLoading.set(false);
         },
         error: (err) => {
+          if (!this._isCurrentContext(contextVersion)) return;
           this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones SAP.');
           this.detailLoading.set(false);
         },
@@ -829,10 +842,12 @@ export class EditFleteModalComponent implements OnChanges {
       this.detailLoading.set(true);
       this.cflApi.getFleteById(this.flete.idCabeceraFlete).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
+          if (!this._isCurrentContext(contextVersion)) return;
           this._hydrateExisting(res as FleteDetalleResponse);
           this.detailLoading.set(false);
         },
         error: (err) => {
+          if (!this._isCurrentContext(contextVersion)) return;
           const message = err?.error?.error ?? 'No se pudo cargar el detalle del flete.';
           this.errorMsg.set(message);
           this.detailError.set(message);
@@ -928,6 +943,7 @@ export class EditFleteModalComponent implements OnChanges {
     const cabecera = response.data?.cabecera ?? {};
     const detalles = response.data?.detalles ?? [];
 
+    this.sapSnapshot = null;
     if (cabecera['sap_numero_entrega']) {
       this.sapSnapshot = {
         sap_numero_entrega: cabecera['sap_numero_entrega'],
@@ -970,6 +986,10 @@ export class EditFleteModalComponent implements OnChanges {
     });
     this.detailRows.set(detalles.map((row) => this._fromExistingRow(row)));
     this._applyFallbacks(true);
+  }
+
+  private _isCurrentContext(contextVersion: number): boolean {
+    return contextVersion === this.contextVersion && this.visible;
   }
 
   private _applyFallbacks(preserveExistingAmount: boolean): void {
