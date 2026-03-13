@@ -42,7 +42,7 @@ export interface ColumnaDef {
 }
 
 // ─── Config de un mantenedor ─────────────────────────────────────────────────
-export type TipoEspecial = 'usuarios' | 'folios' | 'tarifas';
+export type TipoEspecial = 'usuarios' | 'folios' | 'tarifas' | 'rutas';
 
 export interface MantenedorConfig {
   key: string;              // coincide con el entityKey del backend
@@ -201,6 +201,7 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     idField: 'id_ruta',
     softDeleteField: 'activo',
     permiso: 'rutas',
+    tipoEspecial: 'rutas',
     columnas: [
       { key: 'nombre_ruta',    label: 'Nombre Ruta', tipo: 'text' },
       { key: 'origen_nombre',  label: 'Origen',      tipo: 'text' },

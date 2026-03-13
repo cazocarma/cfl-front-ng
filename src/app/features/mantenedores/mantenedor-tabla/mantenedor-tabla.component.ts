@@ -98,6 +98,17 @@ export class MantenedorTablaComponent implements OnInit {
         return;
       }
 
+      const shouldOpenRutaModal = cfg.key === 'rutas' && this.route.snapshot.queryParamMap.get('nueva') === '1';
+      if (shouldOpenRutaModal) {
+        this.openCreate();
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { nueva: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+      }
+
       if (cfg.tipoEspecial === 'tarifas') {
         this._loadTemporadas();
       } else {
@@ -113,9 +124,11 @@ export class MantenedorTablaComponent implements OnInit {
         const activa = res.data;
         this.api.listMaintainerRows('temporadas').subscribe({
           next: (t: any) => {
-            this.temporadas.set(t.data as Record<string, unknown>[]);
-            if (activa?.id_temporada) {
-              this.selectedTemporadaId.set(Number(activa.id_temporada));
+            const rows = this._normalizeRows((t.data as Record<string, unknown>[]) ?? []);
+            this.temporadas.set(rows);
+            const activaId = Number(activa?.id_temporada ?? activa?.IdTemporada ?? 0);
+            if (activaId > 0) {
+              this.selectedTemporadaId.set(activaId);
             }
             this._loadTarifas();
           },
@@ -124,7 +137,10 @@ export class MantenedorTablaComponent implements OnInit {
       },
       error: () => {
         this.api.listMaintainerRows('temporadas').subscribe({
-          next: (t: any) => { this.temporadas.set(t.data as Record<string, unknown>[]); this._loadTarifas(); },
+          next: (t: any) => {
+            this.temporadas.set(this._normalizeRows((t.data as Record<string, unknown>[]) ?? []));
+            this._loadTarifas();
+          },
           error: () => this._loadTarifas(),
         });
       },
@@ -133,10 +149,14 @@ export class MantenedorTablaComponent implements OnInit {
 
   private _loadTarifas(): void {
     this.loading.set(true);
-    const tempId = this.selectedTemporadaId() ?? undefined;
-    this.api.listTarifas(tempId).subscribe({
-      next: (res) => {
-        this.allRows.set(res.data as Record<string, unknown>[]);
+    const tempId = this.selectedTemporadaId();
+    const params: Record<string, unknown> = {};
+    if (tempId) params['temporada_id'] = tempId;
+
+    this.api.listMaintainerRows('tarifas', params).subscribe({
+      next: (res: any) => {
+        this.allRows.set(this._normalizeRows((res.data as Record<string, unknown>[]) ?? []));
+        this.canEdit.set(res.permissions?.can_edit ?? false);
         this.loading.set(false);
         this.currentPage.set(1);
       },
@@ -154,7 +174,7 @@ export class MantenedorTablaComponent implements OnInit {
     this.loading.set(true);
     this.api.listMaintainerRows(cfg.key).subscribe({
       next: (res: any) => {
-        this.allRows.set(res.data as Record<string, unknown>[]);
+        this.allRows.set(this._normalizeRows((res.data as Record<string, unknown>[]) ?? []));
         this.canEdit.set(res.permissions?.can_edit ?? false);
         this.loading.set(false);
         this.currentPage.set(1);
@@ -311,6 +331,30 @@ export class MantenedorTablaComponent implements OnInit {
     this.toastMsg.set(msg);
     this.toastIsError.set(isError);
     this._toastTimer = setTimeout(() => this.toastMsg.set(''), 4000);
+  }
+
+  private _normalizeRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    return rows
+      .filter((row) => row && typeof row === 'object')
+      .map((row) => this._normalizeRow(row));
+  }
+
+  private _normalizeRow(row: Record<string, unknown>): Record<string, unknown> {
+    const normalized: Record<string, unknown> = { ...row };
+    for (const [key, value] of Object.entries(row)) {
+      const snake = this._toSnakeKey(key);
+      if (!Object.prototype.hasOwnProperty.call(normalized, snake)) {
+        normalized[snake] = value;
+      }
+    }
+    return normalized;
+  }
+
+  private _toSnakeKey(key: string): string {
+    return String(key)
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .replace(/[\s\-]+/g, '_')
+      .toLowerCase();
   }
 
   trackByIndex(i: number): number { return i; }

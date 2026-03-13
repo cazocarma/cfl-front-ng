@@ -14,13 +14,15 @@ import { forkJoin } from 'rxjs';
 import { CflApiService } from '../../../core/services/cfl-api.service';
 import { CampoDef, MantenedorConfig } from '../mantenedor.config';
 import { UsuarioFormModalComponent } from '../usuarios/usuario-form-modal.component';
+import { RutaFormModalComponent } from '../rutas/ruta-form-modal.component';
+import { TarifaFormModalComponent } from '../tarifas/tarifa-form-modal.component';
 
 // Tipo de opciones cargadas para select-entity
 type EntityOptions = Record<string, Record<string, unknown>[]>;
 
 @Component({
     selector: 'app-mantenedor-form-modal',
-    imports: [ReactiveFormsModule, UsuarioFormModalComponent],
+    imports: [ReactiveFormsModule, UsuarioFormModalComponent, RutaFormModalComponent, TarifaFormModalComponent],
     template: `
     <!-- Delegación a modal especial para usuarios -->
     @if (config.tipoEspecial === 'usuarios') {
@@ -32,14 +34,36 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
       />
     }
 
+    <!-- Delegación a modal especial para rutas -->
+    @if (config.tipoEspecial === 'rutas') {
+      <app-ruta-form-modal
+        [config]="config"
+        [row]="row"
+        [visible]="visible"
+        (guardado)="guardado.emit()"
+        (cerrado)="cerrado.emit()"
+      />
+    }
+
+    <!-- Delegación a modal especial para tarifas -->
+    @if (config.tipoEspecial === 'tarifas') {
+      <app-tarifa-form-modal
+        [config]="config"
+        [row]="row"
+        [visible]="visible"
+        (guardado)="guardado.emit()"
+        (cerrado)="cerrado.emit()"
+      />
+    }
+
     <!-- Modal genérico para todas las demás entidades -->
-    @if (config.tipoEspecial !== 'usuarios' && visible) {
+    @if (config.tipoEspecial !== 'usuarios' && config.tipoEspecial !== 'rutas' && config.tipoEspecial !== 'tarifas' && visible) {
       <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-        (click)="onBackdropClick($event)"
       >
         <div
           class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+          (scroll)="onModalScroll()"
           (click)="$event.stopPropagation()"
         >
           <!-- Header -->
@@ -132,7 +156,11 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
                         </span>
                         <!-- Dropdown -->
                         @if (dropdownOpen[campo.key]) {
-                          <div class="absolute top-full left-0 right-0 z-30 mt-1 max-h-52 overflow-y-auto rounded-lg border border-forest-200 bg-white shadow-lg">
+                          <div
+                            class="absolute top-full left-0 right-0 z-30 mt-1 max-h-52 overflow-y-auto rounded-lg border border-forest-200 bg-white shadow-lg"
+                            (mouseenter)="onDropdownMouseEnter()"
+                            (mouseleave)="onDropdownMouseLeave()"
+                          >
                             <!-- Opción vacía -->
                             <button type="button" (mousedown)="selectEntity(campo, null)"
                                     class="w-full px-3 py-2 text-left text-xs text-forest-400 hover:bg-forest-50 border-b border-forest-100">
@@ -262,6 +290,7 @@ export class MantenedorFormModalComponent implements OnChanges {
   // Estado de búsqueda por campo
   searchTexts: Record<string, string> = {};
   dropdownOpen: Record<string, boolean> = {};
+  private mouseOnDropdown = false;
 
   // Campos activos (crear vs editar)
   camposActivos = signal<CampoDef[]>([]);
@@ -414,6 +443,12 @@ export class MantenedorFormModalComponent implements OnChanges {
   openDropdown(key: string): void { this.dropdownOpen[key] = true; }
   closeDropdownDelayed(key: string): void {
     setTimeout(() => { this.dropdownOpen[key] = false; }, 200);
+  }
+  onDropdownMouseEnter(): void { this.mouseOnDropdown = true; }
+  onDropdownMouseLeave(): void { this.mouseOnDropdown = false; }
+  onModalScroll(): void {
+    if (this.mouseOnDropdown) return;
+    for (const key of Object.keys(this.dropdownOpen)) this.dropdownOpen[key] = false;
   }
 
   // ── Validación ─────────────────────────────────────────────
