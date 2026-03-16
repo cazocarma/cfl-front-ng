@@ -2,7 +2,7 @@
 import { Component, Input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { AuthService } from '../../core/services/auth.service';
+import { AuthnService } from '../../core/services/authn.service';
 
 type WorkspaceSection =
   | 'bandeja'
@@ -24,7 +24,7 @@ export class WorkspaceShellComponent {
 
   sidebarOpen = signal(false);
 
-  constructor(private auth: AuthService) {}
+  constructor(private auth: AuthnService) {}
 
   get userName(): string {
     const user = this.auth.getCurrentUser();

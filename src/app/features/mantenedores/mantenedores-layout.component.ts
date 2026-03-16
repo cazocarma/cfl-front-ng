@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthnService } from '../../core/services/authn.service';
 
 @Component({
     selector: 'app-mantenedores-layout',
@@ -139,7 +139,7 @@ import { AuthService } from '../../core/services/auth.service';
 export class MantenedoresLayoutComponent {
   sidebarOpen = signal(false);
 
-  constructor(private auth: AuthService) {}
+  constructor(private auth: AuthnService) {}
 
   get userName(): string {
     const u = this.auth.getCurrentUser();

@@ -18,17 +18,17 @@ export interface LoginResponse {
   user: JwtUser;
 }
 
-const TOKEN_KEY = 'cfl_auth_token';
+const TOKEN_KEY = 'cfl_authn_token';
 
 @Injectable({ providedIn: 'root' })
-export class AuthService {
+export class AuthnService {
   readonly currentUser = signal<JwtUser | null>(this._parseToken());
 
   constructor(private http: HttpClient, private router: Router) {}
 
   login(email: string, password: string): Observable<LoginResponse> {
     return this.http
-      .post<LoginResponse>(`${API_BASE}/api/auth/login`, { email, password })
+      .post<LoginResponse>(`${API_BASE}/api/authn/login`, { email, password })
       .pipe(
         tap((res) => {
           localStorage.setItem(TOKEN_KEY, res.token);

@@ -1,18 +1,18 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { AuthService } from '../services/auth.service';
+import { AuthnService } from '../services/authn.service';
 
 /**
  * Adjunta el token JWT a cada petición HTTP saliente.
  * También envía x-cfl-role para compatibilidad con el middleware legacy de authz.js.
  */
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const auth = inject(AuthService);
-  const token = auth.getToken();
+export const authnInterceptor: HttpInterceptorFn = (req, next) => {
+  const authnService = inject(AuthnService);
+  const token = authnService.getToken();
 
   if (!token) return next(req);
 
-  const user = auth.getCurrentUser();
+  const user = authnService.getCurrentUser();
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };

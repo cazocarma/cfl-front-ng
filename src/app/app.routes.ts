@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
+import { authnGuard } from './core/guards/authn.guard';
 
 export const routes: Routes = [
   {
@@ -14,7 +14,7 @@ export const routes: Routes = [
   },
   {
     path: 'bandeja',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/bandeja/bandeja.component').then(
         (m) => m.BandejaComponent
@@ -22,7 +22,7 @@ export const routes: Routes = [
   },
   {
     path: 'facturas',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/facturas/facturas.component').then(
         (m) => m.FacturasComponent
@@ -32,7 +32,7 @@ export const routes: Routes = [
   // y antes de la ruta genérica /:id para que 'nueva' no se interprete como id
   {
     path: 'facturas/nueva',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/facturas/nueva-factura-wizard.component').then(
         (m) => m.NuevaFacturaWizardComponent
@@ -40,7 +40,7 @@ export const routes: Routes = [
   },
   {
     path: 'facturas/:id',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/facturas/factura-detalle.component').then(
         (m) => m.FacturaDetalleComponent
@@ -48,7 +48,7 @@ export const routes: Routes = [
   },
   {
     path: 'planillas-sap',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/planillas-sap/planillas-sap.component').then(
         (m) => m.PlanillasSapComponent
@@ -56,7 +56,7 @@ export const routes: Routes = [
   },
   {
     path: 'estadisticas',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/estadisticas/estadisticas.component').then(
         (m) => m.EstadisticasComponent
@@ -64,7 +64,7 @@ export const routes: Routes = [
   },
   {
     path: 'auditoria',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/auditoria/auditoria.component').then(
         (m) => m.AuditoriaComponent
@@ -72,7 +72,7 @@ export const routes: Routes = [
   },
   {
     path: 'mantenedores',
-    canActivate: [authGuard],
+    canActivate: [authnGuard],
     loadComponent: () =>
       import('./features/mantenedores/mantenedores-layout.component').then(
         (m) => m.MantenedoresLayoutComponent

@@ -208,7 +208,7 @@ export class CflApiService {
   }
 
   // ── Auth context ──────────────────────────────────────────────────────────
-  getAuthContext(): Observable<{
+  getAuthzContext(): Observable<{
     data: {
       role: string | null;
       roles: string[];
@@ -224,7 +224,7 @@ export class CflApiService {
         source: string | null;
       };
     }>(
-      `${API_BASE}/api/auth/context`
+      `${API_BASE}/api/authn/context`
     );
   }
 

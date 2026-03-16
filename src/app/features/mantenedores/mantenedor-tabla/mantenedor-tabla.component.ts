@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
-import { AuthService } from '../../../core/services/auth.service';
+import { AuthnService } from '../../../core/services/authn.service';
 import { MantenedorConfig, MANTENEDORES_MAP } from '../mantenedor.config';
 import { MantenedorFormModalComponent } from '../mantenedor-form/mantenedor-form-modal.component';
 import { FolioDetalleModalComponent } from '../folios/folio-detalle-modal.component';
@@ -84,7 +84,7 @@ export class MantenedorTablaComponent implements OnInit {
     private route:  ActivatedRoute,
     private router: Router,
     private api:    CflApiService,
-    public  auth:   AuthService,
+    public  auth:   AuthnService,
   ) {}
 
   ngOnInit(): void {

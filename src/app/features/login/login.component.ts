@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthnService } from '../../core/services/authn.service';
 
 @Component({
     selector: 'app-login',
@@ -147,7 +147,7 @@ export class LoginComponent {
   errorMsg = signal('');
   currentYear = new Date().getFullYear();
 
-  constructor(private auth: AuthService, private router: Router) {}
+  constructor(private auth: AuthnService, private router: Router) {}
 
   onSubmit(): void {
     if (!this.email().trim() || !this.password() || this.loading()) return;

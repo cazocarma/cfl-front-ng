@@ -15,7 +15,7 @@ import {
   FleteTabla,
   LifecycleStatus,
 } from '../../core/models/flete.model';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthnService } from '../../core/services/authn.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { EditFleteModalComponent, ModalMode } from './edit-flete-modal.component';
 
@@ -160,7 +160,7 @@ export class BandejaComponent implements OnInit {
   readonly ESTADO_HINT = ESTADO_HINT;
 
   constructor(
-    private auth: AuthService,
+    private auth: AuthnService,
     private cflApi: CflApiService,
   ) {}
 
@@ -617,7 +617,7 @@ logout(): void {
   private _loadAuthContext(): void {
     this.authContextLoading.set(true);
 
-    this.cflApi.getAuthContext().subscribe({
+    this.cflApi.getAuthzContext().subscribe({
       next: (ctx) => {
         const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
           .map((role) => this._normalizeText(role))

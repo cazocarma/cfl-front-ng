@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { CflApiService } from '../../core/services/cfl-api.service';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthnService } from '../../core/services/authn.service';
 import { MANTENEDORES_CONFIG, MantenedorConfig } from './mantenedor.config';
 
 const MANTENEDOR_FRECUENCIA_ORDEN = [
@@ -43,7 +43,7 @@ export class MantenedoresHomeComponent implements OnInit {
   conteos = signal<Record<string, number>>({});
 
   constructor(
-    private auth:   AuthService,
+    private auth:   AuthnService,
     private api:    CflApiService,
     private router: Router,
   ) {}
@@ -65,7 +65,7 @@ export class MantenedoresHomeComponent implements OnInit {
     this.loading.set(true);
 
     // Obtener contexto de auth para filtrar cards por permiso
-    this.api.getAuthContext().subscribe({
+    this.api.getAuthzContext().subscribe({
       next: (ctx) => {
         const permissions = new Set<string>(ctx.data.permissions);
         const role = ctx.data.role;
