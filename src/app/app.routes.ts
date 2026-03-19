@@ -21,6 +21,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'carga-entregas',
+    canActivate: [authnGuard],
+    loadComponent: () =>
+      import('./features/carga-entregas/carga-entregas.component').then(
+        (m) => m.CargaEntregasComponent
+      ),
+  },
+  {
     path: 'facturas',
     canActivate: [authnGuard],
     loadComponent: () =>

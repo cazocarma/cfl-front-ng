@@ -113,6 +113,7 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   @Output() valueChange = new EventEmitter<string>();
 
   readonly searchText = signal('');
+  private readonly _options = signal<SearchableOption[]>([]);
   displayText = '';
   isOpen = false;
   openUpward = false;
@@ -120,8 +121,9 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
 
   readonly filteredOptions = computed(() => {
     const query = this.searchText().trim().toLowerCase();
-    if (!query) return this.options;
-    return this.options.filter(opt => opt.label.toLowerCase().includes(query));
+    const opts = this._options();
+    if (!query) return opts;
+    return opts.filter(opt => opt.label.toLowerCase().includes(query));
   });
 
   private _closeTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -141,6 +143,9 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['options']) {
+      this._options.set(this.options);
+    }
     if (changes['value'] || changes['options']) {
       this._syncDisplayText();
     }

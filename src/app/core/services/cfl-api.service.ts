@@ -3,6 +3,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_BASE } from '../config/api-base';
 import {
+  ControlFleteCargaJobListResponse,
+  ControlFleteCargaJobResponse,
+  SolicitarControlFleteCargaPorRangoFechasRequest,
+  SolicitarControlFleteCargaPorVbelnRequest,
+} from '../models/control-flete-carga-job.model';
+import {
   EmpresaElegible,
   FacturaDetalle,
   FacturaListItem,
@@ -39,6 +45,43 @@ export class CflApiService {
     return this.http.get<PagedResponse<unknown>>(
       `${API_BASE}/api/dashboard/fletes/completos-sin-folio`,
       { params: this._toHttpParams(params) }
+    );
+  }
+
+  solicitarControlFleteCargaPorVbeln(
+    body: SolicitarControlFleteCargaPorVbelnRequest,
+  ): Observable<ControlFleteCargaJobResponse> {
+    return this.http.post<ControlFleteCargaJobResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/vbeln`,
+      body
+    );
+  }
+
+  solicitarControlFleteCargaPorRangoFechas(
+    body: SolicitarControlFleteCargaPorRangoFechasRequest,
+  ): Observable<ControlFleteCargaJobResponse> {
+    return this.http.post<ControlFleteCargaJobResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/rango-fechas`,
+      body
+    );
+  }
+
+  getControlFleteCargaJob(jobId: string): Observable<ControlFleteCargaJobResponse> {
+    return this.http.get<ControlFleteCargaJobResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/jobs/${encodeURIComponent(jobId)}`
+    );
+  }
+
+  getControlFleteCargaLatestJob(): Observable<ControlFleteCargaJobResponse> {
+    return this.http.get<ControlFleteCargaJobResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/jobs/ultimo`
+    );
+  }
+
+  getControlFleteCargaRecentJobs(limit = 20): Observable<ControlFleteCargaJobListResponse> {
+    return this.http.get<ControlFleteCargaJobListResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/jobs`,
+      { params: { limit: limit.toString() } }
     );
   }
 

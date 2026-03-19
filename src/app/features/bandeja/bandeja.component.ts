@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, OnInit, signal } from '@angular/core';
+import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -26,7 +26,7 @@ type ConfirmActionType = 'descartar' | 'anular';
     imports: [CommonModule, FormsModule, RouterLink, EditFleteModalComponent],
     templateUrl: './bandeja.component.html'
 })
-export class BandejaComponent implements OnInit {
+export class BandejaComponent implements OnInit, OnDestroy {
   /*  User session  */
   get userName(): string {
     const u = this.auth.getCurrentUser();
@@ -72,7 +72,6 @@ export class BandejaComponent implements OnInit {
   toastMsg = signal('');
   toastIsError = signal(false);
   private _toastTimer?: ReturnType<typeof setTimeout>;
-
   /*  Modal edición / vista  */
   editModalFlete = signal<FleteTabla | null>(null);
   editModalVisible = signal(false);
@@ -167,6 +166,10 @@ export class BandejaComponent implements OnInit {
   ngOnInit(): void {
     this._loadAuthContext();
     this.loadFletes();
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this._toastTimer);
   }
 
   /*  Carga de datos  */
@@ -505,7 +508,7 @@ export class BandejaComponent implements OnInit {
   }
 
   /*  Auth  */
-logout(): void {
+  logout(): void {
     this.auth.logout();
   }
 
@@ -637,8 +640,17 @@ logout(): void {
         this.authContextLoaded.set(false);
         this.authContextLoading.set(false);
 
-        if (this._handleAuthorizationError(err)) return;
-        this._showToast('No fue posible cargar permisos de usuario. Acciones bloqueadas.', true);
+        const status = Number(err?.status || 0);
+        if (status === 401) {
+          this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
+          this.auth.logout();
+          return;
+        }
+
+        this._showToast(
+          err?.error?.error ?? 'No fue posible cargar permisos de usuario. Acciones bloqueadas.',
+          true,
+        );
       },
     });
   }

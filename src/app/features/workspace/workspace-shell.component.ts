@@ -6,6 +6,7 @@ import { AuthnService } from '../../core/services/authn.service';
 
 type WorkspaceSection =
   | 'bandeja'
+  | 'carga-entregas'
   | 'facturas'
   | 'planillas'
   | 'mantenedores'
