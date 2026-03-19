@@ -733,9 +733,7 @@ export class EditFleteModalComponent implements OnChanges {
       this._applyCatalogSnapshot(cached);
       this._applyFallbacks(true);
       this._loadFleteContext();
-      if ((cached.productores?.length || 0) === 0) {
-        this._loadProductoresDeferred();
-      }
+      this._loadProductoresDeferred();
       return;
     }
 
@@ -860,8 +858,8 @@ export class EditFleteModalComponent implements OnChanges {
     this.detailLoading.set(false);
   }
 
-  private _safeCatalog(entity: string): Observable<{ data: unknown[] }> {
-    return this.cflApi.listMaintainerRows(entity).pipe(
+  private _safeCatalog(entity: string, params: Record<string, unknown> = {}): Observable<{ data: unknown[] }> {
+    return this.cflApi.listMaintainerRows(entity, params).pipe(
       retry(1),
       catchError(() => of({ data: [] }))
     );
