@@ -15,7 +15,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
     selector: 'app-nueva-factura-wizard',
     imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
-    <app-workspace-shell title="Nueva Factura" subtitle="Generación de facturas de transporte por periodo y centro de costo." activeSection="facturas">
+    <app-workspace-shell title="Nueva Pre Factura" subtitle="Generación de pre facturas de transporte por periodo y centro de costo." activeSection="facturas">
 
       <!-- Stepper -->
       <nav class="mb-8 flex items-center gap-0 overflow-x-auto">
@@ -49,7 +49,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
         <div class="space-y-5">
           <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
             <h2 class="text-base font-semibold text-forest-900">Paso 1 — Transportista y período</h2>
-            <p class="mt-1 text-sm text-forest-500">Selecciona la empresa transportista e indica el período de los movimientos a facturar.</p>
+            <p class="mt-1 text-sm text-forest-500">Selecciona la empresa transportista e indica el período de los movimientos a pre facturar.</p>
 
             @if (loadingEmpresas()) {
               <p class="mt-6 text-sm text-forest-500">Cargando empresas...</p>
@@ -80,7 +80,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
 
           <!-- Período -->
           <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-            <h3 class="text-sm font-semibold text-forest-900">Período de facturación</h3>
+            <h3 class="text-sm font-semibold text-forest-900">Período de pre facturación</h3>
             <p class="mt-1 text-xs text-forest-500">
               Define el rango de fechas de los movimientos a incluir. Se incluirán los folios cuyo período se superponga con este rango.
             </p>
@@ -109,7 +109,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
         <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 class="text-base font-semibold text-forest-900">Paso 2 — Resumen de folios a facturar</h2>
+              <h2 class="text-base font-semibold text-forest-900">Paso 2 — Resumen de folios a pre facturar</h2>
               <p class="mt-1 text-sm text-forest-500">
                 Empresa: <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>
                 @if (periodoDesde() || periodoHasta()) {
@@ -166,7 +166,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
               </table>
             </div>
             <p class="mt-3 text-xs text-forest-500">
-              Todos los folios listados serán incluidos automáticamente. Las facturas se agruparán por <strong>Centro de Costo</strong>.
+              Todos los folios listados serán incluidos automáticamente. Las pre facturas se agruparán por <strong>Centro de Costo</strong>.
             </p>
           }
         </div>
@@ -178,7 +178,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
           <div class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
             <h2 class="text-base font-semibold text-forest-900">Paso 3 — Vista previa de generación</h2>
             <p class="mt-1 text-sm text-forest-500">
-              Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> factura(s) agrupadas por
+              Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> pre factura(s) agrupadas por
               <strong>Centro de Costo</strong>.
             </p>
           </div>
@@ -246,13 +246,13 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
           <h2 class="text-base font-semibold text-forest-900">Paso 4 — Confirmar generación</h2>
 
           @if (generando()) {
-            <p class="mt-6 text-sm text-forest-600">Generando facturas, por favor espera...</p>
+            <p class="mt-6 text-sm text-forest-600">Generando pre facturas, por favor espera...</p>
           } @else if (errorGeneracion()) {
             <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{{ errorGeneracion() }}</div>
           } @else {
             <div class="mt-4 rounded-xl border border-forest-100 bg-forest-50 p-4 space-y-1">
               <p class="text-sm text-forest-700">
-                Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> factura(s)
+                Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> pre factura(s)
                 para <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>,
                 agrupadas por <strong>Centro de Costo</strong>.
               </p>
@@ -269,7 +269,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
             <p class="mt-4 text-sm text-forest-600">
               Esta acción marcará todos los movimientos incluidos como <em>Facturado</em>.
               Las facturas se crearán en estado <strong>Borrador</strong>.
-              Desde el detalle de cada factura podrás emitirlas formalmente.
+              Desde el detalle de cada pre factura podrás emitirlas formalmente.
             </p>
           }
         </div>
@@ -313,7 +313,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
             <button type="button"
                     (click)="confirmarGeneracion()"
                     class="rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">
-              Generar facturas
+              Generar pre facturas
             </button>
           }
         </div>
@@ -428,7 +428,7 @@ export class NuevaFacturaWizardComponent implements OnInit {
     }).subscribe({
       next: () => { this.generando.set(false); this.router.navigate(['/facturas']); },
       error: (err) => {
-        this.errorGeneracion.set(err?.error?.error ?? 'Error al generar facturas.');
+        this.errorGeneracion.set(err?.error?.error ?? 'Error al generar pre facturas.');
         this.generando.set(false);
       },
     });

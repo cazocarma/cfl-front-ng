@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authnGuard } from './core/guards/authn.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   {
@@ -72,7 +73,7 @@ export const routes: Routes = [
   },
   {
     path: 'auditoria',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, roleGuard('administrador')],
     loadComponent: () =>
       import('./features/auditoria/auditoria.component').then(
         (m) => m.AuditoriaComponent
@@ -80,7 +81,7 @@ export const routes: Routes = [
   },
   {
     path: 'mantenedores',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, roleGuard('administrador')],
     loadComponent: () =>
       import('./features/mantenedores/mantenedores-layout.component').then(
         (m) => m.MantenedoresLayoutComponent

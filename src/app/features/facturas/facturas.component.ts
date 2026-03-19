@@ -13,7 +13,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
     selector: 'app-facturas',
     imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
-    <app-workspace-shell title="Facturas" subtitle="Listado y gestión de facturas internas de transporte." activeSection="facturas">
+    <app-workspace-shell title="Pre Facturas" subtitle="Listado y gestión de pre facturas internas de transporte." activeSection="facturas">
 
       <!-- Filtros -->
       <div class="mb-5 flex flex-wrap items-end gap-3">
@@ -83,7 +83,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             routerLink="/facturas/nueva"
             class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
           >
-            + Nueva Factura
+            + Nueva Pre Factura
           </a>
         </div>
       </div>
@@ -91,19 +91,19 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
       <!-- Tabla -->
       <div class="rounded-2xl border border-forest-100 bg-white shadow-sm">
         @if (loading()) {
-          <div class="px-6 py-10 text-center text-sm text-forest-500">Cargando facturas...</div>
+          <div class="px-6 py-10 text-center text-sm text-forest-500">Cargando pre facturas...</div>
         } @else if (error()) {
           <div class="px-6 py-6 text-sm text-red-700">{{ error() }}</div>
         } @else if (facturasFiltradas().length === 0) {
           <div class="px-6 py-10 text-center text-sm text-forest-500">
-            No hay facturas que coincidan con los filtros aplicados.
+            No hay pre facturas que coincidan con los filtros aplicados.
           </div>
         } @else {
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-forest-100 text-sm">
               <thead>
                 <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                  <th class="px-4 py-3">N° Factura</th>
+                  <th class="px-4 py-3">N° Pre Factura</th>
                   <th class="px-4 py-3">Empresa</th>
                   <th class="px-4 py-3">Centro de Costo</th>
                   <th class="px-4 py-3 text-center">Folios</th>
@@ -168,7 +168,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                         }
                         @if (fac.estado === 'borrador') {
                           <!-- Anular -->
-                          <button type="button" title="Anular factura"
+                          <button type="button" title="Anular pre factura"
                                   (click)="confirmarAnular(fac)"
                                   class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -185,7 +185,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             </table>
           </div>
           <div class="border-t border-forest-100 px-4 py-2 text-xs text-forest-500">
-            {{ facturasFiltradas().length }} factura(s)
+            {{ facturasFiltradas().length }} pre factura(s)
           </div>
         }
       </div>
@@ -194,9 +194,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
       @if (facturaAAnular()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Anular factura</h3>
+            <h3 class="text-base font-semibold text-forest-900">Anular pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              ¿Estás seguro de que deseas anular la factura
+              ¿Estás seguro de que deseas anular la pre factura
               <strong>{{ facturaAAnular()?.numero_factura }}</strong>?
               Los movimientos asociados volverán al estado <em>Asignado Folio</em>.
             </p>
@@ -210,7 +210,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                       (click)="anularFactura()"
                       [disabled]="anulando()"
                       class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
-                {{ anulando() ? 'Anulando...' : 'Anular factura' }}
+                {{ anulando() ? 'Anulando...' : 'Anular pre factura' }}
               </button>
             </div>
           </div>
@@ -263,7 +263,7 @@ export class FacturasComponent implements OnInit {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.error?.error ?? 'No se pudieron cargar las facturas.');
+        this.error.set(err?.error?.error ?? 'No se pudieron cargar las pre facturas.');
         this.loading.set(false);
       },
     });
@@ -292,7 +292,7 @@ export class FacturasComponent implements OnInit {
         this.cargarFacturas();
       },
       error: (err) => {
-        alert(err?.error?.error ?? 'Error al anular la factura.');
+        alert(err?.error?.error ?? 'Error al anular la pre factura.');
         this.anulando.set(false);
       },
     });
@@ -300,14 +300,14 @@ export class FacturasComponent implements OnInit {
 
   descargarExcel(fac: FacturaListItem): void {
     this.cflApi.exportarFacturaExcel(fac.id_factura).subscribe({
-      next: (blob) => triggerDownload(blob, `factura-${fac.numero_factura}.xlsx`),
+      next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.xlsx`),
       error: () => alert('Error al descargar Excel.'),
     });
   }
 
   descargarPdf(fac: FacturaListItem): void {
     this.cflApi.exportarFacturaPdf(fac.id_factura).subscribe({
-      next: (blob) => triggerDownload(blob, `factura-${fac.numero_factura}.pdf`),
+      next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.pdf`),
       error: () => alert('Error al descargar PDF.'),
     });
   }

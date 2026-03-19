@@ -35,9 +35,10 @@ export class MantenedorTablaComponent implements OnInit {
   private _toastTimer?: ReturnType<typeof setTimeout>;
 
   /* ── Filtros y paginación (client-side) ────────────────────── */
-  searchText   = signal('');
-  currentPage  = signal(1);
-  itemsPerPage = signal(25);
+  searchText    = signal('');
+  activoFilter  = signal<'si' | 'no' | 'todos'>('si');
+  currentPage   = signal(1);
+  itemsPerPage  = signal(25);
   readonly itemsPerPageOptions = [10, 25, 50];
 
   /* ── Tarifas: filtro por temporada ─────────────────────────── */
@@ -150,7 +151,7 @@ export class MantenedorTablaComponent implements OnInit {
   private _loadTarifas(): void {
     this.loading.set(true);
     const tempId = this.selectedTemporadaId();
-    const params: Record<string, unknown> = {};
+    const params: Record<string, unknown> = { activo: this.activoFilter() };
     if (tempId) params['temporada_id'] = tempId;
 
     this.api.listMaintainerRows('tarifas', params).subscribe({
@@ -172,7 +173,8 @@ export class MantenedorTablaComponent implements OnInit {
     if (!cfg) return;
 
     this.loading.set(true);
-    this.api.listMaintainerRows(cfg.key).subscribe({
+    const params: Record<string, unknown> = { activo: this.activoFilter() };
+    this.api.listMaintainerRows(cfg.key, params).subscribe({
       next: (res: any) => {
         this.allRows.set(this._normalizeRows((res.data as Record<string, unknown>[]) ?? []));
         this.canEdit.set(res.permissions?.can_edit ?? false);
@@ -314,6 +316,16 @@ export class MantenedorTablaComponent implements OnInit {
   onItemsChange(val: string): void { this.itemsPerPage.set(Number(val)); this.currentPage.set(1); }
 
   onSearch(): void { this.currentPage.set(1); }
+
+  onActivoFilterChange(val: string): void {
+    this.activoFilter.set(val as 'si' | 'no' | 'todos');
+    this.currentPage.set(1);
+    if (this.config()?.tipoEspecial === 'tarifas') {
+      this._loadTarifas();
+    } else {
+      this._loadRows();
+    }
+  }
 
   paginationStart(): number { return (this.currentPage() - 1) * this.itemsPerPage() + 1; }
   paginationEnd(): number { return Math.min(this.currentPage() * this.itemsPerPage(), this.filteredRows().length); }

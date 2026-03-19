@@ -54,7 +54,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   }
 
   /*  Tabs  */
-  activeTab = signal<'candidatos' | 'en_curso'>('candidatos');
+  activeTab = signal<'candidatos' | 'en_curso'>('en_curso');
 
   /*  Data  */
   allFletes = signal<FleteTabla[]>([]);

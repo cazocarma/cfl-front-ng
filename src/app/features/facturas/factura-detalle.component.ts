@@ -12,20 +12,20 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
     selector: 'app-factura-detalle',
     imports: [RouterLink, WorkspaceShellComponent],
     template: `
-    <app-workspace-shell [title]="factura() ? 'Factura ' + factura()!.numero_factura : 'Detalle de Factura'"
-                         subtitle="Cabecera, folios y movimientos de la factura."
+    <app-workspace-shell [title]="factura() ? 'Pre Factura ' + factura()!.numero_factura : 'Detalle de Pre Factura'"
+                         subtitle="Cabecera, folios y movimientos de la pre factura."
                          activeSection="facturas">
 
       <!-- Breadcrumb -->
       <div class="mb-4 flex items-center gap-2 text-sm text-forest-500">
-        <a routerLink="/facturas" class="hover:text-forest-900 transition">Facturas</a>
+        <a routerLink="/facturas" class="hover:text-forest-900 transition">Pre Facturas</a>
         <span>›</span>
         <span class="text-forest-900">{{ factura()?.numero_factura ?? 'Cargando...' }}</span>
       </div>
 
       @if (loading()) {
         <div class="rounded-2xl border border-forest-100 bg-white px-6 py-10 text-center text-sm text-forest-500 shadow-sm">
-          Cargando factura...
+          Cargando pre factura...
         </div>
       } @else if (error()) {
         <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{{ error() }}</div>
@@ -91,7 +91,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
               <button type="button"
                       (click)="confirmarEmitir()"
                       class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">
-                Emitir factura
+                Emitir pre factura
               </button>
             }
             @if (factura()!.estado !== 'anulada') {
@@ -204,9 +204,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
       @if (showConfirmEmitir()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Emitir factura</h3>
+            <h3 class="text-base font-semibold text-forest-900">Emitir pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              Una vez emitida, la factura quedará en estado <strong>Emitida</strong> y no podrá modificarse.
+              Una vez emitida, la pre factura quedará en estado <strong>Emitida</strong> y no podrá modificarse.
               ¿Confirmas?
             </p>
             <div class="mt-4 flex justify-end gap-3">
@@ -227,9 +227,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
       @if (showConfirmAnular()) {
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Anular factura</h3>
+            <h3 class="text-base font-semibold text-forest-900">Anular pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              Se anulará la factura <strong>{{ factura()?.numero_factura }}</strong>.
+              Se anulará la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
               Los movimientos incluidos volverán al estado <em>Asignado Folio</em>.
             </p>
             <div class="mt-4 flex justify-end gap-3">
@@ -276,7 +276,7 @@ export class FacturaDetalleComponent implements OnInit {
     this.error.set('');
     this.cflApi.getFacturaDetalle(this.idFactura).subscribe({
       next: (res) => { this.factura.set(res.data); this.loading.set(false); },
-      error: (err) => { this.error.set(err?.error?.error ?? 'No se pudo cargar la factura.'); this.loading.set(false); },
+      error: (err) => { this.error.set(err?.error?.error ?? 'No se pudo cargar la pre factura.'); this.loading.set(false); },
     });
   }
 
@@ -301,14 +301,14 @@ export class FacturaDetalleComponent implements OnInit {
 
   descargarExcel(): void {
     this.cflApi.exportarFacturaExcel(this.idFactura).subscribe({
-      next: (blob) => triggerDownload(blob, `factura-${this.factura()?.numero_factura}.xlsx`),
+      next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.xlsx`),
       error: () => alert('Error al descargar Excel.'),
     });
   }
 
   descargarPdf(): void {
     this.cflApi.exportarFacturaPdf(this.idFactura).subscribe({
-      next: (blob) => triggerDownload(blob, `factura-${this.factura()?.numero_factura}.pdf`),
+      next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.pdf`),
       error: () => alert('Error al descargar PDF.'),
     });
   }

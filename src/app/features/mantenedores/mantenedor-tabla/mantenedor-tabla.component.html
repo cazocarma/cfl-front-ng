@@ -99,6 +99,19 @@
                 </svg>
               </button>
             }
+            <!-- Filtro activo/inactivo -->
+            @if (config()!.softDeleteField) {
+              <select
+                class="cfl-select w-36 text-xs"
+                [ngModel]="activoFilter()"
+                (ngModelChange)="onActivoFilterChange($event)"
+                name="activoFilter"
+              >
+                <option value="si">Solo activos</option>
+                <option value="no">Solo inactivos</option>
+                <option value="todos">Todos</option>
+              </select>
+            }
           </div>
           <div class="flex items-center gap-3 text-sm text-forest-500">
             <span>{{ filteredRows().length }} resultado{{ filteredRows().length !== 1 ? 's' : '' }}</span>

@@ -18,7 +18,7 @@ interface EstadisticasOverviewData {
     template: `
     <app-workspace-shell
       title="Estadísticas"
-      subtitle="Resumen operativo y financiero construido desde cabeceras de flete, folios y facturas."
+      subtitle="Resumen operativo y financiero construido desde cabeceras de flete, folios y pre facturas."
       activeSection="estadisticas"
     >
       <div class="space-y-6">
@@ -32,19 +32,19 @@ interface EstadisticasOverviewData {
           <article class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Asignado Folio</p>
             <p class="mt-3 text-3xl font-bold text-forest-900">{{ toNumber(data()?.resumen?.['fletes_asignado_folio']) }}</p>
-            <p class="mt-2 text-xs text-forest-500">Base disponible para facturación.</p>
+            <p class="mt-2 text-xs text-forest-500">Base disponible para pre facturación.</p>
           </article>
 
           <article class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Facturas</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Pre Facturas</p>
             <p class="mt-3 text-3xl font-bold text-forest-900">{{ toNumber(data()?.resumen?.['facturas_registradas']) }}</p>
-            <p class="mt-2 text-xs text-forest-500">Cabeceras de factura existentes.</p>
+            <p class="mt-2 text-xs text-forest-500">Cabeceras de pre factura existentes.</p>
           </article>
 
           <article class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Monto Facturado</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Monto Pre Facturado</p>
             <p class="mt-3 text-3xl font-bold text-teal-700">{{ formatCurrency(data()?.resumen?.['monto_facturado']) }}</p>
-            <p class="mt-2 text-xs text-forest-500">Suma de montos totales facturados.</p>
+            <p class="mt-2 text-xs text-forest-500">Suma de montos totales pre facturados.</p>
           </article>
         </section>
 
@@ -109,7 +109,7 @@ interface EstadisticasOverviewData {
                 <p class="mt-2 text-xl font-bold text-forest-900">{{ toNumber(data()?.resumen?.['folios_abiertos']) }}</p>
               </div>
               <div class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Ticket promedio factura</p>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Ticket promedio pre factura</p>
                 <p class="mt-2 text-xl font-bold text-forest-900">{{ formatCurrency(data()?.resumen?.['ticket_promedio_factura']) }}</p>
               </div>
             </div>
@@ -186,7 +186,7 @@ interface EstadisticasOverviewData {
 
         <section class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
           <h2 class="text-sm font-semibold text-forest-900">Línea de tiempo reciente</h2>
-          <p class="mt-1 text-xs text-forest-500">Últimos períodos con movimientos y facturas detectadas.</p>
+          <p class="mt-1 text-xs text-forest-500">Últimos períodos con movimientos y pre facturas detectadas.</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             @for (row of data()?.timeline ?? []; track row['periodo']) {
@@ -203,7 +203,7 @@ interface EstadisticasOverviewData {
                     <p class="mt-1 text-sm font-semibold text-forest-900">{{ formatCurrency(row['monto_movimientos']) }}</p>
                   </div>
                   <div>
-                    <p class="text-[11px] uppercase tracking-[0.18em] text-forest-500">Facturas</p>
+                    <p class="text-[11px] uppercase tracking-[0.18em] text-forest-500">Pre Facturas</p>
                     <p class="mt-1 text-sm font-semibold text-forest-900">{{ toNumber(row['total_facturas']) }}</p>
                   </div>
                 </div>

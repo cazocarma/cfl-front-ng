@@ -283,7 +283,7 @@ export const ESTADO_HINT: Record<LifecycleStatus, string> = {
   ACTUALIZADO: 'SAP reporto cambios. Revisa y confirma los datos.',
   EN_REVISION: 'Faltan campos obligatorios. Edita para completar.',
   COMPLETADO: 'Todos los datos ingresados. Listo para asignar folio.',
-  ASIGNADO_FOLIO: 'Folio asignado. Pendiente de facturacion.',
-  FACTURADO: 'Proceso finalizado. Flete facturado correctamente.',
+  ASIGNADO_FOLIO: 'Folio asignado. Pendiente de pre facturación.',
+  FACTURADO: 'Proceso finalizado. Flete pre facturado correctamente.',
   ANULADO: 'Flete anulado. No aplica en el flujo normal.',
 };

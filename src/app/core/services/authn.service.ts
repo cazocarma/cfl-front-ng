@@ -38,6 +38,10 @@ export class AuthnService {
   }
 
   logout(): void {
+    const token = this.getToken();
+    if (token) {
+      this.http.post(`${API_BASE}/api/authn/logout`, {}).subscribe({ error: () => {} });
+    }
     localStorage.removeItem(TOKEN_KEY);
     this.currentUser.set(null);
     this.router.navigate(['/login']);

@@ -31,7 +31,7 @@ interface PlanillasOverviewData {
     template: `
     <app-workspace-shell
       title="Planillas SAP"
-      subtitle="Agrupación de facturas por período y centro de costo. La salida Excel queda preparada pero no se emite aún."
+      subtitle="Agrupación de pre facturas por período y centro de costo. La salida Excel queda preparada pero no se emite aún."
       activeSection="planillas"
     >
       <div class="space-y-6">
@@ -57,7 +57,7 @@ interface PlanillasOverviewData {
           </article>
 
           <article class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Facturas</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">Pre Facturas</p>
             <p class="mt-3 text-3xl font-bold text-forest-900">{{ toNumber(overview()?.resumen?.['facturas']) }}</p>
             <p class="mt-2 text-xs text-forest-500">Cabeceras incluidas para consolidación.</p>
           </article>
@@ -95,7 +95,7 @@ interface PlanillasOverviewData {
                   </div>
                 } @else if ((overview()?.grupos?.length ?? 0) === 0) {
                   <div class="rounded-xl border border-dashed border-forest-200 px-4 py-5 text-sm text-forest-500">
-                    No hay facturas registradas para consolidar en planilla SAP.
+                    No hay pre facturas registradas para consolidar en planilla SAP.
                   </div>
                 } @else {
                   @for (group of overview()?.grupos ?? []; track group.group_key) {
@@ -116,7 +116,7 @@ interface PlanillasOverviewData {
                           <p class="mt-1 text-xs text-forest-500">{{ group.periodo_label || 'Sin período' }}</p>
                         </div>
                         <span class="rounded-full bg-forest-100 px-2.5 py-1 text-[11px] font-semibold text-forest-700">
-                          {{ toNumber(group.total_facturas) }} fac.
+                          {{ toNumber(group.total_facturas) }} pre fac.
                         </span>
                       </div>
                       <p class="mt-3 text-sm font-semibold text-teal-700">{{ formatCurrency(group.monto_total) }}</p>
@@ -145,7 +145,7 @@ interface PlanillasOverviewData {
 
                 <div class="mt-5 grid gap-4 md:grid-cols-3">
                   <article class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Facturas</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Pre Facturas</p>
                     <p class="mt-2 text-xl font-bold text-forest-900">{{ toNumber(selectedGroup()?.total_facturas) }}</p>
                   </article>
                   <article class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
@@ -160,13 +160,13 @@ interface PlanillasOverviewData {
 
                 <div class="mt-5 rounded-2xl border border-forest-100 bg-white">
                   <div class="border-b border-forest-100 px-4 py-3">
-                    <h3 class="text-sm font-semibold text-forest-900">Facturas incluidas</h3>
+                    <h3 class="text-sm font-semibold text-forest-900">Pre Facturas incluidas</h3>
                   </div>
                   <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-forest-100 text-sm">
                       <thead>
                         <tr class="text-left text-xs uppercase tracking-[0.18em] text-forest-500">
-                          <th class="px-4 py-3">Factura</th>
+                          <th class="px-4 py-3">Pre Factura</th>
                           <th class="px-4 py-3">Folio</th>
                           <th class="px-4 py-3">Empresa</th>
                           <th class="px-4 py-3">Emisión</th>
@@ -185,7 +185,7 @@ interface PlanillasOverviewData {
                         } @empty {
                           <tr>
                             <td colspan="5" class="px-4 py-5 text-center text-sm text-forest-500">
-                              No hay facturas asociadas a este lote.
+                              No hay pre facturas asociadas a este lote.
                             </td>
                           </tr>
                         }
