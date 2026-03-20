@@ -89,9 +89,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <div class="mt-5 flex flex-wrap items-center gap-3">
             @if (factura()!.estado === 'borrador') {
               <button type="button"
-                      (click)="confirmarEmitir()"
-                      class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">
-                Emitir pre factura
+                      (click)="confirmarRecibir()"
+                      class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                Marcar como recibida
               </button>
             }
             @if (factura()!.estado !== 'anulada') {
@@ -111,6 +111,13 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                       (click)="confirmarAnular()"
                       class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
                 Anular
+              </button>
+            }
+            @if (factura()!.estado === 'borrador') {
+              <button type="button"
+                      (click)="confirmarEliminar()"
+                      class="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
+                Eliminar pre factura
               </button>
             }
           </div>
@@ -171,6 +178,9 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                   <th class="px-3 py-3">Tipo Flete</th>
                   <th class="px-3 py-3">Centro Costo</th>
                   <th class="px-3 py-3">Ruta</th>
+                  <th class="px-3 py-3">Empresa Transp.</th>
+                  <th class="px-3 py-3">Chofer</th>
+                  <th class="px-3 py-3">Camión</th>
                   <th class="px-3 py-3">Fecha</th>
                   <th class="px-3 py-3 text-right">Monto</th>
                 </tr>
@@ -185,12 +195,30 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     <td class="px-3 py-3 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.centro_costo || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.ruta || '-' }}</td>
+                    <td class="px-3 py-3 text-forest-600">
+                      <span class="block text-forest-800">{{ m.empresa_nombre || '-' }}</span>
+                      @if (m.empresa_rut) {
+                        <span class="block text-[11px] text-forest-400">{{ m.empresa_rut }}</span>
+                      }
+                    </td>
+                    <td class="px-3 py-3 text-forest-600">
+                      <span class="block text-forest-800">{{ m.chofer_nombre || '-' }}</span>
+                      @if (m.chofer_rut) {
+                        <span class="block text-[11px] text-forest-400">{{ m.chofer_rut }}</span>
+                      }
+                    </td>
+                    <td class="px-3 py-3 text-forest-600">
+                      <span class="block text-forest-800">{{ m.camion_patente || '-' }}</span>
+                      @if (m.tipo_camion) {
+                        <span class="block text-[11px] text-forest-400">{{ m.tipo_camion }}</span>
+                      }
+                    </td>
                     <td class="px-3 py-3 text-forest-600">{{ formatDate(m.fecha_salida) }}</td>
                     <td class="px-3 py-3 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="7" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
+                    <td colspan="10" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
                   </tr>
                 }
               </tbody>
@@ -198,29 +226,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           </div>
         </div>
 
-      }
-
-      <!-- Modal: Confirmar emitir -->
-      @if (showConfirmEmitir()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-forest-900">Emitir pre factura</h3>
-            <p class="mt-2 text-sm text-forest-600">
-              Una vez emitida, la pre factura quedará en estado <strong>Emitida</strong> y no podrá modificarse.
-              ¿Confirmas?
-            </p>
-            <div class="mt-4 flex justify-end gap-3">
-              <button type="button" (click)="showConfirmEmitir.set(false)"
-                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
-                Cancelar
-              </button>
-              <button type="button" (click)="emitirFactura()" [disabled]="cambiandoEstado()"
-                      class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
-                {{ cambiandoEstado() ? 'Emitiendo...' : 'Emitir' }}
-              </button>
-            </div>
-          </div>
-        </div>
       }
 
       <!-- Modal: Confirmar anular -->
@@ -246,6 +251,52 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
         </div>
       }
 
+      <!-- Modal: Confirmar recibida -->
+      @if (showConfirmRecibir()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="text-base font-semibold text-forest-900">Marcar como recibida</h3>
+            <p class="mt-2 text-sm text-forest-600">
+              La pre factura <strong>{{ factura()?.numero_factura }}</strong> se marcará como <strong>Recibida</strong>.
+              Una vez recibida, no podrá ser modificada ni anulada.
+            </p>
+            <div class="mt-4 flex justify-end gap-3">
+              <button type="button" (click)="showConfirmRecibir.set(false)"
+                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
+                Cancelar
+              </button>
+              <button type="button" (click)="recibirFactura()" [disabled]="cambiandoEstado()"
+                      class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
+                {{ cambiandoEstado() ? 'Procesando...' : 'Confirmar recibida' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Modal: Confirmar eliminar -->
+      @if (showConfirmEliminar()) {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="text-base font-semibold text-red-800">Eliminar pre factura</h3>
+            <p class="mt-2 text-sm text-forest-600">
+              Se eliminará permanentemente la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
+              Todos los movimientos volverán al estado <em>Asignado Folio</em>.
+            </p>
+            <div class="mt-4 flex justify-end gap-3">
+              <button type="button" (click)="showConfirmEliminar.set(false)"
+                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
+                Cancelar
+              </button>
+              <button type="button" (click)="eliminarFactura()" [disabled]="cambiandoEstado()"
+                      class="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">
+                {{ cambiandoEstado() ? 'Eliminando...' : 'Eliminar definitivamente' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
     </app-workspace-shell>
   `
 })
@@ -253,9 +304,10 @@ export class FacturaDetalleComponent implements OnInit {
   readonly loading           = signal(false);
   readonly error             = signal('');
   readonly factura           = signal<FacturaDetalle | null>(null);
-  readonly cambiandoEstado   = signal(false);
-  readonly showConfirmEmitir = signal(false);
-  readonly showConfirmAnular = signal(false);
+  readonly cambiandoEstado    = signal(false);
+  readonly showConfirmAnular  = signal(false);
+  readonly showConfirmRecibir = signal(false);
+  readonly showConfirmEliminar = signal(false);
 
   private idFactura = 0;
 
@@ -280,22 +332,31 @@ export class FacturaDetalleComponent implements OnInit {
     });
   }
 
-  confirmarEmitir(): void { this.showConfirmEmitir.set(true); }
   confirmarAnular(): void { this.showConfirmAnular.set(true); }
-
-  emitirFactura(): void {
-    this.cambiandoEstado.set(true);
-    this.cflApi.cambiarEstadoFactura(this.idFactura, 'emitida').subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmEmitir.set(false); this.loadFacturaData(); },
-      error: (err) => { alert(err?.error?.error ?? 'Error al emitir.'); this.cambiandoEstado.set(false); },
-    });
-  }
+  confirmarRecibir(): void { this.showConfirmRecibir.set(true); }
+  confirmarEliminar(): void { this.showConfirmEliminar.set(true); }
 
   anularFactura(): void {
     this.cambiandoEstado.set(true);
     this.cflApi.cambiarEstadoFactura(this.idFactura, 'anulada').subscribe({
       next: () => { this.cambiandoEstado.set(false); this.showConfirmAnular.set(false); this.loadFacturaData(); },
       error: (err) => { alert(err?.error?.error ?? 'Error al anular.'); this.cambiandoEstado.set(false); },
+    });
+  }
+
+  recibirFactura(): void {
+    this.cambiandoEstado.set(true);
+    this.cflApi.cambiarEstadoFactura(this.idFactura, 'recibida').subscribe({
+      next: () => { this.cambiandoEstado.set(false); this.showConfirmRecibir.set(false); this.loadFacturaData(); },
+      error: (err) => { alert(err?.error?.error ?? 'Error al marcar como recibida.'); this.cambiandoEstado.set(false); },
+    });
+  }
+
+  eliminarFactura(): void {
+    this.cambiandoEstado.set(true);
+    this.cflApi.eliminarFactura(this.idFactura).subscribe({
+      next: () => { this.cambiandoEstado.set(false); this.showConfirmEliminar.set(false); this.router.navigate(['/facturas']); },
+      error: (err) => { alert(err?.error?.error ?? 'Error al eliminar.'); this.cambiandoEstado.set(false); },
     });
   }
 

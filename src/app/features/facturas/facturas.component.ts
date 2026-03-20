@@ -37,7 +37,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           >
             <option value="">Todos</option>
             <option value="borrador">Borrador</option>
-            <option value="emitida">Emitida</option>
+            <option value="recibida">Recibida</option>
             <option value="anulada">Anulada</option>
           </select>
         </div>

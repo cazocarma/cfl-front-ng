@@ -13,6 +13,7 @@ import {
   FacturaDetalle,
   FacturaListItem,
   FolioElegible,
+  PeriodoDisponible,
   PreviewResult,
 } from '../models/factura.model';
 
@@ -319,6 +320,13 @@ export class CflApiService {
     return this.http.get<{ data: EmpresaElegible[] }>(`${API_BASE}/api/facturas/empresas-elegibles`);
   }
 
+  getFacturasPeriodosConMovimientos(idEmpresa: number): Observable<{ data: PeriodoDisponible[] }> {
+    return this.http.get<{ data: PeriodoDisponible[] }>(
+      `${API_BASE}/api/facturas/periodos-con-movimientos`,
+      { params: this._toHttpParams({ id_empresa: idEmpresa }) }
+    );
+  }
+
   getFacturasFoliosElegibles(idEmpresa: number, desde?: string, hasta?: string): Observable<{ data: FolioElegible[] }> {
     return this.http.get<{ data: FolioElegible[] }>(
       `${API_BASE}/api/facturas/folios-elegibles`,
@@ -344,6 +352,10 @@ export class CflApiService {
 
   cambiarEstadoFactura(id: number, estado: string): Observable<{ message: string }> {
     return this.http.patch<{ message: string }>(`${API_BASE}/api/facturas/${id}/estado`, { estado });
+  }
+
+  eliminarFactura(id: number): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}`);
   }
 
   agregarFoliosAFactura(id: number, ids_folio: number[]): Observable<{ message: string }> {

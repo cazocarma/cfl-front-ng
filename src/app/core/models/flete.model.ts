@@ -60,6 +60,7 @@ export interface FleteEnCursoRow {
   sap_carro: string | null;
   fecha_salida: string | null;
   monto_aplicado: number | null;
+  monto_extra: number | null;
   numero_guia: string | null;
   sap_guia_remision: string | null;
   guia_remision: string | null;
@@ -83,6 +84,7 @@ export interface FleteTabla {
   camion: string;
   fecha: string;
   monto: number;
+  montoExtra: number;
   folio: string;
   estado: LifecycleStatus;
   puedeIngresar?: boolean;
@@ -130,6 +132,7 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     camion: formatCamion(row.sap_patente, row.sap_carro),
     fecha: row.sap_fecha_salida ? formatFecha(row.sap_fecha_salida) : '-',
     monto: 0,
+    montoExtra: 0,
     folio: '—',
     estado: (row.estado as LifecycleStatus) || 'DETECTADO',
     puedeIngresar: row.puede_ingresar,
@@ -173,6 +176,7 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     camion: formatCamion(row.movil_patente ?? row.sap_patente, row.sap_carro, row.movil_tipo_camion),
     fecha: row.fecha_salida ? formatFecha(row.fecha_salida) : '-',
     monto: row.monto_aplicado ?? 0,
+    montoExtra: row.monto_extra ?? 0,
     folio: (row.folio_numero && String(row.folio_numero).trim() !== '0') ? row.folio_numero : '—',
     estado: (row.estado as LifecycleStatus) || 'EN_REVISION',
     idTipoFlete: row.id_tipo_flete ?? null,

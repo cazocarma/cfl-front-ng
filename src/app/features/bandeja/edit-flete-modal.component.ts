@@ -246,6 +246,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_camion: [''],
       id_productor: [''],
       monto_aplicado: [null],
+      monto_extra: [0],
       id_cuenta_mayor: [''],
       observaciones: [''],
     });
@@ -331,6 +332,44 @@ export class EditFleteModalComponent implements OnChanges {
     });
     const prefix = this.resolvedRouteMoneda ? `${this.resolvedRouteMoneda} ` : '';
     return `${prefix}${formatter.format(this.resolvedRouteMonto)}`;
+  }
+
+  /** Aplica un porcentaje de la tarifa base como monto extra y recalcula el total. */
+  setExtraPercentage(pct: number): void {
+    if (this.isReadOnly() || this.resolvedRouteMonto === null) return;
+    const extra = Math.round(this.resolvedRouteMonto * pct / 100);
+    this.form.patchValue({ monto_extra: extra }, { emitEvent: false });
+    this._recalcMontoAplicado();
+  }
+
+  /** Recalcula monto_aplicado = tarifa base + monto extra cuando el usuario cambia el extra manualmente. */
+  onMontoExtraChange(): void {
+    this._recalcMontoAplicado();
+  }
+
+  getMontoExtraValue(): number {
+    return Number(this.form.get('monto_extra')?.value) || 0;
+  }
+
+  getMontoBaseLabel(): string {
+    if (this.resolvedRouteMonto === null) return '-';
+    const formatter = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return formatter.format(this.resolvedRouteMonto);
+  }
+
+  getMontoTotalLabel(): string {
+    const monto = this._toNullableNumber(this.form.get('monto_aplicado')?.value);
+    if (monto === null) return 'Sin tarifa vigente';
+    const formatter = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const prefix = this.resolvedRouteMoneda ? `${this.resolvedRouteMoneda} ` : '';
+    return `${prefix}${formatter.format(monto)}`;
+  }
+
+  private _recalcMontoAplicado(): void {
+    const base = this.resolvedRouteMonto ?? 0;
+    const extra = Number(this.form.get('monto_extra')?.value) || 0;
+    const total = base + extra;
+    this.form.patchValue({ monto_aplicado: total }, { emitEvent: false });
   }
 
   getRouteOriginLabel(): string {
@@ -722,6 +761,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_camion: '',
       id_productor: this._toControlValue(this.flete?.idProductor),
       monto_aplicado: this.flete?.monto ?? null,
+      monto_extra: this.flete?.montoExtra ?? 0,
       id_cuenta_mayor: this._toControlValue(this.flete?.idCuentaMayor),
       observaciones: '',
     });
@@ -1373,15 +1413,16 @@ export class EditFleteModalComponent implements OnChanges {
     const tarifa = this._findBestTarifaForRoute(String(route['id_ruta']));
     if (tarifa) {
       const monto = this._toNullableNumber(tarifa['monto_fijo']);
+      this.resolvedRouteMonto = monto;
+      this.resolvedRouteMoneda = this._toString(tarifa['moneda']) || '';
+      const extra = Number(this.form.get('monto_extra')?.value) || 0;
       this.form.patchValue(
         {
           id_tarifa: this._toControlValue(tarifa['id_tarifa']),
-          monto_aplicado: monto,
+          monto_aplicado: (monto ?? 0) + extra,
         },
         { emitEvent: false }
       );
-      this.resolvedRouteMonto = monto;
-      this.resolvedRouteMoneda = this._toString(tarifa['moneda']) || '';
       this.routeResolutionHint = this.currentTemporadaLabel
         ? `Tarifa resuelta para la temporada ${this.currentTemporadaLabel}.`
         : 'Tarifa vigente resuelta automaticamente.';

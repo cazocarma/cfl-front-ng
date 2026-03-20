@@ -3,7 +3,7 @@ import { Component, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { CriterioAgrupacion, EmpresaElegible, FolioElegible, GrupoPreview, PreviewResult } from '../../core/models/factura.model';
+import { CriterioAgrupacion, EmpresaElegible, FolioElegible, GrupoPreview, PeriodoDisponible, PreviewResult } from '../../core/models/factura.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
@@ -79,28 +79,40 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
           </div>
 
           <!-- Período -->
-          <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-            <h3 class="text-sm font-semibold text-forest-900">Período de pre facturación</h3>
-            <p class="mt-1 text-xs text-forest-500">
-              Define el rango de fechas de los movimientos a incluir. Se incluirán los folios cuyo período se superponga con este rango.
-            </p>
-            <div class="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-widest text-forest-500 mb-1.5">Desde</label>
-                <input type="date"
-                       [ngModel]="periodoDesde()"
-                       (ngModelChange)="periodoDesde.set($event)"
-                       class="w-full rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-widest text-forest-500 mb-1.5">Hasta</label>
-                <input type="date"
-                       [ngModel]="periodoHasta()"
-                       (ngModelChange)="periodoHasta.set($event)"
-                       class="w-full rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 outline-none transition focus:border-forest-500 focus:ring-2 focus:ring-forest-200" />
-              </div>
+          @if (empresaSeleccionada()) {
+            <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
+              <h3 class="text-sm font-semibold text-forest-900">Período de pre facturación</h3>
+              <p class="mt-1 text-xs text-forest-500">
+                Selecciona el mes con movimientos a incluir en la pre factura.
+              </p>
+
+              @if (loadingPeriodos()) {
+                <p class="mt-5 text-sm text-forest-500">Cargando períodos...</p>
+              } @else if (periodos().length === 0) {
+                <div class="mt-5 rounded-xl border border-dashed border-forest-200 px-5 py-6 text-center text-sm text-forest-500">
+                  No hay movimientos elegibles para esta empresa.
+                </div>
+              } @else {
+                <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  @for (p of periodos(); track p.anio + '-' + p.mes) {
+                    <button type="button"
+                            (click)="seleccionarPeriodo(p)"
+                            class="flex flex-col gap-1 rounded-2xl border p-4 text-left transition"
+                            [class.border-teal-500]="periodoSeleccionado()?.anio === p.anio && periodoSeleccionado()?.mes === p.mes"
+                            [class.bg-teal-50]="periodoSeleccionado()?.anio === p.anio && periodoSeleccionado()?.mes === p.mes"
+                            [class.border-forest-100]="!(periodoSeleccionado()?.anio === p.anio && periodoSeleccionado()?.mes === p.mes)"
+                            [class.hover:border-forest-300]="!(periodoSeleccionado()?.anio === p.anio && periodoSeleccionado()?.mes === p.mes)">
+                      <span class="font-semibold text-forest-900 capitalize">{{ nombreMes(p.mes) }} {{ p.anio }}</span>
+                      <span class="text-xs text-forest-500">{{ p.total_movimientos }} movimiento(s)</span>
+                      <span class="mt-1 self-start rounded-full bg-forest-100 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
+                        {{ formatCLP(p.monto_neto) }}
+                      </span>
+                    </button>
+                  }
+                </div>
+              }
             </div>
-          </div>
+          }
         </div>
       }
 
@@ -269,7 +281,7 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
             <p class="mt-4 text-sm text-forest-600">
               Esta acción marcará todos los movimientos incluidos como <em>Facturado</em>.
               Las facturas se crearán en estado <strong>Borrador</strong>.
-              Desde el detalle de cada pre factura podrás emitirlas formalmente.
+              Desde el detalle de cada pre factura podrás marcarlas como recibidas.
             </p>
           }
         </div>
@@ -334,10 +346,13 @@ export class NuevaFacturaWizardComponent implements OnInit {
   readonly empresas            = signal<EmpresaElegible[]>([]);
   readonly folios              = signal<FolioElegible[]>([]);
   readonly empresaSeleccionada = signal<EmpresaElegible | null>(null);
+  readonly periodos            = signal<PeriodoDisponible[]>([]);
+  readonly periodoSeleccionado = signal<PeriodoDisponible | null>(null);
   readonly periodoDesde        = signal<string>('');
   readonly periodoHasta        = signal<string>('');
   readonly preview             = signal<PreviewResult | null>(null);
   readonly loadingEmpresas     = signal(false);
+  readonly loadingPeriodos     = signal(false);
   readonly loadingFolios       = signal(false);
   readonly loadingPreview      = signal(false);
   readonly generando           = signal(false);
@@ -374,6 +389,30 @@ export class NuevaFacturaWizardComponent implements OnInit {
 
   seleccionarEmpresa(emp: EmpresaElegible): void {
     this.empresaSeleccionada.set(emp);
+    this.periodoSeleccionado.set(null);
+    this.periodoDesde.set('');
+    this.periodoHasta.set('');
+    this.cargarPeriodos(emp.id_empresa);
+  }
+
+  private cargarPeriodos(idEmpresa: number): void {
+    this.loadingPeriodos.set(true);
+    this.periodos.set([]);
+    this.cflApi.getFacturasPeriodosConMovimientos(idEmpresa).subscribe({
+      next: (res) => { this.periodos.set(res.data); this.loadingPeriodos.set(false); },
+      error: () => this.loadingPeriodos.set(false),
+    });
+  }
+
+  seleccionarPeriodo(p: PeriodoDisponible): void {
+    this.periodoSeleccionado.set(p);
+    // Primer día del mes
+    const desde = `${p.anio}-${String(p.mes).padStart(2, '0')}-01`;
+    // Último día del mes
+    const lastDay = new Date(p.anio, p.mes, 0).getDate();
+    const hasta = `${p.anio}-${String(p.mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    this.periodoDesde.set(desde);
+    this.periodoHasta.set(hasta);
   }
 
   cargarFolios(): void {
@@ -437,7 +476,7 @@ export class NuevaFacturaWizardComponent implements OnInit {
   // --- Navegación ---
 
   puedeContinuar(): boolean {
-    if (this.step() === 1) return this.empresaSeleccionada() !== null && (!!this.periodoDesde() || !!this.periodoHasta());
+    if (this.step() === 1) return this.empresaSeleccionada() !== null && this.periodoSeleccionado() !== null;
     if (this.step() === 2) return this.folios().length > 0;
     return false;
   }
@@ -473,4 +512,10 @@ export class NuevaFacturaWizardComponent implements OnInit {
   // --- Helpers ---
   readonly formatCLP   = formatCLP;
   readonly formatFecha = formatDate;
+
+  nombreMes(mes: number): string {
+    const nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return nombres[mes] || '';
+  }
 }

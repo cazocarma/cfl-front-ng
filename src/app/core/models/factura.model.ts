@@ -1,6 +1,6 @@
 // Modelos del módulo de facturación
 
-export type EstadoFactura = 'borrador' | 'emitida' | 'anulada';
+export type EstadoFactura = 'borrador' | 'recibida' | 'anulada';
 export type CriterioAgrupacion = 'centro_costo' | 'tipo_flete';
 
 export interface EmpresaElegible {
@@ -9,6 +9,13 @@ export interface EmpresaElegible {
   empresa_nombre: string;
   sap_codigo: string | null;
   folios_disponibles: number;
+}
+
+export interface PeriodoDisponible {
+  anio: number;
+  mes: number;
+  total_movimientos: number;
+  monto_neto: number;
 }
 
 export interface FolioElegible {
@@ -43,6 +50,12 @@ export interface MovimientoFactura {
   centro_costo_codigo: string | null;
   ruta: string | null;
   empresa_nombre: string | null;
+  empresa_rut: string | null;
+  chofer_nombre: string | null;
+  chofer_rut: string | null;
+  camion_patente: string | null;
+  camion_carro: string | null;
+  tipo_camion: string | null;
 }
 
 export interface FolioFactura {
