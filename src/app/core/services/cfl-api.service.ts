@@ -16,6 +16,11 @@ import {
   PeriodoDisponible,
   PreviewResult,
 } from '../models/factura.model';
+import {
+  GenerarPlanillaRequest,
+  PlanillaSapDetalle,
+  PlanillaSapListItem,
+} from '../models/planilla-sap.model';
 
 export interface Pagination {
   page: number;
@@ -289,6 +294,28 @@ export class CflApiService {
     return this.http.get<{ data: unknown; permissions?: unknown }>(
       `${API_BASE}/api/operaciones/planillas-sap/overview`
     );
+  }
+
+  // --- Planillas SAP (generadas) ---
+
+  getPlanillasSapList(): Observable<{ data: PlanillaSapListItem[] }> {
+    return this.http.get<{ data: PlanillaSapListItem[] }>(`${API_BASE}/api/planillas-sap`);
+  }
+
+  getPlanillaSapDetalle(id: number): Observable<{ data: PlanillaSapDetalle }> {
+    return this.http.get<{ data: PlanillaSapDetalle }>(`${API_BASE}/api/planillas-sap/${id}`);
+  }
+
+  generarPlanillaSap(body: GenerarPlanillaRequest): Observable<{ data: { id_planilla_sap: number } }> {
+    return this.http.post<{ data: { id_planilla_sap: number } }>(`${API_BASE}/api/planillas-sap/generar`, body);
+  }
+
+  exportarPlanillaSap(id: number): Observable<Blob> {
+    return this.http.get(`${API_BASE}/api/planillas-sap/${id}/export`, { responseType: 'blob' });
+  }
+
+  cambiarEstadoPlanilla(id: number, estado: string): Observable<{ message: string }> {
+    return this.http.patch<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/estado`, { estado });
   }
 
   getEstadisticasOverview(): Observable<{ data: unknown }> {

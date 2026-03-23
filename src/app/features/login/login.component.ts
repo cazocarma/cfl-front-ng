@@ -26,6 +26,15 @@ import { AuthnService } from '../../core/services/authn.service';
         </svg>
       </div>
 
+      <!-- Demo credentials -->
+      <div class="relative z-10 w-full max-w-md mx-4 mb-3">
+        <div class="rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 px-4 py-3 text-center">
+          <p class="text-xs font-semibold text-white/90">Credenciales de demostración</p>
+          <p class="mt-1 text-sm text-white font-mono">admin&#64;local.test</p>
+          <p class="text-sm text-white font-mono">123456789</p>
+        </div>
+      </div>
+
       <!-- Login card -->
       <div class="relative z-10 w-full max-w-md mx-4 animate-slide-down">
         <div class="rounded-3xl bg-white/95 backdrop-blur-xl shadow-nature-lg overflow-hidden">

@@ -1,15 +1,16 @@
 
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { CriterioAgrupacion, EmpresaElegible, FolioElegible, GrupoPreview, PeriodoDisponible, PreviewResult } from '../../core/models/factura.model';
+import { EmpresaElegible, FolioElegible, GrupoPreview, PeriodoDisponible, PreviewResult } from '../../core/models/factura.model';
+import { CRITERIO_DEFECTO, nombreMes } from '../../core/constants/factura.constants';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 type Step = 1 | 2 | 3 | 4;
-const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
 
 @Component({
     selector: 'app-nueva-factura-wizard',
@@ -335,6 +336,8 @@ const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
   `
 })
 export class NuevaFacturaWizardComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly steps = [
     { n: 1 as Step, label: 'Transportista y período' },
     { n: 2 as Step, label: 'Resumen folios' },
@@ -381,10 +384,12 @@ export class NuevaFacturaWizardComponent implements OnInit {
 
   cargarEmpresas(): void {
     this.loadingEmpresas.set(true);
-    this.cflApi.getFacturasEmpresasElegibles().subscribe({
-      next: (res) => { this.empresas.set(res.data); this.loadingEmpresas.set(false); },
-      error: () => this.loadingEmpresas.set(false),
-    });
+    this.cflApi.getFacturasEmpresasElegibles()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { this.empresas.set(res.data); this.loadingEmpresas.set(false); },
+        error: () => this.loadingEmpresas.set(false),
+      });
   }
 
   seleccionarEmpresa(emp: EmpresaElegible): void {
@@ -398,10 +403,12 @@ export class NuevaFacturaWizardComponent implements OnInit {
   private cargarPeriodos(idEmpresa: number): void {
     this.loadingPeriodos.set(true);
     this.periodos.set([]);
-    this.cflApi.getFacturasPeriodosConMovimientos(idEmpresa).subscribe({
-      next: (res) => { this.periodos.set(res.data); this.loadingPeriodos.set(false); },
-      error: () => this.loadingPeriodos.set(false),
-    });
+    this.cflApi.getFacturasPeriodosConMovimientos(idEmpresa)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { this.periodos.set(res.data); this.loadingPeriodos.set(false); },
+        error: () => this.loadingPeriodos.set(false),
+      });
   }
 
   seleccionarPeriodo(p: PeriodoDisponible): void {
@@ -424,10 +431,11 @@ export class NuevaFacturaWizardComponent implements OnInit {
       emp.id_empresa,
       this.periodoDesde() || undefined,
       this.periodoHasta() || undefined
-    ).subscribe({
-      next: (res) => { this.folios.set(res.data); this.loadingFolios.set(false); },
-      error: () => this.loadingFolios.set(false),
-    });
+    ).pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { this.folios.set(res.data); this.loadingFolios.set(false); },
+        error: () => this.loadingFolios.set(false),
+      });
   }
 
   calcularPreview(): void {
@@ -443,13 +451,14 @@ export class NuevaFacturaWizardComponent implements OnInit {
       id_empresa: empresa.id_empresa,
       ids_folio:  ids,
       criterio:   CRITERIO_DEFECTO,
-    }).subscribe({
-      next: (res) => { this.preview.set(res.data); this.loadingPreview.set(false); },
-      error: (err) => {
-        this.errorPreview.set(err?.error?.error ?? 'Error al calcular la vista previa.');
-        this.loadingPreview.set(false);
-      },
-    });
+    }).pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { this.preview.set(res.data); this.loadingPreview.set(false); },
+        error: (err) => {
+          this.errorPreview.set(err?.error?.error ?? 'Error al calcular la vista previa.');
+          this.loadingPreview.set(false);
+        },
+      });
   }
 
   confirmarGeneracion(): void {
@@ -464,13 +473,14 @@ export class NuevaFacturaWizardComponent implements OnInit {
       id_empresa: empresa.id_empresa,
       ids_folio:  ids,
       criterio:   CRITERIO_DEFECTO,
-    }).subscribe({
-      next: () => { this.generando.set(false); this.router.navigate(['/facturas']); },
-      error: (err) => {
-        this.errorGeneracion.set(err?.error?.error ?? 'Error al generar pre facturas.');
-        this.generando.set(false);
-      },
-    });
+    }).pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.generando.set(false); this.router.navigate(['/facturas']); },
+        error: (err) => {
+          this.errorGeneracion.set(err?.error?.error ?? 'Error al generar pre facturas.');
+          this.generando.set(false);
+        },
+      });
   }
 
   // --- Navegación ---
@@ -513,9 +523,5 @@ export class NuevaFacturaWizardComponent implements OnInit {
   readonly formatCLP   = formatCLP;
   readonly formatFecha = formatDate;
 
-  nombreMes(mes: number): string {
-    const nombres = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    return nombres[mes] || '';
-  }
+  readonly nombreMes = nombreMes;
 }

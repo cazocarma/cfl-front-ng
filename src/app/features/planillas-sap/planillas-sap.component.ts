@@ -1,8 +1,14 @@
 
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { TitleCasePipe } from '@angular/common';
+import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 
+import { PlanillaSapListItem } from '../../core/models/planilla-sap.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
+import { GenerarPlanillaModalComponent } from './generar-planilla-modal.component';
 
 interface PlanillaPermissions {
   can_generate_planillas?: boolean;
@@ -27,27 +33,14 @@ interface PlanillasOverviewData {
 
 @Component({
     selector: 'app-planillas-sap',
-    imports: [WorkspaceShellComponent],
+    imports: [RouterLink, WorkspaceShellComponent, GenerarPlanillaModalComponent, TitleCasePipe],
     template: `
     <app-workspace-shell
       title="Planillas SAP"
-      subtitle="Agrupación de pre facturas por período y centro de costo. La salida Excel queda preparada pero no se emite aún."
+      subtitle="Generación de planillas SAP para contabilización de fletes."
       activeSection="planillas"
     >
       <div class="space-y-6">
-        <section class="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 shadow-sm">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-sky-900">Generación de archivo pendiente</p>
-              <p class="mt-1 text-xs text-sky-700">Esta vista ya consolida la base de datos como insumo; el Excel tipo se puede conectar sobre estos grupos después.</p>
-            </div>
-            @if (permissions()?.can_generate_planillas === false) {
-              <span class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-sky-800 shadow-sm">
-                Sin permiso de generación
-              </span>
-            }
-          </div>
-        </section>
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <article class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
@@ -179,7 +172,7 @@ interface PlanillasOverviewData {
                             <td class="px-4 py-3 font-medium text-forest-900">{{ invoice['numero_factura'] || 'Sin número' }}</td>
                             <td class="px-4 py-3 text-forest-600">{{ invoice['folio_numero'] || '-' }}</td>
                             <td class="px-4 py-3 text-forest-600">{{ invoice['empresa_nombre'] || 'Sin empresa' }}</td>
-                            <td class="px-4 py-3 text-forest-600">{{ formatDate(invoice['fecha_emision']) }}</td>
+                            <td class="px-4 py-3 text-forest-600">{{ fmtDate(invoice['fecha_emision']) }}</td>
                             <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ formatCurrency(invoice['monto_total']) }}</td>
                           </tr>
                         } @empty {
@@ -193,6 +186,22 @@ interface PlanillasOverviewData {
                     </table>
                   </div>
                 </div>
+
+                <!-- Botón generar planilla por cada factura del grupo -->
+                @if (permissions()?.can_generate_planillas !== false) {
+                  <div class="mt-5">
+                    <p class="text-xs text-forest-500 mb-3">Genera la planilla SAP para cada pre factura de este lote:</p>
+                    <div class="flex flex-wrap gap-2">
+                      @for (invoice of selectedGroup()?.facturas ?? []; track invoice['id_factura']) {
+                        <button type="button"
+                                (click)="abrirModalGenerar(invoice)"
+                                class="rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition">
+                          Generar {{ invoice['numero_factura'] || 'Planilla' }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             } @else {
               <div class="rounded-2xl border border-dashed border-forest-200 bg-white px-6 py-10 text-center shadow-sm">
@@ -201,15 +210,98 @@ interface PlanillasOverviewData {
             }
           </div>
         </section>
+
+        <!-- Planillas generadas -->
+        <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
+          <div class="border-b border-forest-100 px-5 py-4 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-forest-900">Planillas SAP generadas</h2>
+            <button type="button" (click)="loadPlanillas()" class="text-xs text-forest-500 hover:text-forest-800">
+              Actualizar
+            </button>
+          </div>
+          @if (planillas().length === 0) {
+            <div class="px-5 py-8 text-center text-sm text-forest-500">
+              No se han generado planillas SAP aún.
+            </div>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-forest-100 text-sm">
+                <thead>
+                  <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
+                    <th class="px-4 py-3">Pre Factura</th>
+                    <th class="px-4 py-3">Empresa</th>
+                    <th class="px-4 py-3">Glosa</th>
+                    <th class="px-4 py-3 text-center">Docs</th>
+                    <th class="px-4 py-3 text-right">Monto</th>
+                    <th class="px-4 py-3">Estado</th>
+                    <th class="px-4 py-3">Fecha</th>
+                    <th class="px-4 py-3">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-forest-100">
+                  @for (p of planillas(); track p.id_planilla_sap) {
+                    <tr class="hover:bg-forest-50 transition">
+                      <td class="px-4 py-3 font-semibold text-forest-900">{{ p.numero_factura }}</td>
+                      <td class="px-4 py-3 text-forest-700">{{ p.empresa_nombre }}</td>
+                      <td class="px-4 py-3 text-forest-600 text-xs">{{ p.glosa_cabecera }}</td>
+                      <td class="px-4 py-3 text-center text-forest-800">{{ p.total_documentos }}</td>
+                      <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ fmtCLP(p.monto_total) }}</td>
+                      <td class="px-4 py-3">
+                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                              [class.bg-slate-100]="p.estado === 'generada'" [class.text-slate-700]="p.estado === 'generada'"
+                              [class.bg-blue-100]="p.estado === 'descargada'" [class.text-blue-700]="p.estado === 'descargada'"
+                              [class.bg-green-100]="p.estado === 'contabilizada'" [class.text-green-700]="p.estado === 'contabilizada'">
+                          {{ p.estado | titlecase }}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-forest-600 text-xs">{{ fmtDate(p.fecha_creacion) }}</td>
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                          <a [routerLink]="['/planillas-sap', p.id_planilla_sap]"
+                             class="text-xs font-semibold text-forest-600 hover:text-forest-900">Ver</a>
+                          <button type="button" (click)="descargarPlanilla(p)"
+                                  class="text-xs font-semibold text-teal-600 hover:text-teal-900">Excel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
       </div>
+
+      <!-- Modal generar planilla -->
+      @if (modalOpen()) {
+        <app-generar-planilla-modal
+          [open]="modalOpen()"
+          [facturaId]="modalFacturaId()"
+          [facturaNumero]="modalFacturaNumero()"
+          [empresaNombre]="modalEmpresaNombre()"
+          [montoTotal]="modalMontoTotal()"
+          (cancel)="modalOpen.set(false)"
+          (generated)="onPlanillaGenerada()" />
+      }
+
     </app-workspace-shell>
   `
 })
 export class PlanillasSapComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly loading = signal(false);
   readonly overview = signal<PlanillasOverviewData | null>(null);
   readonly permissions = signal<PlanillaPermissions | null>(null);
   readonly selectedGroupKey = signal<string | null>(null);
+  readonly planillas = signal<PlanillaSapListItem[]>([]);
+
+  // Modal state
+  readonly modalOpen          = signal(false);
+  readonly modalFacturaId     = signal(0);
+  readonly modalFacturaNumero = signal('');
+  readonly modalEmpresaNombre = signal('');
+  readonly modalMontoTotal    = signal(0);
 
   readonly selectedGroup = computed<PlanillaGrupo | null>(() => {
     const data = this.overview();
@@ -222,31 +314,65 @@ export class PlanillasSapComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadOverview();
+    this.loadPlanillas();
   }
 
   loadOverview(): void {
     this.loading.set(true);
+    this.cflApi.getPlanillasSapOverview()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const data = response.data as PlanillasOverviewData;
+          this.overview.set(data);
+          this.permissions.set((response.permissions as PlanillaPermissions | undefined) ?? null);
+          this.loading.set(false);
 
-    this.cflApi.getPlanillasSapOverview().subscribe({
-      next: (response) => {
-        const data = response.data as PlanillasOverviewData;
-        this.overview.set(data);
-        this.permissions.set((response.permissions as PlanillaPermissions | undefined) ?? null);
-        this.loading.set(false);
+          const selected = this.selectedGroupKey();
+          const exists = data.grupos.some((group) => group.group_key === selected);
+          this.selectedGroupKey.set(exists ? selected : data.grupos[0]?.group_key ?? null);
+        },
+        error: () => {
+          this.overview.set({ resumen: {}, grupos: [] });
+          this.loading.set(false);
+        },
+      });
+  }
 
-        const selected = this.selectedGroupKey();
-        const exists = data.grupos.some((group) => group.group_key === selected);
-        this.selectedGroupKey.set(exists ? selected : data.grupos[0]?.group_key ?? null);
-      },
-      error: () => {
-        this.overview.set({ resumen: {}, grupos: [] });
-        this.loading.set(false);
-      },
-    });
+  loadPlanillas(): void {
+    this.cflApi.getPlanillasSapList()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.planillas.set(res.data),
+        error: () => this.planillas.set([]),
+      });
   }
 
   selectGroup(groupKey: string): void {
     this.selectedGroupKey.set(groupKey);
+  }
+
+  abrirModalGenerar(invoice: Record<string, unknown>): void {
+    this.modalFacturaId.set(Number(invoice['id_factura']) || 0);
+    this.modalFacturaNumero.set(String(invoice['numero_factura'] || ''));
+    this.modalEmpresaNombre.set(String(invoice['empresa_nombre'] || ''));
+    this.modalMontoTotal.set(Number(invoice['monto_total']) || 0);
+    this.modalOpen.set(true);
+  }
+
+  onPlanillaGenerada(): void {
+    this.modalOpen.set(false);
+    this.loadPlanillas();
+    this.loadOverview();
+  }
+
+  descargarPlanilla(p: PlanillaSapListItem): void {
+    this.cflApi.exportarPlanillaSap(p.id_planilla_sap)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => triggerDownload(blob, `planilla-sap-${p.numero_factura}.xlsx`),
+        error: () => {},
+      });
   }
 
   toNumber(value: unknown): number {
@@ -254,23 +380,7 @@ export class PlanillasSapComponent implements OnInit {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  formatCurrency(value: unknown): string {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      maximumFractionDigits: 0,
-    }).format(this.toNumber(value));
-  }
-
-  formatDate(value: unknown): string {
-    if (!value) return '-';
-    const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) return '-';
-
-    return new Intl.DateTimeFormat('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(date);
-  }
+  formatCurrency(value: unknown): string { return formatCLP(this.toNumber(value)); }
+  readonly fmtCLP  = formatCLP;
+  readonly fmtDate = formatDate;
 }

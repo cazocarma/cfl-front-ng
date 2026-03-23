@@ -64,6 +64,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'planillas-sap/:id',
+    canActivate: [authnGuard],
+    loadComponent: () =>
+      import('./features/planillas-sap/planilla-detalle.component').then(
+        (m) => m.PlanillaDetalleComponent
+      ),
+  },
+  {
     path: 'estadisticas',
     canActivate: [authnGuard],
     loadComponent: () =>

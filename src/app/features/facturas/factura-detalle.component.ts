@@ -1,5 +1,6 @@
 
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { FacturaDetalle } from '../../core/models/factura.model';
@@ -88,39 +89,42 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <!-- Acciones -->
           <div class="mt-5 flex flex-wrap items-center gap-3">
             @if (factura()!.estado === 'borrador') {
-              <button type="button"
+              <button type="button" aria-label="Marcar pre factura como recibida"
                       (click)="confirmarRecibir()"
                       class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
                 Marcar como recibida
               </button>
             }
             @if (factura()!.estado !== 'anulada') {
-              <button type="button"
+              <button type="button" aria-label="Descargar pre factura en Excel"
                       (click)="descargarExcel()"
                       class="rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">
                 Descargar Excel
               </button>
-              <button type="button"
+              <button type="button" aria-label="Descargar pre factura en PDF"
                       (click)="descargarPdf()"
                       class="rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">
                 Descargar PDF
               </button>
             }
             @if (factura()!.estado === 'borrador') {
-              <button type="button"
+              <button type="button" aria-label="Anular pre factura"
                       (click)="confirmarAnular()"
                       class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
                 Anular
               </button>
-            }
-            @if (factura()!.estado === 'borrador') {
-              <button type="button"
+              <button type="button" aria-label="Eliminar pre factura permanentemente"
                       (click)="confirmarEliminar()"
                       class="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
                 Eliminar pre factura
               </button>
             }
           </div>
+          @if (actionError()) {
+            <div class="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+              {{ actionError() }}
+            </div>
+          }
         </div>
 
         <!-- Folios asociados -->
@@ -301,8 +305,11 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
   `
 })
 export class FacturaDetalleComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly loading           = signal(false);
   readonly error             = signal('');
+  readonly actionError       = signal('');
   readonly factura           = signal<FacturaDetalle | null>(null);
   readonly cambiandoEstado    = signal(false);
   readonly showConfirmAnular  = signal(false);
@@ -326,10 +333,13 @@ export class FacturaDetalleComponent implements OnInit {
   private loadFacturaData(): void {
     this.loading.set(true);
     this.error.set('');
-    this.cflApi.getFacturaDetalle(this.idFactura).subscribe({
-      next: (res) => { this.factura.set(res.data); this.loading.set(false); },
-      error: (err) => { this.error.set(err?.error?.error ?? 'No se pudo cargar la pre factura.'); this.loading.set(false); },
-    });
+    this.actionError.set('');
+    this.cflApi.getFacturaDetalle(this.idFactura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { this.factura.set(res.data); this.loading.set(false); },
+        error: (err) => { this.error.set(err?.error?.error ?? 'No se pudo cargar la pre factura.'); this.loading.set(false); },
+      });
   }
 
   confirmarAnular(): void { this.showConfirmAnular.set(true); }
@@ -338,40 +348,53 @@ export class FacturaDetalleComponent implements OnInit {
 
   anularFactura(): void {
     this.cambiandoEstado.set(true);
-    this.cflApi.cambiarEstadoFactura(this.idFactura, 'anulada').subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmAnular.set(false); this.loadFacturaData(); },
-      error: (err) => { alert(err?.error?.error ?? 'Error al anular.'); this.cambiandoEstado.set(false); },
-    });
+    this.actionError.set('');
+    this.cflApi.cambiarEstadoFactura(this.idFactura, 'anulada')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.cambiandoEstado.set(false); this.showConfirmAnular.set(false); this.loadFacturaData(); },
+        error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al anular.'); this.cambiandoEstado.set(false); },
+      });
   }
 
   recibirFactura(): void {
     this.cambiandoEstado.set(true);
-    this.cflApi.cambiarEstadoFactura(this.idFactura, 'recibida').subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmRecibir.set(false); this.loadFacturaData(); },
-      error: (err) => { alert(err?.error?.error ?? 'Error al marcar como recibida.'); this.cambiandoEstado.set(false); },
-    });
+    this.actionError.set('');
+    this.cflApi.cambiarEstadoFactura(this.idFactura, 'recibida')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.cambiandoEstado.set(false); this.showConfirmRecibir.set(false); this.loadFacturaData(); },
+        error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al marcar como recibida.'); this.cambiandoEstado.set(false); },
+      });
   }
 
   eliminarFactura(): void {
     this.cambiandoEstado.set(true);
-    this.cflApi.eliminarFactura(this.idFactura).subscribe({
-      next: () => { this.cambiandoEstado.set(false); this.showConfirmEliminar.set(false); this.router.navigate(['/facturas']); },
-      error: (err) => { alert(err?.error?.error ?? 'Error al eliminar.'); this.cambiandoEstado.set(false); },
-    });
+    this.actionError.set('');
+    this.cflApi.eliminarFactura(this.idFactura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.cambiandoEstado.set(false); this.showConfirmEliminar.set(false); this.router.navigate(['/facturas']); },
+        error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al eliminar.'); this.cambiandoEstado.set(false); },
+      });
   }
 
   descargarExcel(): void {
-    this.cflApi.exportarFacturaExcel(this.idFactura).subscribe({
-      next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.xlsx`),
-      error: () => alert('Error al descargar Excel.'),
-    });
+    this.cflApi.exportarFacturaExcel(this.idFactura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.xlsx`),
+        error: () => this.actionError.set('Error al descargar Excel.'),
+      });
   }
 
   descargarPdf(): void {
-    this.cflApi.exportarFacturaPdf(this.idFactura).subscribe({
-      next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.pdf`),
-      error: () => alert('Error al descargar PDF.'),
-    });
+    this.cflApi.exportarFacturaPdf(this.idFactura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => triggerDownload(blob, `pre-factura-${this.factura()?.numero_factura}.pdf`),
+        error: () => this.actionError.set('Error al descargar PDF.'),
+      });
   }
 
   readonly estadoLabel     = estadoLabel;

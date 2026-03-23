@@ -1,5 +1,6 @@
 
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
@@ -148,19 +149,19 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                         </a>
                         @if (fac.estado !== 'anulada') {
                           <!-- Excel -->
-                          <button type="button" title="Descargar Excel"
+                          <button type="button" title="Descargar Excel" aria-label="Descargar pre factura en Excel"
                                   (click)="descargarExcel(fac)"
                                   class="inline-flex items-center justify-center rounded-lg p-1.5 text-teal-600 transition hover:bg-teal-50 hover:text-teal-800">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M3 10h18M3 6h18M3 14h18M3 18h18"/>
                             </svg>
                           </button>
                           <!-- PDF -->
-                          <button type="button" title="Descargar PDF"
+                          <button type="button" title="Descargar PDF" aria-label="Descargar pre factura en PDF"
                                   (click)="descargarPdf(fac)"
                                   class="inline-flex items-center justify-center rounded-lg p-1.5 text-teal-600 transition hover:bg-teal-50 hover:text-teal-800">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                             </svg>
@@ -168,10 +169,10 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                         }
                         @if (fac.estado === 'borrador') {
                           <!-- Anular -->
-                          <button type="button" title="Anular pre factura"
+                          <button type="button" title="Anular pre factura" aria-label="Anular pre factura"
                                   (click)="confirmarAnular(fac)"
                                   class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
                             </svg>
@@ -189,6 +190,12 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           </div>
         }
       </div>
+
+      @if (actionError()) {
+        <div class="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {{ actionError() }}
+        </div>
+      }
 
       <!-- Modal de confirmación de anulación -->
       @if (facturaAAnular()) {
@@ -221,8 +228,11 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
   `
 })
 export class FacturasComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly loading        = signal(false);
   readonly error          = signal('');
+  readonly actionError    = signal('');
   readonly facturas       = signal<FacturaListItem[]>([]);
   readonly facturaAAnular = signal<FacturaListItem | null>(null);
   readonly anulando       = signal(false);
@@ -251,22 +261,25 @@ export class FacturasComponent implements OnInit {
   cargarFacturas(): void {
     this.loading.set(true);
     this.error.set('');
+    this.actionError.set('');
 
     const params: Record<string, unknown> = {};
     if (this.filtroEstado()) params['estado'] = this.filtroEstado();
     if (this.filtroDesde())  params['desde']  = this.filtroDesde();
     if (this.filtroHasta())  params['hasta']  = this.filtroHasta();
 
-    this.cflApi.getFacturasLista(params).subscribe({
-      next: (res) => {
-        this.facturas.set(res.data);
-        this.loading.set(false);
-      },
-      error: (err) => {
-        this.error.set(err?.error?.error ?? 'No se pudieron cargar las pre facturas.');
-        this.loading.set(false);
-      },
-    });
+    this.cflApi.getFacturasLista(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.facturas.set(res.data);
+          this.loading.set(false);
+        },
+        error: (err) => {
+          this.error.set(err?.error?.error ?? 'No se pudieron cargar las pre facturas.');
+          this.loading.set(false);
+        },
+      });
   }
 
   limpiarFiltros(): void {
@@ -285,31 +298,38 @@ export class FacturasComponent implements OnInit {
     const fac = this.facturaAAnular();
     if (!fac) return;
     this.anulando.set(true);
-    this.cflApi.cambiarEstadoFactura(fac.id_factura, 'anulada').subscribe({
-      next: () => {
-        this.anulando.set(false);
-        this.facturaAAnular.set(null);
-        this.cargarFacturas();
-      },
-      error: (err) => {
-        alert(err?.error?.error ?? 'Error al anular la pre factura.');
-        this.anulando.set(false);
-      },
-    });
+    this.actionError.set('');
+    this.cflApi.cambiarEstadoFactura(fac.id_factura, 'anulada')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.anulando.set(false);
+          this.facturaAAnular.set(null);
+          this.cargarFacturas();
+        },
+        error: (err) => {
+          this.actionError.set(err?.error?.error ?? 'Error al anular la pre factura.');
+          this.anulando.set(false);
+        },
+      });
   }
 
   descargarExcel(fac: FacturaListItem): void {
-    this.cflApi.exportarFacturaExcel(fac.id_factura).subscribe({
-      next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.xlsx`),
-      error: () => alert('Error al descargar Excel.'),
-    });
+    this.cflApi.exportarFacturaExcel(fac.id_factura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.xlsx`),
+        error: () => this.actionError.set('Error al descargar Excel.'),
+      });
   }
 
   descargarPdf(fac: FacturaListItem): void {
-    this.cflApi.exportarFacturaPdf(fac.id_factura).subscribe({
-      next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.pdf`),
-      error: () => alert('Error al descargar PDF.'),
-    });
+    this.cflApi.exportarFacturaPdf(fac.id_factura)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => triggerDownload(blob, `pre-factura-${fac.numero_factura}.pdf`),
+        error: () => this.actionError.set('Error al descargar PDF.'),
+      });
   }
 
   readonly estadoLabel    = estadoLabel;
