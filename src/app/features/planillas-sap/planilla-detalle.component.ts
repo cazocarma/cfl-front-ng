@@ -119,7 +119,7 @@ const ESTADO_CHIP: Record<string, string> = {
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 class="text-sm font-semibold text-forest-900">
-                  Documento #{{ doc.numero_documento }} — Folio {{ doc.folio_numero || '-' }}
+                  Documento #{{ doc.numero_documento }}
                 </h2>
                 <p class="text-xs text-forest-500">
                   CC: {{ doc.centro_costo_codigo || '-' }} · Cta Mayor: {{ doc.cuenta_mayor_codigo || '-' }}

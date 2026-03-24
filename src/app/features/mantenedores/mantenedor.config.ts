@@ -42,7 +42,7 @@ export interface ColumnaDef {
 }
 
 // ─── Config de un mantenedor ─────────────────────────────────────────────────
-export type TipoEspecial = 'usuarios' | 'folios' | 'tarifas' | 'rutas';
+export type TipoEspecial = 'usuarios' | 'tarifas' | 'rutas';
 
 export interface MantenedorConfig {
   key: string;              // coincide con el entityKey del backend
@@ -393,51 +393,6 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     camposCrear: [
       { key: 'codigo', label: 'Código', tipo: 'text', required: true, placeholder: 'Código contable' },
       { key: 'glosa',  label: 'Glosa',  tipo: 'text', required: true, placeholder: 'Descripción de la cuenta' },
-    ],
-  },
-
-  // ── Folios ───────────────────────────────────────────────────────────────
-  {
-    key: 'folios',
-    title: 'Folios',
-    icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z',
-    description: 'Folios de agrupación de fletes para pre facturación.',
-    idField: 'id_folio',
-    permiso: 'folios',
-    tipoEspecial: 'folios',
-    columnas: [
-      { key: 'folio_numero',       label: 'N° Folio',      tipo: 'mono' },
-      { key: 'centro_costo_nombre',label: 'Centro Costo',  tipo: 'text' },
-      { key: 'cuenta_mayor_codigo',label: 'Cuenta Mayor',  tipo: 'mono' },
-      { key: 'temporada_codigo',   label: 'Temporada',     tipo: 'text' },
-      { key: 'estado',             label: 'Estado',        tipo: 'badge',
-        badgeMap: {
-          ABIERTO:   'badge bg-emerald-50 border-emerald-200 text-emerald-800',
-          BLOQUEADO: 'badge bg-amber-50 border-amber-200 text-amber-800',
-          CERRADO:   'badge bg-slate-100 border-slate-200 text-slate-600',
-        }
-      },
-      { key: 'bloqueado',         label: 'Bloqueado',     tipo: 'bool' },
-      { key: 'periodo_desde', label: 'Desde', tipo: 'date' },
-      { key: 'periodo_hasta', label: 'Hasta', tipo: 'date' },
-    ],
-    camposCrear: [
-      { key: 'id_centro_costo', label: 'Centro de Costo', tipo: 'select-entity', entity: 'centros-costo', required: true,
-        labelFields: ['sap_codigo', 'nombre'], valueField: 'id_centro_costo', nullLabel: 'Seleccionar...' },
-      { key: 'id_cuenta_mayor', label: 'Cuenta Mayor', tipo: 'select-entity', entity: 'cuentas-mayor', required: true,
-        labelFields: ['codigo', 'glosa'], valueField: 'id_cuenta_mayor', nullLabel: 'Seleccionar...' },
-      { key: 'id_temporada',   label: 'Temporada',       tipo: 'select-entity', entity: 'temporadas', required: true,
-        labelFields: ['codigo', 'nombre'], valueField: 'id_temporada', nullLabel: 'Seleccionar...' },
-      { key: 'folio_numero',   label: 'N° Folio',        tipo: 'text', required: true, placeholder: 'Número de folio' },
-      { key: 'estado',         label: 'Estado',          tipo: 'select-static', required: true,
-        opciones: [
-          { value: 'ABIERTO',   label: 'Abierto' },
-          { value: 'BLOQUEADO', label: 'Bloqueado' },
-          { value: 'CERRADO',   label: 'Cerrado' },
-        ]
-      },
-      { key: 'periodo_desde', label: 'Período Desde', tipo: 'date' },
-      { key: 'periodo_hasta', label: 'Período Hasta', tipo: 'date' },
     ],
   },
 

@@ -2,6 +2,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 interface AuditoriaOverviewData {
@@ -187,16 +188,6 @@ export class AuditoriaComponent implements OnInit {
   }
 
   formatDateTime(value: unknown): string {
-    if (!value) return '-';
-    const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) return '-';
-
-    return new Intl.DateTimeFormat('es-CL', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+    return formatDateTimeFn(value);
   }
 }

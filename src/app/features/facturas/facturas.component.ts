@@ -107,7 +107,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                   <th class="px-4 py-3">N° Pre Factura</th>
                   <th class="px-4 py-3">Empresa</th>
                   <th class="px-4 py-3">Centro de Costo</th>
-                  <th class="px-4 py-3 text-center">Folios</th>
+                  <th class="px-4 py-3 text-center">Movimientos</th>
                   <th class="px-4 py-3 text-right">Monto Total</th>
                   <th class="px-4 py-3">Estado</th>
                   <th class="px-4 py-3">Fecha Emisión</th>
@@ -120,7 +120,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     <td class="px-4 py-3 font-semibold text-forest-900">{{ fac.numero_factura }}</td>
                     <td class="px-4 py-3 text-forest-700">{{ fac.empresa_nombre }}</td>
                     <td class="px-4 py-3 text-forest-600 text-xs">{{ fac.centro_costos || '—' }}</td>
-                    <td class="px-4 py-3 text-center font-medium text-forest-800">{{ fac.cantidad_folios }}</td>
+                    <td class="px-4 py-3 text-center font-medium text-forest-800">{{ fac.cantidad_movimientos }}</td>
                     <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ formatCLP(fac.monto_total) }}</td>
                     <td class="px-4 py-3">
                       <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
@@ -205,7 +205,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             <p class="mt-2 text-sm text-forest-600">
               ¿Estás seguro de que deseas anular la pre factura
               <strong>{{ facturaAAnular()?.numero_factura }}</strong>?
-              Los movimientos asociados volverán al estado <em>Asignado Folio</em>.
+              Los movimientos asociados volverán a estar disponibles.
             </p>
             <div class="mt-4 flex justify-end gap-3">
               <button type="button"

@@ -81,7 +81,7 @@ const PALETTE = [
         </div>
 
         <!-- KPI Cards Row 2 -->
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5 mb-6">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
           <div class="rounded-2xl border border-forest-100 bg-forest-50 p-4 shadow-sm">
             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-forest-500">Completados</p>
             <p class="mt-1 text-2xl font-bold text-forest-900">{{ n('fletes_completados') | number }}</p>
@@ -91,16 +91,12 @@ const PALETTE = [
             <p class="mt-1 text-2xl font-bold text-amber-900">{{ n('fletes_en_revision') | number }}</p>
           </div>
           <div class="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-700">Asignado Folio</p>
-            <p class="mt-1 text-2xl font-bold text-blue-900">{{ n('fletes_asignado_folio') | number }}</p>
+            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-700">Pre Facturado</p>
+            <p class="mt-1 text-2xl font-bold text-blue-900">{{ n('fletes_prefacturado') | number }}</p>
           </div>
           <div class="rounded-2xl border border-teal-100 bg-teal-50 p-4 shadow-sm">
             <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-700">Facturados</p>
             <p class="mt-1 text-2xl font-bold text-teal-900">{{ n('fletes_facturados') | number }}</p>
-          </div>
-          <div class="rounded-2xl border border-forest-100 bg-forest-50 p-4 shadow-sm">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-forest-500">Folios Abiertos</p>
-            <p class="mt-1 text-2xl font-bold text-forest-900">{{ n('folios_abiertos') }} / {{ n('total_folios') }}</p>
           </div>
         </div>
 
@@ -194,8 +190,8 @@ export class EstadisticasComponent implements OnInit, AfterViewInit {
         next: (res) => {
           this.data = res.data as DashboardData;
           this.loading.set(false);
-          // Charts need to render after view updates
-          setTimeout(() => this.buildCharts(), 0);
+          // Wait for Angular to render the @if block, then for the browser to layout the canvases
+          requestAnimationFrame(() => requestAnimationFrame(() => this.buildCharts()));
         },
         error: () => {
           this.data = null;
@@ -384,7 +380,7 @@ export class EstadisticasComponent implements OnInit, AfterViewInit {
       DETECTADO: CHART_COLORS.slate,
       COMPLETADO: CHART_COLORS.forest,
       EN_REVISION: CHART_COLORS.amber,
-      ASIGNADO_FOLIO: CHART_COLORS.blue,
+      PREFACTURADO: CHART_COLORS.blue,
       FACTURADO: CHART_COLORS.teal,
       DESCARTADO: CHART_COLORS.red,
     };

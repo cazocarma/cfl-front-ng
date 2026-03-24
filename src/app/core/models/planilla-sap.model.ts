@@ -38,7 +38,6 @@ export interface PlanillaSapLinea {
 export interface PlanillaSapDocumento {
   id_planilla_sap_documento: number;
   numero_documento: number;
-  folio_numero: string | null;
   centro_costo_codigo: string | null;
   cuenta_mayor_codigo: string | null;
   monto_debito: number;

@@ -17,6 +17,7 @@ import { Observable, catchError, forkJoin, of, retry } from 'rxjs';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { FleteTabla } from '../../core/models/flete.model';
+import { toLocalDateInput, toLocalTimeInput } from '../../core/utils/format.utils';
 import {
   SearchableComboboxComponent,
   SearchableOption,
@@ -1632,21 +1633,19 @@ export class EditFleteModalComponent implements OnChanges {
 
   private _formatDate(value: unknown): string {
     if (!value) return '';
-    if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    // Shortcut: si ya viene como "YYYY-MM-DD" no necesita parseo
     const raw = String(value);
-    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1];
-    const parsed = new Date(raw);
-    return isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+    const directMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (directMatch) return directMatch[1];
+    return toLocalDateInput(value);
   }
 
   private _formatTime(value: unknown): string {
     if (!value) return '';
-    if (value instanceof Date && !isNaN(value.getTime())) return value.toISOString().slice(11, 16);
+    // Shortcut: si viene como "HH:mm" o "HH:mm:ss"
     const raw = String(value);
     const match = raw.match(/(\d{2}:\d{2})(?::\d{2})?/);
     if (match) return match[1];
-    const parsed = new Date(raw);
-    return isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(11, 16);
+    return toLocalTimeInput(value);
   }
 }

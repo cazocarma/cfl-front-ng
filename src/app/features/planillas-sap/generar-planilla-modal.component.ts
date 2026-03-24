@@ -375,8 +375,8 @@ export class GenerarPlanillaModalComponent implements OnChanges {
               existing.monto += Number(raw['monto_aplicado']) || 0;
             } else {
               grouped.set(idProductor, {
-                codigo_proveedor: String(raw['productor_codigo_proveedor'] ?? raw['empresa_rut'] ?? ''),
-                nombre: String(raw['productor_nombre'] ?? raw['chofer_nombre'] ?? ''),
+                codigo_proveedor: String(raw['productor_codigo'] ?? ''),
+                nombre: String(raw['productor_nombre'] ?? ''),
                 monto: Number(raw['monto_aplicado']) || 0,
                 especie: (raw['especie_nombre'] as string) ?? null,
               });

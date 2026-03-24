@@ -134,21 +134,6 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <!-- Asignar folio (solo visible si hay selección) -->
-        @if (canAsignarFolioComputed()) {
-          <button
-            type="button"
-            (click)="asignarFolioSeleccionados()"
-            class="btn-primary bg-teal-600 hover:bg-teal-700"
-          >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
-            </svg>
-            Asignar Folio ({{ selectedIds().size }})
-          </button>
-        }
-
         <!-- Refresh -->
         <button
           type="button"
@@ -357,16 +342,9 @@
             <table class="min-w-full">
               <thead>
                 <tr style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">
-                  <!-- Checkbox col: solo en tab en_curso para selección de folio -->
-                  @if (activeTab() === 'en_curso' && canAssignFolio()) {
-                    <th class="table-header-cell w-10">
-                      <span class="sr-only">Selección</span>
-                    </th>
-                  }
                   <th class="table-header-cell">
                     {{ activeTab() === 'candidatos' ? 'N° Entrega / Guía' : 'N° Guía' }}
                   </th>
-                  <th class="table-header-cell">Folio</th>
                   <th class="table-header-cell">Tipo flete</th>
                   <th class="table-header-cell">Ruta</th>
                   <th class="table-header-cell">Transportista</th>
@@ -381,20 +359,6 @@
                 @for (flete of paginatedFletes(); track flete.id) {
                   <tr class="table-row group" [class.bg-teal-50]="isSelected(flete.id)">
 
-                    <!-- Checkbox (solo en_curso + COMPLETADO + puede asignar) -->
-                    @if (activeTab() === 'en_curso' && canAssignFolio()) {
-                      <td class="table-cell w-10">
-                        @if (flete.estado === 'COMPLETADO') {
-                          <input
-                            type="checkbox"
-                            [checked]="isSelected(flete.id)"
-                            (change)="toggleSelect(flete.id)"
-                            class="h-4 w-4 rounded border-forest-300 text-forest-600 focus:ring-forest-500"
-                          />
-                        }
-                      </td>
-                    }
-
                     <!-- N° Guía / Entrega -->
                     <td class="table-cell">
                       <div class="font-mono text-xs font-semibold text-forest-800">{{ flete.numeroGuia }}</div>
@@ -402,21 +366,6 @@
                         <div class="text-[10px] text-forest-500 mt-0.5">Guía: {{ flete.sapGuiaRemision }}</div>
                       }
                       <div class="text-[10px] text-forest-400 mt-0.5">{{ flete.id }}</div>
-                    </td>
-
-                    <!-- Folio -->
-                    <td class="table-cell">
-                      @if (flete.folio !== '') {
-                        <span class="inline-flex items-center gap-1 rounded-md bg-forest-100 px-2 py-0.5 text-xs font-semibold text-forest-800">
-                          <svg class="h-3 w-3 text-forest-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/>
-                          </svg>
-                          {{ flete.folio }}
-                        </span>
-                      } @else {
-                        <span class="text-xs text-forest-300">Sin asignar</span>
-                      }
                     </td>
 
                     <!-- Tipo flete -->
@@ -468,9 +417,7 @@
                         @if (flete.estado === 'EN_REVISION' || flete.estado === 'DETECTADO' || flete.estado === 'ACTUALIZADO') {
                           <div class="text-[10px] text-amber-600 mt-0.5">Falta completar información</div>
                         } @else if (flete.estado === 'COMPLETADO') {
-                          <div class="text-[10px] text-forest-500 mt-0.5">Falta asignar folio</div>
-                        } @else if (flete.estado === 'ASIGNADO_FOLIO') {
-                          <div class="text-[10px] text-teal-600 mt-0.5">Disponible para pre facturar</div>
+                          <div class="text-[10px] text-forest-500 mt-0.5">Disponible para pre facturar</div>
                         }
                       }
                     </td>
@@ -548,7 +495,7 @@
                 <!-- Empty state -->
                 @if (paginatedFletes().length === 0) {
                   <tr>
-                    <td [attr.colspan]="activeTab() === 'en_curso' && canAssignFolio() ? 10 : 9" class="py-16 text-center">
+                    <td [attr.colspan]="8" class="py-16 text-center">
                       <div class="flex flex-col items-center gap-3">
                         <div class="rounded-full bg-forest-100 p-4">
                           <svg class="h-8 w-8 text-forest-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

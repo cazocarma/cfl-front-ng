@@ -8,7 +8,6 @@ import { MANTENEDORES_CONFIG, MantenedorConfig } from './mantenedor.config';
 const MANTENEDOR_FRECUENCIA_ORDEN = [
   'imputaciones-flete',
   'tipos-flete',
-  'folios',
   'tarifas',
   'detalles-viaje',
   'rutas',

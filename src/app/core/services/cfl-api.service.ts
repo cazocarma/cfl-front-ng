@@ -12,7 +12,8 @@ import {
   EmpresaElegible,
   FacturaDetalle,
   FacturaListItem,
-  FolioElegible,
+  GrupoSugerido,
+  MovimientoElegible,
   PeriodoDisponible,
   PreviewResult,
 } from '../models/factura.model';
@@ -46,10 +47,10 @@ export class CflApiService {
     );
   }
 
-  // ── Dashboard: fletes en curso (completos sin folio) ──────────────────────
-  getCompletosSinFolio(params: Record<string, unknown> = {}): Observable<PagedResponse<unknown>> {
+  // ── Dashboard: fletes completados ──────────────────────────────────────────
+  getCompletados(params: Record<string, unknown> = {}): Observable<PagedResponse<unknown>> {
     return this.http.get<PagedResponse<unknown>>(
-      `${API_BASE}/api/dashboard/fletes/completos-sin-folio`,
+      `${API_BASE}/api/dashboard/fletes/completados`,
       { params: this._toHttpParams(params) }
     );
   }
@@ -119,13 +120,6 @@ export class CflApiService {
   crearCabeceraDesdeCandidato(id: number, body: unknown): Observable<unknown> {
     return this.http.post<unknown>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/crear`,
-      body
-    );
-  }
-
-  asignarNuevoFolio(body: { ids_cabecera_flete: number[] }): Observable<{ data: { folio_numero: string } }> {
-    return this.http.post<{ data: { folio_numero: string } }>(
-      `${API_BASE}/api/dashboard/folios/asignar-nuevo`,
       body
     );
   }
@@ -209,34 +203,6 @@ export class CflApiService {
     return this.http.get<{ data: unknown }>(`${API_BASE}/api/mantenedores/temporadas/activa`);
   }
 
-  // ── Mantenedores: Folios ───────────────────────────────────────────────────
-  getFolioMovimientos(idFolio: number): Observable<{ data: unknown[]; estado_folio: string; total: number }> {
-    return this.http.get<{ data: unknown[]; estado_folio: string; total: number }>(
-      `${API_BASE}/api/mantenedores/folios/${idFolio}/movimientos`
-    );
-  }
-
-  asignarSapAFolio(idFolio: number, sapNumeroEntrega: string): Observable<unknown> {
-    return this.http.post<unknown>(
-      `${API_BASE}/api/mantenedores/folios/${idFolio}/movimientos/asignar-sap`,
-      { sap_numero_entrega: sapNumeroEntrega }
-    );
-  }
-
-  desasignarMovimientoDeFolio(idFolio: number, idCabeceraFlete: number): Observable<unknown> {
-    return this.http.patch<unknown>(
-      `${API_BASE}/api/mantenedores/folios/${idFolio}/movimientos/${idCabeceraFlete}/desasignar`,
-      {}
-    );
-  }
-
-  toggleFolioBloqueo(idFolio: number, bloqueado: boolean): Observable<{ data: unknown; message: string }> {
-    return this.http.patch<{ data: unknown; message: string }>(
-      `${API_BASE}/api/mantenedores/folios/${idFolio}/bloqueo`,
-      { bloqueado }
-    );
-  }
-
   // ── Mantenedores: Usuarios / Roles ────────────────────────────────────────
   getUserRoles(idUsuario: number): Observable<{ data: unknown[] }> {
     return this.http.get<{ data: unknown[] }>(
@@ -281,12 +247,6 @@ export class CflApiService {
   getFacturasOverview(): Observable<{ data: unknown; permissions?: unknown }> {
     return this.http.get<{ data: unknown; permissions?: unknown }>(
       `${API_BASE}/api/operaciones/facturas/overview`
-    );
-  }
-
-  getFacturaPreviewByFolio(idFolio: number): Observable<{ data: unknown; permissions?: unknown }> {
-    return this.http.get<{ data: unknown; permissions?: unknown }>(
-      `${API_BASE}/api/operaciones/facturas/folios/${idFolio}`
     );
   }
 
@@ -354,18 +314,18 @@ export class CflApiService {
     );
   }
 
-  getFacturasFoliosElegibles(idEmpresa: number, desde?: string, hasta?: string): Observable<{ data: FolioElegible[] }> {
-    return this.http.get<{ data: FolioElegible[] }>(
-      `${API_BASE}/api/facturas/folios-elegibles`,
+  getMovimientosElegibles(idEmpresa: number, desde: string, hasta: string): Observable<{ data: { movimientos: MovimientoElegible[]; grupos_sugeridos: GrupoSugerido[] } }> {
+    return this.http.get<{ data: { movimientos: MovimientoElegible[]; grupos_sugeridos: GrupoSugerido[] } }>(
+      `${API_BASE}/api/facturas/movimientos-elegibles`,
       { params: this._toHttpParams({ id_empresa: idEmpresa, desde, hasta }) }
     );
   }
 
-  getFacturaPreviewNueva(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: PreviewResult }> {
+  getFacturaPreviewNueva(body: { id_empresa: number; grupos: { ids_cabecera_flete: number[] }[] }): Observable<{ data: PreviewResult }> {
     return this.http.post<{ data: PreviewResult }>(`${API_BASE}/api/facturas/preview`, body);
   }
 
-  generarFacturas(body: { id_empresa: number; ids_folio: number[]; criterio: string }): Observable<{ data: unknown }> {
+  generarFacturas(body: { id_empresa: number; grupos: { ids_cabecera_flete: number[] }[] }): Observable<{ data: unknown }> {
     return this.http.post<{ data: unknown }>(`${API_BASE}/api/facturas/generar`, body);
   }
 
@@ -385,12 +345,12 @@ export class CflApiService {
     return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}`);
   }
 
-  agregarFoliosAFactura(id: number, ids_folio: number[]): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${API_BASE}/api/facturas/${id}/folios`, { ids_folio });
+  agregarMovimientosAFactura(id: number, ids: number[]): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${API_BASE}/api/facturas/${id}/movimientos`, { ids_cabecera_flete: ids });
   }
 
-  quitarFolioDeFactura(id: number, folioId: number): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}/folios/${folioId}`);
+  quitarMovimientoDeFactura(id: number, idFlete: number): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}/movimientos/${idFlete}`);
   }
 
   exportarFacturaExcel(id: number): Observable<Blob> {

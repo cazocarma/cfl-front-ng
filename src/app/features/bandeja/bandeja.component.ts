@@ -84,7 +84,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   confirmActionMotivo = signal('');
   confirmActionSaving = signal(false);
 
-  /*  Selección para folio  */
+  /*  Selección  */
   selectedIds = signal<Set<string>>(new Set());
 
   /*  Paginación server-side  */
@@ -105,12 +105,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   totalPages = computed(() => this.serverTotalPages() || 1);
   totalItems = computed(() => this.totalServerItems());
-
-  canAsignarFolioComputed = computed(() => {
-    if (!this.canAssignFolio()) return false;
-    const sel = this.selectedIds();
-    return sel.size > 0;
-  });
 
   pageNumbers = computed(() => {
     const total = this.totalPages();
@@ -146,7 +140,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     { value: 'ACTUALIZADO', label: 'Actualizado' },
     { value: 'EN_REVISION', label: 'En revisión' },
     { value: 'COMPLETADO', label: 'Completado' },
-    { value: 'ASIGNADO_FOLIO', label: 'Asignado folio' },
+    { value: 'PREFACTURADO', label: 'Pre facturado' },
     { value: 'FACTURADO', label: 'Facturado' },
     { value: 'ANULADO', label: 'Anulado' },
   ];
@@ -210,7 +204,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         },
       });
     } else {
-      this.cflApi.getCompletosSinFolio({ page, page_size, search, estado, fecha_desde, fecha_hasta }).subscribe({
+      this.cflApi.getCompletados({ page, page_size, search, estado, fecha_desde, fecha_hasta }).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as FleteEnCursoRow[]).map(adaptFleteEnCurso));
           this.totalServerItems.set(res.pagination.total);
@@ -311,7 +305,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     return Math.min(this.currentPage() * this.itemsPerPage(), this.totalItems());
   }
 
-  /*  Selección para folio  */
+  /*  Selección  */
   toggleSelect(id: string): void {
     const s = new Set(this.selectedIds());
     if (s.has(id)) s.delete(id);
@@ -321,15 +315,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   isSelected(id: string): boolean {
     return this.selectedIds().has(id);
-  }
-
-  selectAllVisible(): void {
-    const seleccionables = this.paginatedFletes()
-      .filter(f => f.kind === 'en_curso' && f.estado === 'COMPLETADO')
-      .map(f => f.id);
-    const s = new Set(this.selectedIds());
-    seleccionables.forEach(id => s.add(id));
-    this.selectedIds.set(s);
   }
 
   clearSelection(): void {
@@ -481,32 +466,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.editModalVisible.set(false);
   }
 
-  /*  Asignación de folio  */
-  asignarFolioSeleccionados(): void {
-    if (!this.canAssignFolio()) {
-      this._showActionBlockedToast();
-      return;
-    }
-
-    const ids = [...this.selectedIds()]
-      .filter(id => id.startsWith('cab-'))
-      .map(id => Number(id.replace('cab-', '')));
-
-    if (ids.length === 0) return;
-
-    this.cflApi.asignarNuevoFolio({ ids_cabecera_flete: ids }).subscribe({
-      next: (res) => {
-        this._showToast(`Folio ${res.data?.folio_numero ?? ''} creado y asignado`);
-        this.selectedIds.set(new Set());
-        this.loadFletes();
-      },
-      error: (err) => {
-        if (this._handleAuthorizationError(err)) return;
-        this._showToast(err?.error?.error ?? 'Error asignando folio', true);
-      },
-    });
-  }
-
   /*  Auth  */
   logout(): void {
     this.auth.logout();
@@ -534,12 +493,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
       return this._canUseByPermissions(['fletes.crear', 'fletes.editar']);
     }
     return this._canUseByPermissions(['fletes.editar']);
-  }
-
-  canAssignFolio(): boolean {
-    if (!this._hasValidAuthState()) return false;
-    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
-    return this._canUseByPermissions(['folios.asignar', 'folios.admin']);
   }
 
   canAnular(): boolean {

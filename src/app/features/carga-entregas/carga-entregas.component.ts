@@ -12,6 +12,7 @@ import {
 } from '../../core/models/control-flete-carga-job.model';
 import { AuthnService } from '../../core/services/authn.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 type SolicitudMode = 'numero_entrega' | 'rango_fechas';
@@ -354,13 +355,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   formatTimestamp(value: string | null | undefined): string {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '-';
-    return new Intl.DateTimeFormat('es-CL', {
-      dateStyle: 'short',
-      timeStyle: 'medium',
-    }).format(date);
+    return formatDateTimeFn(value);
   }
 
   toNumber(value: unknown): number {

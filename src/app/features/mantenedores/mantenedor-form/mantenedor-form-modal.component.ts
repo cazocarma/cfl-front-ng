@@ -12,6 +12,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { forkJoin } from 'rxjs';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
+import { toLocalDateInput } from '../../../core/utils/format.utils';
 import { CampoDef, MantenedorConfig } from '../mantenedor.config';
 import { UsuarioFormModalComponent } from '../usuarios/usuario-form-modal.component';
 import { RutaFormModalComponent } from '../rutas/ruta-form-modal.component';
@@ -329,11 +330,7 @@ export class MantenedorFormModalComponent implements OnChanges {
         value = this.row[campo.key] ?? '';
         if (campo.tipo === 'boolean') value = Boolean(this.row[campo.key]);
         if (campo.tipo === 'date' && this.row[campo.key]) {
-          // Formatear fecha para input[type=date]
-          const d = new Date(String(this.row[campo.key]));
-          if (!isNaN(d.getTime())) {
-            value = d.toISOString().substring(0, 10);
-          }
+          value = toLocalDateInput(this.row[campo.key]);
         }
         // Para select-entity, inicializar también el searchText
         if (campo.tipo === 'select-entity') {

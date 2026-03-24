@@ -14,6 +14,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { forkJoin } from 'rxjs';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
+import { toLocalDateInput } from '../../../core/utils/format.utils';
 import { MantenedorConfig } from '../mantenedor.config';
 
 interface NodoOpt { id_nodo: number; nombre: string; }
@@ -558,8 +559,6 @@ export class TarifaFormModalComponent implements OnChanges {
   }
 
   private _toDateInput(v: unknown): string {
-    if (!v) return '';
-    const d = new Date(String(v));
-    return Number.isNaN(d.getTime()) ? '' : d.toISOString().substring(0, 10);
+    return toLocalDateInput(v);
   }
 }

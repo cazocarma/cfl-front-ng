@@ -14,13 +14,13 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
     imports: [RouterLink, WorkspaceShellComponent],
     template: `
     <app-workspace-shell [title]="factura() ? 'Pre Factura ' + factura()!.numero_factura : 'Detalle de Pre Factura'"
-                         subtitle="Cabecera, folios y movimientos de la pre factura."
+                         subtitle="Cabecera y movimientos de la pre factura."
                          activeSection="facturas">
 
       <!-- Breadcrumb -->
       <div class="mb-4 flex items-center gap-2 text-sm text-forest-500">
         <a routerLink="/facturas" class="hover:text-forest-900 transition">Pre Facturas</a>
-        <span>›</span>
+        <span>></span>
         <span class="text-forest-900">{{ factura()?.numero_factura ?? 'Cargando...' }}</span>
       </div>
 
@@ -61,16 +61,16 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <!-- Metadata -->
           <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Fecha emisión</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Fecha emision</p>
               <p class="mt-1 text-sm font-semibold text-forest-900">{{ formatDate(factura()!.fecha_emision) }}</p>
             </div>
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Agrupación</p>
-              <p class="mt-1 text-sm font-semibold text-forest-900">Centro de Costo</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Agrupacion</p>
+              <p class="mt-1 text-sm font-semibold text-forest-900">{{ factura()!.criterio_agrupacion === 'tipo_flete' ? 'Tipo de Flete' : 'Centro de Costo' }}</p>
             </div>
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Folios</p>
-              <p class="mt-1 text-sm font-semibold text-forest-900">{{ factura()!.folios.length }}</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Movimientos</p>
+              <p class="mt-1 text-sm font-semibold text-forest-900">{{ factura()!.movimientos.length }}</p>
             </div>
             <div class="rounded-xl border border-forest-100 bg-forest-50 p-3">
               <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Moneda</p>
@@ -127,43 +127,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           }
         </div>
 
-        <!-- Folios asociados -->
-        <div class="mt-5 rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
-          <h2 class="text-sm font-semibold text-forest-900">Folios asociados</h2>
-          <div class="mt-4 overflow-x-auto">
-            <table class="min-w-full divide-y divide-forest-100 text-sm">
-              <thead>
-                <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                  <th class="px-3 py-3">Folio</th>
-                  <th class="px-3 py-3">Centro de Costo</th>
-                  <th class="px-3 py-3 text-center">Movimientos</th>
-                  <th class="px-3 py-3 text-right">Monto</th>
-                  <th class="px-3 py-3">Período</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-forest-100">
-                @for (folio of factura()!.folios; track folio.id_factura_folio) {
-                  <tr>
-                    <td class="px-3 py-3 font-semibold text-forest-900">{{ folio.folio_numero }}</td>
-                    <td class="px-3 py-3 text-forest-600">
-                      {{ folio.centro_costo_codigo ? folio.centro_costo_codigo + ' · ' : '' }}{{ folio.centro_costo || '-' }}
-                    </td>
-                    <td class="px-3 py-3 text-center text-forest-800">{{ folio.total_movimientos }}</td>
-                    <td class="px-3 py-3 text-right font-semibold text-forest-900">{{ formatCLP(folio.monto_total_movimientos) }}</td>
-                    <td class="px-3 py-3 text-xs text-forest-500">
-                      {{ formatDate(folio.periodo_desde) }} – {{ formatDate(folio.periodo_hasta) }}
-                    </td>
-                  </tr>
-                } @empty {
-                  <tr>
-                    <td colspan="5" class="px-3 py-5 text-center text-sm text-forest-500">Sin folios asociados.</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <!-- Movimientos -->
         <div class="mt-5 rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
           <div class="flex items-center justify-between gap-3">
@@ -177,16 +140,18 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             <table class="min-w-full divide-y divide-forest-100 text-sm">
               <thead>
                 <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                  <th class="px-3 py-3">N° Guía / Entrega</th>
-                  <th class="px-3 py-3">Folio</th>
+                  <th class="px-3 py-3">N Guia / Entrega</th>
                   <th class="px-3 py-3">Tipo Flete</th>
                   <th class="px-3 py-3">Centro Costo</th>
                   <th class="px-3 py-3">Ruta</th>
                   <th class="px-3 py-3">Empresa Transp.</th>
                   <th class="px-3 py-3">Chofer</th>
-                  <th class="px-3 py-3">Camión</th>
+                  <th class="px-3 py-3">Camion</th>
                   <th class="px-3 py-3">Fecha</th>
                   <th class="px-3 py-3 text-right">Monto</th>
+                  @if (factura()!.estado === 'borrador') {
+                    <th class="px-3 py-3 text-center sticky right-0 bg-white">Accion</th>
+                  }
                 </tr>
               </thead>
               <tbody class="divide-y divide-forest-100">
@@ -195,7 +160,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     <td class="px-3 py-3 font-medium text-forest-900">
                       {{ m.guia_remision || m.numero_entrega || m.sap_numero_entrega || '-' }}
                     </td>
-                    <td class="px-3 py-3 text-forest-600">{{ m.folio_numero }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.centro_costo || '-' }}</td>
                     <td class="px-3 py-3 text-forest-600">{{ m.ruta || '-' }}</td>
@@ -219,10 +183,22 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                     </td>
                     <td class="px-3 py-3 text-forest-600">{{ formatDate(m.fecha_salida) }}</td>
                     <td class="px-3 py-3 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
+                    @if (factura()!.estado === 'borrador') {
+                      <td class="px-3 py-3 text-center sticky right-0 bg-white">
+                        <button type="button" title="Quitar movimiento"
+                                (click)="quitarMovimiento(m.id_cabecera_flete)"
+                                [disabled]="removingMovimiento() === m.id_cabecera_flete"
+                                class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </td>
+                    }
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="10" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
+                    <td [attr.colspan]="factura()!.estado === 'borrador' ? 10 : 9" class="px-3 py-5 text-center text-sm text-forest-500">Sin movimientos.</td>
                   </tr>
                 }
               </tbody>
@@ -238,8 +214,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Anular pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              Se anulará la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
-              Los movimientos incluidos volverán al estado <em>Asignado Folio</em>.
+              Se anulara la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
+              Los movimientos incluidos volveran a estar disponibles.
             </p>
             <div class="mt-4 flex justify-end gap-3">
               <button type="button" (click)="showConfirmAnular.set(false)"
@@ -261,8 +237,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Marcar como recibida</h3>
             <p class="mt-2 text-sm text-forest-600">
-              La pre factura <strong>{{ factura()?.numero_factura }}</strong> se marcará como <strong>Recibida</strong>.
-              Una vez recibida, no podrá ser modificada ni anulada.
+              La pre factura <strong>{{ factura()?.numero_factura }}</strong> se marcara como <strong>Recibida</strong>.
+              Una vez recibida, no podra ser modificada ni anulada.
             </p>
             <div class="mt-4 flex justify-end gap-3">
               <button type="button" (click)="showConfirmRecibir.set(false)"
@@ -284,8 +260,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-red-800">Eliminar pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
-              Se eliminará permanentemente la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
-              Todos los movimientos volverán al estado <em>Asignado Folio</em>.
+              Se eliminara permanentemente la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
+              Todos los movimientos volveran a estar disponibles.
             </p>
             <div class="mt-4 flex justify-end gap-3">
               <button type="button" (click)="showConfirmEliminar.set(false)"
@@ -315,6 +291,7 @@ export class FacturaDetalleComponent implements OnInit {
   readonly showConfirmAnular  = signal(false);
   readonly showConfirmRecibir = signal(false);
   readonly showConfirmEliminar = signal(false);
+  readonly removingMovimiento = signal<number | null>(null);
 
   private idFactura = 0;
 
@@ -376,6 +353,17 @@ export class FacturaDetalleComponent implements OnInit {
       .subscribe({
         next: () => { this.cambiandoEstado.set(false); this.showConfirmEliminar.set(false); this.router.navigate(['/facturas']); },
         error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al eliminar.'); this.cambiandoEstado.set(false); },
+      });
+  }
+
+  quitarMovimiento(idFlete: number): void {
+    this.removingMovimiento.set(idFlete);
+    this.actionError.set('');
+    this.cflApi.quitarMovimientoDeFactura(this.idFactura, idFlete)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => { this.removingMovimiento.set(null); this.loadFacturaData(); },
+        error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al quitar el movimiento.'); this.removingMovimiento.set(null); },
       });
   }
 

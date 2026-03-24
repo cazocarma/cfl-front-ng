@@ -17,12 +17,11 @@ interface PlanillaPermissions {
 interface PlanillaGrupo {
   group_key: string;
   periodo_label?: string;
-  centro_costo?: string | null;
-  centro_costo_codigo?: string | null;
+  empresa_nombre?: string | null;
+  empresa_rut?: string | null;
+  id_empresa?: number | null;
   total_facturas?: number | string | null;
-  total_folios?: number | string | null;
   monto_total?: number | string | null;
-  empresas?: string[];
   facturas?: Array<Record<string, unknown>>;
 }
 
@@ -104,7 +103,7 @@ interface PlanillasOverviewData {
                       <div class="flex items-start justify-between gap-3">
                         <div>
                           <p class="text-sm font-semibold text-forest-900">
-                            {{ group.centro_costo_codigo || 'CC' }} · {{ group.centro_costo || 'Sin centro de costo' }}
+                            {{ group.empresa_nombre || 'Sin empresa' }}
                           </p>
                           <p class="mt-1 text-xs text-forest-500">{{ group.periodo_label || 'Sin período' }}</p>
                         </div>
@@ -126,7 +125,7 @@ interface PlanillasOverviewData {
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 class="text-lg font-semibold text-forest-900">
-                      {{ selectedGroup()?.centro_costo_codigo || 'CC' }} · {{ selectedGroup()?.centro_costo || 'Centro de costo' }}
+                      {{ selectedGroup()?.empresa_nombre || 'Sin empresa' }}
                     </h2>
                     <p class="mt-1 text-sm text-forest-500">{{ selectedGroup()?.periodo_label || 'Sin período' }}</p>
                   </div>
@@ -136,18 +135,14 @@ interface PlanillasOverviewData {
                   </div>
                 </div>
 
-                <div class="mt-5 grid gap-4 md:grid-cols-3">
+                <div class="mt-5 grid gap-4 md:grid-cols-2">
                   <article class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Pre Facturas</p>
                     <p class="mt-2 text-xl font-bold text-forest-900">{{ toNumber(selectedGroup()?.total_facturas) }}</p>
                   </article>
                   <article class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Folios</p>
-                    <p class="mt-2 text-xl font-bold text-forest-900">{{ toNumber(selectedGroup()?.total_folios) }}</p>
-                  </article>
-                  <article class="rounded-2xl border border-forest-100 bg-forest-50 p-4">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Empresas</p>
-                    <p class="mt-2 text-xl font-bold text-forest-900">{{ selectedGroup()?.empresas?.length ?? 0 }}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest-500">Monto Total</p>
+                    <p class="mt-2 text-xl font-bold text-teal-700">{{ formatCurrency(selectedGroup()?.monto_total) }}</p>
                   </article>
                 </div>
 
@@ -160,7 +155,6 @@ interface PlanillasOverviewData {
                       <thead>
                         <tr class="text-left text-xs uppercase tracking-[0.18em] text-forest-500">
                           <th class="px-4 py-3">Pre Factura</th>
-                          <th class="px-4 py-3">Folio</th>
                           <th class="px-4 py-3">Empresa</th>
                           <th class="px-4 py-3">Emisión</th>
                           <th class="px-4 py-3 text-right">Monto</th>
@@ -170,14 +164,13 @@ interface PlanillasOverviewData {
                         @for (invoice of selectedGroup()?.facturas ?? []; track invoice['id_factura']) {
                           <tr>
                             <td class="px-4 py-3 font-medium text-forest-900">{{ invoice['numero_factura'] || 'Sin número' }}</td>
-                            <td class="px-4 py-3 text-forest-600">{{ invoice['folio_numero'] || '-' }}</td>
                             <td class="px-4 py-3 text-forest-600">{{ invoice['empresa_nombre'] || 'Sin empresa' }}</td>
                             <td class="px-4 py-3 text-forest-600">{{ fmtDate(invoice['fecha_emision']) }}</td>
                             <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ formatCurrency(invoice['monto_total']) }}</td>
                           </tr>
                         } @empty {
                           <tr>
-                            <td colspan="5" class="px-4 py-5 text-center text-sm text-forest-500">
+                            <td colspan="4" class="px-4 py-5 text-center text-sm text-forest-500">
                               No hay pre facturas asociadas a este lote.
                             </td>
                           </tr>

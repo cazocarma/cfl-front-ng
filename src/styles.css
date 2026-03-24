@@ -46,7 +46,7 @@ body {
   .badge-actualizado    { @apply bg-amber-50  border-amber-200  text-amber-800; }
   .badge-en-revision    { @apply bg-orange-50 border-orange-200 text-orange-800;}
   .badge-completado     { @apply bg-emerald-50 border-emerald-200 text-emerald-800; }
-  .badge-asignado-folio { @apply bg-cyan-50   border-cyan-200   text-cyan-800;  }
+  .badge-prefacturado   { @apply bg-cyan-50   border-cyan-200   text-cyan-800;  }
   .badge-facturado      { @apply bg-violet-50 border-violet-200 text-violet-800;}
   .badge-anulado        { @apply bg-slate-100 border-slate-200  text-slate-600; }
 

@@ -4,19 +4,25 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
-import { EmpresaElegible, FolioElegible, GrupoPreview, PeriodoDisponible, PreviewResult } from '../../core/models/factura.model';
-import { CRITERIO_DEFECTO, nombreMes } from '../../core/constants/factura.constants';
+import { EmpresaElegible, GrupoSugerido, MovimientoElegible, PeriodoDisponible } from '../../core/models/factura.model';
+import { nombreMes } from '../../core/constants/factura.constants';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3;
+
+interface GrupoPrefactura {
+  id: string;
+  label: string;
+  ids: Set<number>;
+}
 
 @Component({
     selector: 'app-nueva-factura-wizard',
     imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
-    <app-workspace-shell title="Nueva Pre Factura" subtitle="Generación de pre facturas de transporte por periodo y centro de costo." activeSection="facturas">
+    <app-workspace-shell title="Nueva Pre Factura" subtitle="Generacion de pre facturas de transporte por periodo y tipo de flete." activeSection="facturas">
 
       <!-- Stepper -->
       <nav class="mb-8 flex items-center gap-0 overflow-x-auto">
@@ -38,8 +44,8 @@ type Step = 1 | 2 | 3 | 4;
               </span>
               {{ s.label }}
             </button>
-            @if (s.n < 4) {
-              <span class="mx-1 text-forest-300">›</span>
+            @if (s.n < 3) {
+              <span class="mx-1 text-forest-300">></span>
             }
           </div>
         }
@@ -49,14 +55,14 @@ type Step = 1 | 2 | 3 | 4;
       @if (step() === 1) {
         <div class="space-y-5">
           <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-            <h2 class="text-base font-semibold text-forest-900">Paso 1 — Transportista y período</h2>
-            <p class="mt-1 text-sm text-forest-500">Selecciona la empresa transportista e indica el período de los movimientos a pre facturar.</p>
+            <h2 class="text-base font-semibold text-forest-900">Paso 1 -- Transportista y periodo</h2>
+            <p class="mt-1 text-sm text-forest-500">Selecciona la empresa transportista e indica el periodo de los movimientos a pre facturar.</p>
 
             @if (loadingEmpresas()) {
               <p class="mt-6 text-sm text-forest-500">Cargando empresas...</p>
             } @else if (empresas().length === 0) {
               <div class="mt-6 rounded-xl border border-dashed border-forest-200 px-5 py-8 text-center text-sm text-forest-500">
-                No hay empresas con folios elegibles en este momento.
+                No hay empresas con movimientos elegibles en este momento.
               </div>
             } @else {
               <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -71,7 +77,7 @@ type Step = 1 | 2 | 3 | 4;
                     <span class="font-semibold text-forest-900">{{ emp.empresa_nombre }}</span>
                     <span class="text-xs text-forest-500">RUT: {{ emp.rut }}</span>
                     <span class="mt-1 self-start rounded-full bg-forest-100 px-2 py-0.5 text-[11px] font-semibold text-forest-700">
-                      {{ emp.folios_disponibles }} folio(s) disponible(s)
+                      {{ emp.movimientos_disponibles }} movimiento(s) disponible(s)
                     </span>
                   </button>
                 }
@@ -79,16 +85,16 @@ type Step = 1 | 2 | 3 | 4;
             }
           </div>
 
-          <!-- Período -->
+          <!-- Periodo -->
           @if (empresaSeleccionada()) {
             <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-              <h3 class="text-sm font-semibold text-forest-900">Período de pre facturación</h3>
+              <h3 class="text-sm font-semibold text-forest-900">Periodo de pre facturacion</h3>
               <p class="mt-1 text-xs text-forest-500">
                 Selecciona el mes con movimientos a incluir en la pre factura.
               </p>
 
               @if (loadingPeriodos()) {
-                <p class="mt-5 text-sm text-forest-500">Cargando períodos...</p>
+                <p class="mt-5 text-sm text-forest-500">Cargando periodos...</p>
               } @else if (periodos().length === 0) {
                 <div class="mt-5 rounded-xl border border-dashed border-forest-200 px-5 py-6 text-center text-sm text-forest-500">
                   No hay movimientos elegibles para esta empresa.
@@ -117,178 +123,290 @@ type Step = 1 | 2 | 3 | 4;
         </div>
       }
 
-      <!-- PASO 2: Resumen de folios -->
+      <!-- PASO 2: Agrupacion interactiva de movimientos -->
       @if (step() === 2) {
-        <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 class="text-base font-semibold text-forest-900">Paso 2 — Resumen de folios a pre facturar</h2>
-              <p class="mt-1 text-sm text-forest-500">
-                Empresa: <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>
-                @if (periodoDesde() || periodoHasta()) {
-                  &nbsp;·&nbsp;Período:
-                  <strong>{{ periodoDesde() ? formatFecha(periodoDesde()) : '…' }} – {{ periodoHasta() ? formatFecha(periodoHasta()) : '…' }}</strong>
-                }
-              </p>
-            </div>
-            @if (!loadingFolios() && folios().length > 0) {
-              <div class="rounded-xl bg-forest-50 border border-forest-100 px-4 py-2 text-right text-sm">
-                <p class="text-xs font-semibold uppercase tracking-widest text-forest-500">Total estimado</p>
-                <p class="text-lg font-bold text-teal-700">{{ totalFolios() }}</p>
-                <p class="text-xs text-forest-500">{{ folios().length }} folio(s) · {{ totalMovimientosFolios() }} movimiento(s)</p>
-              </div>
-            }
-          </div>
-
-          @if (loadingFolios()) {
-            <p class="mt-6 text-sm text-forest-500">Cargando folios...</p>
-          } @else if (folios().length === 0) {
-            <div class="mt-6 rounded-xl border border-dashed border-forest-200 px-5 py-8 text-center text-sm text-forest-500">
-              No se encontraron folios elegibles para el período indicado.
-              <br><span class="text-xs">Ajusta las fechas o verifica que haya movimientos en estado "Asignado Folio".</span>
-            </div>
-          } @else {
-            <div class="mt-5 overflow-x-auto">
-              <table class="min-w-full divide-y divide-forest-100 text-sm">
-                <thead>
-                  <tr class="text-left text-xs font-semibold uppercase tracking-[0.18em] text-forest-500">
-                    <th class="px-3 py-3">Folio</th>
-                    <th class="px-3 py-3">Centro de Costo</th>
-                    <th class="px-3 py-3">Tipo Flete Principal</th>
-                    <th class="px-3 py-3 text-center">Movimientos</th>
-                    <th class="px-3 py-3 text-right">Monto Estimado</th>
-                    <th class="px-3 py-3">Período Folio</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-forest-100">
-                  @for (folio of folios(); track folio.id_folio) {
-                    <tr class="bg-teal-50/30">
-                      <td class="px-3 py-3 font-semibold text-forest-900">{{ folio.folio_numero }}</td>
-                      <td class="px-3 py-3 text-forest-600">
-                        {{ folio.centro_costo_codigo ? folio.centro_costo_codigo + ' · ' : '' }}{{ folio.centro_costo || '-' }}
-                      </td>
-                      <td class="px-3 py-3 text-forest-600">{{ folio.primary_tipo_flete_nombre || '-' }}</td>
-                      <td class="px-3 py-3 text-center font-medium text-forest-800">{{ folio.total_movimientos }}</td>
-                      <td class="px-3 py-3 text-right font-semibold text-forest-900">{{ formatCLP(folio.monto_neto_estimado) }}</td>
-                      <td class="px-3 py-3 text-forest-600 text-xs">
-                        {{ formatFecha(folio.periodo_desde) }} – {{ formatFecha(folio.periodo_hasta) }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            <p class="mt-3 text-xs text-forest-500">
-              Todos los folios listados serán incluidos automáticamente. Las pre facturas se agruparán por <strong>Centro de Costo</strong>.
-            </p>
-          }
-        </div>
-      }
-
-      <!-- PASO 3: Vista previa -->
-      @if (step() === 3) {
         <div class="space-y-5">
           <div class="rounded-2xl border border-forest-100 bg-white p-5 shadow-sm">
-            <h2 class="text-base font-semibold text-forest-900">Paso 3 — Vista previa de generación</h2>
-            <p class="mt-1 text-sm text-forest-500">
-              Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> pre factura(s) agrupadas por
-              <strong>Centro de Costo</strong>.
-            </p>
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-base font-semibold text-forest-900">Paso 2 -- Agrupacion de movimientos</h2>
+                <p class="mt-1 text-sm text-forest-500">
+                  Empresa: <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>
+                  &nbsp;--&nbsp;Periodo:
+                  <strong>{{ periodoDesde() ? formatFecha(periodoDesde()) : '...' }} -- {{ periodoHasta() ? formatFecha(periodoHasta()) : '...' }}</strong>
+                </p>
+                <p class="mt-1 text-xs text-forest-400">
+                  Los movimientos se agruparon automaticamente por tipo de flete. Puedes reorganizar los grupos antes de generar.
+                </p>
+              </div>
+              <div class="rounded-xl bg-forest-50 border border-forest-100 px-4 py-2 text-right text-sm">
+                <p class="text-xs font-semibold uppercase tracking-widest text-forest-500">Total general</p>
+                <p class="text-lg font-bold text-teal-700">{{ totalGeneral() }}</p>
+                <p class="text-xs text-forest-500">{{ allMovimientos().length }} movimiento(s) en {{ grupos().length }} grupo(s)</p>
+              </div>
+            </div>
           </div>
 
-          @if (loadingPreview()) {
+          @if (loadingMovimientos()) {
             <div class="rounded-2xl border border-forest-100 bg-white px-6 py-10 text-center text-sm text-forest-500 shadow-sm">
-              Calculando agrupación...
+              Cargando movimientos elegibles...
             </div>
-          } @else if (errorPreview()) {
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 shadow-sm">{{ errorPreview() }}</div>
           } @else {
-            @for (grupo of preview()?.grupos ?? []; track grupo.grupo_clave) {
-              <div class="rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <span class="rounded-full bg-teal-200 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
-                      {{ grupo.grupo_label }}
+
+            <!-- Grupos de pre factura -->
+            @for (grupo of grupos(); track grupo.id; let gi = $index) {
+              <div class="rounded-2xl border border-teal-200 bg-white shadow-sm">
+                <!-- Header del grupo -->
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-teal-100 bg-teal-50 px-5 py-4 rounded-t-2xl">
+                  <div class="flex items-center gap-3">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
+                      {{ gi + 1 }}
                     </span>
-                    <p class="mt-2 text-sm font-semibold text-forest-900">
-                      {{ grupo.cantidad_movimientos }} movimiento(s) · {{ grupo.ids_folio.length }} folio(s)
-                    </p>
+                    <div>
+                      <input type="text"
+                             [ngModel]="grupo.label"
+                             (ngModelChange)="updateGroupLabel(grupo.id, $event)"
+                             class="border-0 border-b border-transparent bg-transparent px-0 py-0 text-sm font-semibold text-forest-900 outline-none transition focus:border-teal-500"
+                      />
+                      <p class="text-xs text-forest-500">{{ grupo.ids.size }} movimiento(s)</p>
+                    </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-xs text-forest-500 uppercase tracking-widest">Monto total</p>
-                    <p class="text-xl font-bold text-teal-700">{{ formatCLP(grupo.monto_total) }}</p>
-                    <p class="text-xs text-forest-500">Neto {{ formatCLP(grupo.monto_neto) }} + IVA {{ formatCLP(grupo.monto_iva) }}</p>
+                    <p class="text-xs text-forest-500 uppercase tracking-widest">Total grupo</p>
+                    <p class="text-lg font-bold text-teal-700">{{ grupoTotal(grupo.id) }}</p>
+                    <p class="text-xs text-forest-500">
+                      Neto {{ grupoNeto(grupo.id) }} + IVA {{ grupoIva(grupo.id) }}
+                    </p>
                   </div>
                 </div>
 
-                <div class="mt-4 overflow-x-auto">
-                  <table class="min-w-full divide-y divide-forest-200 text-xs">
+                <!-- Tabla de movimientos del grupo -->
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-forest-100 text-xs">
                     <thead>
                       <tr class="text-left font-semibold uppercase tracking-[0.18em] text-forest-500">
-                        <th class="px-2 py-2">Folio</th>
-                        <th class="px-2 py-2">Entrega / Guía</th>
-                        <th class="px-2 py-2">Tipo Flete</th>
-                        <th class="px-2 py-2">Centro Costo</th>
-                        <th class="px-2 py-2">Fecha</th>
-                        <th class="px-2 py-2 text-right">Monto</th>
+                        <th class="px-3 py-2">
+                          <input type="checkbox"
+                                 [checked]="isAllGroupChecked(grupo.id)"
+                                 (change)="toggleAllGroup(grupo.id)"
+                                 class="rounded border-forest-300 text-teal-600 focus:ring-teal-500"
+                          />
+                        </th>
+                        <th class="px-3 py-2">Guia / Entrega</th>
+                        <th class="px-3 py-2">Tipo Flete</th>
+                        <th class="px-3 py-2">Centro Costo</th>
+                        <th class="px-3 py-2">Fecha</th>
+                        <th class="px-3 py-2 text-right">Monto</th>
                       </tr>
                     </thead>
-                    <tbody class="divide-y divide-forest-200">
-                      @for (m of grupo.movimientos; track m.id_cabecera_flete) {
-                        <tr>
-                          <td class="px-2 py-2">{{ m.folio_numero || '-' }}</td>
-                          <td class="px-2 py-2">{{ m.numero_entrega || m.sap_numero_entrega || m.guia_remision || '-' }}</td>
-                          <td class="px-2 py-2">{{ m.tipo_flete_nombre || '-' }}</td>
-                          <td class="px-2 py-2">{{ m.centro_costo || '-' }}</td>
-                          <td class="px-2 py-2">{{ formatFecha(m.fecha_salida) }}</td>
-                          <td class="px-2 py-2 text-right font-semibold">{{ formatCLP(m.monto_aplicado) }}</td>
+                    <tbody class="divide-y divide-forest-100">
+                      @for (m of getMovimientosDeGrupo(grupo.id); track m.id_cabecera_flete) {
+                        <tr class="hover:bg-forest-50 transition">
+                          <td class="px-3 py-2">
+                            <input type="checkbox"
+                                   [checked]="checkedMovimientos().has(m.id_cabecera_flete)"
+                                   (change)="toggleCheck(m.id_cabecera_flete)"
+                                   class="rounded border-forest-300 text-teal-600 focus:ring-teal-500"
+                            />
+                          </td>
+                          <td class="px-3 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.centro_costo_codigo ? m.centro_costo_codigo + ' - ' : '' }}{{ m.centro_costo || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
+                          <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
                         </tr>
                       }
                     </tbody>
                   </table>
                 </div>
+
+                <!-- Acciones del grupo -->
+                <div class="flex flex-wrap items-center gap-2 border-t border-forest-100 px-5 py-3">
+                  @if (getCheckedInGroup(grupo.id).length > 0) {
+                    <button type="button"
+                            (click)="quitarSeleccionados(grupo.id)"
+                            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100">
+                      Desasignar seleccionados ({{ getCheckedInGroup(grupo.id).length }})
+                    </button>
+                    <!-- Mover a otro grupo -->
+                    @if (grupos().length > 1) {
+                      <span class="text-xs text-forest-400">Mover a:</span>
+                      @for (otroGrupo of grupos(); track otroGrupo.id) {
+                        @if (otroGrupo.id !== grupo.id) {
+                          <button type="button"
+                                  (click)="moverSeleccionados(grupo.id, otroGrupo.id)"
+                                  class="rounded-lg border border-forest-200 bg-white px-3 py-1.5 text-xs font-semibold text-forest-600 transition hover:bg-forest-50">
+                            {{ otroGrupo.label }}
+                          </button>
+                        }
+                      }
+                    }
+                  }
+                  <div class="ml-auto">
+                    @if (grupo.ids.size === 0) {
+                      <button type="button"
+                              (click)="eliminarGrupo(grupo.id)"
+                              class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-100">
+                        Eliminar grupo
+                      </button>
+                    }
+                  </div>
+                </div>
               </div>
             }
+
+            <!-- Movimientos sin asignar -->
+            @if (sinAsignar().length > 0) {
+              <div class="rounded-2xl border border-amber-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4 rounded-t-2xl">
+                  <div>
+                    <h3 class="text-sm font-semibold text-amber-800">Sin asignar</h3>
+                    <p class="text-xs text-amber-600">{{ sinAsignar().length }} movimiento(s) sin grupo</p>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-forest-100 text-xs">
+                    <thead>
+                      <tr class="text-left font-semibold uppercase tracking-[0.18em] text-forest-500">
+                        <th class="px-3 py-2">
+                          <input type="checkbox"
+                                 [checked]="isAllUnassignedChecked()"
+                                 (change)="toggleAllUnassigned()"
+                                 class="rounded border-forest-300 text-amber-600 focus:ring-amber-500"
+                          />
+                        </th>
+                        <th class="px-3 py-2">Guia / Entrega</th>
+                        <th class="px-3 py-2">Tipo Flete</th>
+                        <th class="px-3 py-2">Centro Costo</th>
+                        <th class="px-3 py-2">Fecha</th>
+                        <th class="px-3 py-2 text-right">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-forest-100">
+                      @for (m of sinAsignar(); track m.id_cabecera_flete) {
+                        <tr class="hover:bg-amber-50/50 transition">
+                          <td class="px-3 py-2">
+                            <input type="checkbox"
+                                   [checked]="checkedMovimientos().has(m.id_cabecera_flete)"
+                                   (change)="toggleCheck(m.id_cabecera_flete)"
+                                   class="rounded border-forest-300 text-amber-600 focus:ring-amber-500"
+                            />
+                          </td>
+                          <td class="px-3 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.centro_costo_codigo ? m.centro_costo_codigo + ' - ' : '' }}{{ m.centro_costo || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
+                          <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Acciones sin asignar -->
+                <div class="flex flex-wrap items-center gap-2 border-t border-forest-100 px-5 py-3">
+                  @if (getCheckedUnassigned().length > 0) {
+                    <span class="text-xs text-forest-400">Asignar a:</span>
+                    @for (grupo of grupos(); track grupo.id) {
+                      <button type="button"
+                              (click)="moverSeleccionadosDesdeUnassigned(grupo.id)"
+                              class="rounded-lg border border-forest-200 bg-white px-3 py-1.5 text-xs font-semibold text-forest-600 transition hover:bg-forest-50">
+                        {{ grupo.label }}
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Barra de acciones general -->
+            <div class="flex flex-wrap items-center gap-3">
+              <button type="button"
+                      (click)="crearNuevoGrupo()"
+                      class="rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50">
+                + Crear nuevo grupo
+              </button>
+            </div>
           }
         </div>
       }
 
-      <!-- PASO 4: Confirmación -->
-      @if (step() === 4) {
-        <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
-          <h2 class="text-base font-semibold text-forest-900">Paso 4 — Confirmar generación</h2>
+      <!-- PASO 3: Confirmar y generar -->
+      @if (step() === 3) {
+        <div class="space-y-5">
+          <div class="rounded-2xl border border-forest-100 bg-white p-6 shadow-sm">
+            <h2 class="text-base font-semibold text-forest-900">Paso 3 -- Confirmar y generar</h2>
+            <p class="mt-1 text-sm text-forest-500">
+              Se generaran <strong>{{ gruposConMovimientos().length }}</strong> pre factura(s)
+              para <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>.
+            </p>
+
+            @if (sinAsignar().length > 0) {
+              <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+                Hay {{ sinAsignar().length }} movimiento(s) sin asignar que no seran incluidos.
+              </div>
+            }
+          </div>
+
+          <!-- Resumen de cada grupo -->
+          @for (grupo of gruposConMovimientos(); track grupo.id; let gi = $index) {
+            <div class="rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span class="rounded-full bg-teal-200 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                    Pre Factura {{ gi + 1 }}: {{ grupo.label }}
+                  </span>
+                  <p class="mt-2 text-sm font-semibold text-forest-900">
+                    {{ grupo.ids.size }} movimiento(s)
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-forest-500 uppercase tracking-widest">Monto total</p>
+                  <p class="text-xl font-bold text-teal-700">{{ grupoTotal(grupo.id) }}</p>
+                  <p class="text-xs text-forest-500">Neto {{ grupoNeto(grupo.id) }} + IVA {{ grupoIva(grupo.id) }}</p>
+                </div>
+              </div>
+
+              <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full divide-y divide-forest-200 text-xs">
+                  <thead>
+                    <tr class="text-left font-semibold uppercase tracking-[0.18em] text-forest-500">
+                      <th class="px-2 py-2">Guia / Entrega</th>
+                      <th class="px-2 py-2">Tipo Flete</th>
+                      <th class="px-2 py-2">Centro Costo</th>
+                      <th class="px-2 py-2">Fecha</th>
+                      <th class="px-2 py-2 text-right">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-forest-200">
+                    @for (m of getMovimientosDeGrupo(grupo.id); track m.id_cabecera_flete) {
+                      <tr>
+                        <td class="px-2 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
+                        <td class="px-2 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
+                        <td class="px-2 py-2 text-forest-600">{{ m.centro_costo || '-' }}</td>
+                        <td class="px-2 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
+                        <td class="px-2 py-2 text-right font-semibold">{{ formatCLP(m.monto_aplicado) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
 
           @if (generando()) {
-            <p class="mt-6 text-sm text-forest-600">Generando pre facturas, por favor espera...</p>
-          } @else if (errorGeneracion()) {
-            <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{{ errorGeneracion() }}</div>
-          } @else {
-            <div class="mt-4 rounded-xl border border-forest-100 bg-forest-50 p-4 space-y-1">
-              <p class="text-sm text-forest-700">
-                Se generarán <strong>{{ preview()?.cantidad_facturas ?? 0 }}</strong> pre factura(s)
-                para <strong>{{ empresaSeleccionada()?.empresa_nombre }}</strong>,
-                agrupadas por <strong>Centro de Costo</strong>.
-              </p>
-              @if (periodoDesde() || periodoHasta()) {
-                <p class="text-sm text-forest-700">
-                  Período:
-                  <strong>{{ periodoDesde() ? formatFecha(periodoDesde()) : '…' }} – {{ periodoHasta() ? formatFecha(periodoHasta()) : '…' }}</strong>
-                </p>
-              }
-              <p class="text-sm text-forest-700">
-                Total estimado: <strong>{{ totalPreview() }}</strong>.
-              </p>
+            <div class="rounded-2xl border border-forest-100 bg-white px-6 py-10 text-center text-sm text-forest-500 shadow-sm">
+              Generando pre facturas, por favor espera...
             </div>
-            <p class="mt-4 text-sm text-forest-600">
-              Esta acción marcará todos los movimientos incluidos como <em>Facturado</em>.
-              Las facturas se crearán en estado <strong>Borrador</strong>.
-              Desde el detalle de cada pre factura podrás marcarlas como recibidas.
-            </p>
+          }
+          @if (errorGeneracion()) {
+            <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">{{ errorGeneracion() }}</div>
           }
         </div>
       }
 
-      <!-- Botones de navegación -->
+      <!-- Botones de navegacion -->
       <div class="mt-6 flex items-center justify-between">
         <div class="flex gap-3">
           @if (step() > 1) {
@@ -296,7 +414,7 @@ type Step = 1 | 2 | 3 | 4;
                     (click)="pasoAnterior()"
                     [disabled]="generando()"
                     class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50 disabled:opacity-50">
-              Atrás
+              Atras
             </button>
           }
           <a routerLink="/facturas"
@@ -306,7 +424,7 @@ type Step = 1 | 2 | 3 | 4;
         </div>
 
         <div>
-          @if (step() < 3) {
+          @if (step() === 1) {
             <button type="button"
                     (click)="pasoContinuar()"
                     [disabled]="!puedeContinuar()"
@@ -314,15 +432,15 @@ type Step = 1 | 2 | 3 | 4;
               Continuar
             </button>
           }
-          @if (step() === 3) {
+          @if (step() === 2) {
             <button type="button"
                     (click)="irAConfirmar()"
-                    [disabled]="loadingPreview() || !preview()"
+                    [disabled]="gruposConMovimientos().length === 0"
                     class="rounded-xl bg-forest-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-forest-700 disabled:opacity-50">
               Revisar y confirmar
             </button>
           }
-          @if (step() === 4 && !generando() && !errorGeneracion()) {
+          @if (step() === 3 && !generando()) {
             <button type="button"
                     (click)="confirmarGeneracion()"
                     class="rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">
@@ -339,40 +457,49 @@ export class NuevaFacturaWizardComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly steps = [
-    { n: 1 as Step, label: 'Transportista y período' },
-    { n: 2 as Step, label: 'Resumen folios' },
-    { n: 3 as Step, label: 'Vista previa' },
-    { n: 4 as Step, label: 'Confirmar' },
+    { n: 1 as Step, label: 'Transportista y periodo' },
+    { n: 2 as Step, label: 'Agrupacion' },
+    { n: 3 as Step, label: 'Confirmar' },
   ];
 
   readonly step                = signal<Step>(1);
   readonly empresas            = signal<EmpresaElegible[]>([]);
-  readonly folios              = signal<FolioElegible[]>([]);
   readonly empresaSeleccionada = signal<EmpresaElegible | null>(null);
   readonly periodos            = signal<PeriodoDisponible[]>([]);
   readonly periodoSeleccionado = signal<PeriodoDisponible | null>(null);
   readonly periodoDesde        = signal<string>('');
   readonly periodoHasta        = signal<string>('');
-  readonly preview             = signal<PreviewResult | null>(null);
+
   readonly loadingEmpresas     = signal(false);
   readonly loadingPeriodos     = signal(false);
-  readonly loadingFolios       = signal(false);
-  readonly loadingPreview      = signal(false);
+  readonly loadingMovimientos  = signal(false);
   readonly generando           = signal(false);
-  readonly errorPreview        = signal('');
   readonly errorGeneracion     = signal('');
 
-  readonly totalFolios = computed(() => {
-    const total = this.folios().reduce((s, f) => s + (f.monto_neto_estimado || 0), 0);
-    return this.formatCLP(total);
+  // Step 2 state: all movements and groups
+  readonly allMovimientos      = signal<MovimientoElegible[]>([]);
+  readonly grupos              = signal<GrupoPrefactura[]>([]);
+  readonly checkedMovimientos  = signal<Set<number>>(new Set());
+
+  private groupCounter = 0;
+
+  // Computed: movements not assigned to any group
+  readonly sinAsignar = computed(() => {
+    const assigned = new Set<number>();
+    for (const g of this.grupos()) {
+      for (const id of g.ids) assigned.add(id);
+    }
+    return this.allMovimientos().filter(m => !assigned.has(m.id_cabecera_flete));
   });
 
-  readonly totalMovimientosFolios = computed(() =>
-    this.folios().reduce((s, f) => s + (f.total_movimientos || 0), 0)
+  // Computed: groups that have at least one movement
+  readonly gruposConMovimientos = computed(() =>
+    this.grupos().filter(g => g.ids.size > 0)
   );
 
-  readonly totalPreview = computed(() => {
-    const total = (this.preview()?.grupos ?? []).reduce((s: number, g: GrupoPreview) => s + (g.monto_total || 0), 0);
+  // Computed: total general across all movements
+  readonly totalGeneral = computed(() => {
+    const total = this.allMovimientos().reduce((s, m) => s + (m.monto_aplicado || 0), 0);
     return this.formatCLP(total);
   });
 
@@ -381,6 +508,8 @@ export class NuevaFacturaWizardComponent implements OnInit {
   ngOnInit(): void {
     this.cargarEmpresas();
   }
+
+  // --- Step 1 ---
 
   cargarEmpresas(): void {
     this.loadingEmpresas.set(true);
@@ -413,66 +542,253 @@ export class NuevaFacturaWizardComponent implements OnInit {
 
   seleccionarPeriodo(p: PeriodoDisponible): void {
     this.periodoSeleccionado.set(p);
-    // Primer día del mes
     const desde = `${p.anio}-${String(p.mes).padStart(2, '0')}-01`;
-    // Último día del mes
     const lastDay = new Date(p.anio, p.mes, 0).getDate();
     const hasta = `${p.anio}-${String(p.mes).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     this.periodoDesde.set(desde);
     this.periodoHasta.set(hasta);
   }
 
-  cargarFolios(): void {
+  // --- Step 2: Load movements and build initial groups ---
+
+  private cargarMovimientos(): void {
     const emp = this.empresaSeleccionada();
     if (!emp) return;
-    this.loadingFolios.set(true);
-    this.folios.set([]);
-    this.cflApi.getFacturasFoliosElegibles(
+    this.loadingMovimientos.set(true);
+    this.allMovimientos.set([]);
+    this.grupos.set([]);
+    this.checkedMovimientos.set(new Set());
+    this.groupCounter = 0;
+
+    this.cflApi.getMovimientosElegibles(
       emp.id_empresa,
-      this.periodoDesde() || undefined,
-      this.periodoHasta() || undefined
+      this.periodoDesde(),
+      this.periodoHasta()
     ).pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => { this.folios.set(res.data); this.loadingFolios.set(false); },
-        error: () => this.loadingFolios.set(false),
-      });
-  }
+        next: (res) => {
+          const { movimientos, grupos_sugeridos } = res.data;
+          this.allMovimientos.set(movimientos);
 
-  calcularPreview(): void {
-    const empresa = this.empresaSeleccionada();
-    const ids = this.folios().map(f => f.id_folio);
-    if (!empresa || !ids.length) return;
+          // Build initial groups from API suggestions (by tipo_flete)
+          const initialGroups: GrupoPrefactura[] = grupos_sugeridos.map((gs: GrupoSugerido) => {
+            this.groupCounter++;
+            return {
+              id: `grupo-${this.groupCounter}`,
+              label: gs.tipo_flete_nombre,
+              ids: new Set(gs.ids_cabecera_flete),
+            };
+          });
 
-    this.loadingPreview.set(true);
-    this.errorPreview.set('');
-    this.preview.set(null);
+          // If no suggestions, create a single group with all movements
+          if (initialGroups.length === 0 && movimientos.length > 0) {
+            this.groupCounter++;
+            initialGroups.push({
+              id: `grupo-${this.groupCounter}`,
+              label: 'Grupo 1',
+              ids: new Set(movimientos.map((m: MovimientoElegible) => m.id_cabecera_flete)),
+            });
+          }
 
-    this.cflApi.getFacturaPreviewNueva({
-      id_empresa: empresa.id_empresa,
-      ids_folio:  ids,
-      criterio:   CRITERIO_DEFECTO,
-    }).pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => { this.preview.set(res.data); this.loadingPreview.set(false); },
-        error: (err) => {
-          this.errorPreview.set(err?.error?.error ?? 'Error al calcular la vista previa.');
-          this.loadingPreview.set(false);
+          this.grupos.set(initialGroups);
+          this.loadingMovimientos.set(false);
         },
+        error: () => this.loadingMovimientos.set(false),
       });
   }
+
+  // --- Group management ---
+
+  getMovimientosDeGrupo(grupoId: string): MovimientoElegible[] {
+    const grupo = this.grupos().find(g => g.id === grupoId);
+    if (!grupo) return [];
+    return this.allMovimientos().filter(m => grupo.ids.has(m.id_cabecera_flete));
+  }
+
+  updateGroupLabel(grupoId: string, newLabel: string): void {
+    this.grupos.update(gs => gs.map(g =>
+      g.id === grupoId ? { ...g, label: newLabel } : g
+    ));
+  }
+
+  crearNuevoGrupo(): void {
+    this.groupCounter++;
+    const newGroup: GrupoPrefactura = {
+      id: `grupo-${this.groupCounter}`,
+      label: `Grupo ${this.groupCounter}`,
+      ids: new Set(),
+    };
+    this.grupos.update(gs => [...gs, newGroup]);
+  }
+
+  eliminarGrupo(grupoId: string): void {
+    this.grupos.update(gs => gs.filter(g => g.id !== grupoId));
+  }
+
+  // --- Checkbox handling ---
+
+  toggleCheck(id: number): void {
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  isAllGroupChecked(grupoId: string): boolean {
+    const grupo = this.grupos().find(g => g.id === grupoId);
+    if (!grupo || grupo.ids.size === 0) return false;
+    const checked = this.checkedMovimientos();
+    for (const id of grupo.ids) {
+      if (!checked.has(id)) return false;
+    }
+    return true;
+  }
+
+  toggleAllGroup(grupoId: string): void {
+    const grupo = this.grupos().find(g => g.id === grupoId);
+    if (!grupo) return;
+    const allChecked = this.isAllGroupChecked(grupoId);
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      for (const id of grupo.ids) {
+        if (allChecked) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+
+  isAllUnassignedChecked(): boolean {
+    const unassigned = this.sinAsignar();
+    if (unassigned.length === 0) return false;
+    const checked = this.checkedMovimientos();
+    return unassigned.every(m => checked.has(m.id_cabecera_flete));
+  }
+
+  toggleAllUnassigned(): void {
+    const unassigned = this.sinAsignar();
+    const allChecked = this.isAllUnassignedChecked();
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      for (const m of unassigned) {
+        if (allChecked) next.delete(m.id_cabecera_flete);
+        else next.add(m.id_cabecera_flete);
+      }
+      return next;
+    });
+  }
+
+  getCheckedInGroup(grupoId: string): number[] {
+    const grupo = this.grupos().find(g => g.id === grupoId);
+    if (!grupo) return [];
+    const checked = this.checkedMovimientos();
+    return [...grupo.ids].filter(id => checked.has(id));
+  }
+
+  getCheckedUnassigned(): number[] {
+    const checked = this.checkedMovimientos();
+    return this.sinAsignar()
+      .filter(m => checked.has(m.id_cabecera_flete))
+      .map(m => m.id_cabecera_flete);
+  }
+
+  // --- Movement operations ---
+
+  quitarSeleccionados(fromGrupoId: string): void {
+    const toRemove = this.getCheckedInGroup(fromGrupoId);
+    if (toRemove.length === 0) return;
+    this.grupos.update(gs => gs.map(g => {
+      if (g.id !== fromGrupoId) return g;
+      const newIds = new Set(g.ids);
+      for (const id of toRemove) newIds.delete(id);
+      return { ...g, ids: newIds };
+    }));
+    // Clear checks for moved items
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      for (const id of toRemove) next.delete(id);
+      return next;
+    });
+  }
+
+  moverSeleccionados(fromGrupoId: string, toGrupoId: string): void {
+    const toMove = this.getCheckedInGroup(fromGrupoId);
+    if (toMove.length === 0) return;
+    this.grupos.update(gs => gs.map(g => {
+      if (g.id === fromGrupoId) {
+        const newIds = new Set(g.ids);
+        for (const id of toMove) newIds.delete(id);
+        return { ...g, ids: newIds };
+      }
+      if (g.id === toGrupoId) {
+        const newIds = new Set(g.ids);
+        for (const id of toMove) newIds.add(id);
+        return { ...g, ids: newIds };
+      }
+      return g;
+    }));
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      for (const id of toMove) next.delete(id);
+      return next;
+    });
+  }
+
+  moverSeleccionadosDesdeUnassigned(toGrupoId: string): void {
+    const toMove = this.getCheckedUnassigned();
+    if (toMove.length === 0) return;
+    this.grupos.update(gs => gs.map(g => {
+      if (g.id === toGrupoId) {
+        const newIds = new Set(g.ids);
+        for (const id of toMove) newIds.add(id);
+        return { ...g, ids: newIds };
+      }
+      return g;
+    }));
+    this.checkedMovimientos.update(s => {
+      const next = new Set(s);
+      for (const id of toMove) next.delete(id);
+      return next;
+    });
+  }
+
+  // --- Group totals ---
+
+  grupoNeto(grupoId: string): string {
+    const movs = this.getMovimientosDeGrupo(grupoId);
+    const neto = movs.reduce((s, m) => s + (m.monto_aplicado || 0), 0);
+    return this.formatCLP(neto);
+  }
+
+  grupoIva(grupoId: string): string {
+    const movs = this.getMovimientosDeGrupo(grupoId);
+    const neto = movs.reduce((s, m) => s + (m.monto_aplicado || 0), 0);
+    return this.formatCLP(Math.round(neto * 0.19));
+  }
+
+  grupoTotal(grupoId: string): string {
+    const movs = this.getMovimientosDeGrupo(grupoId);
+    const neto = movs.reduce((s, m) => s + (m.monto_aplicado || 0), 0);
+    return this.formatCLP(Math.round(neto * 1.19));
+  }
+
+  // --- Step 3: Confirm and generate ---
 
   confirmarGeneracion(): void {
     const empresa = this.empresaSeleccionada();
-    const ids = this.folios().map(f => f.id_folio);
-    if (!empresa || !ids.length) return;
+    const gruposPayload = this.gruposConMovimientos().map(g => ({
+      ids_cabecera_flete: [...g.ids],
+    }));
+    if (!empresa || gruposPayload.length === 0) return;
 
     this.generando.set(true);
     this.errorGeneracion.set('');
 
     this.cflApi.generarFacturas({
       id_empresa: empresa.id_empresa,
-      ids_folio:  ids,
-      criterio:   CRITERIO_DEFECTO,
+      grupos: gruposPayload,
     }).pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => { this.generando.set(false); this.router.navigate(['/facturas']); },
@@ -483,11 +799,10 @@ export class NuevaFacturaWizardComponent implements OnInit {
       });
   }
 
-  // --- Navegación ---
+  // --- Navegacion ---
 
   puedeContinuar(): boolean {
     if (this.step() === 1) return this.empresaSeleccionada() !== null && this.periodoSeleccionado() !== null;
-    if (this.step() === 2) return this.folios().length > 0;
     return false;
   }
 
@@ -501,18 +816,14 @@ export class NuevaFacturaWizardComponent implements OnInit {
   }
 
   pasoContinuar(): void {
-    const next = (this.step() + 1) as Step;
-    if (next === 2) {
-      this.cargarFolios();
+    if (this.step() === 1) {
+      this.cargarMovimientos();
+      this.step.set(2);
     }
-    if (next === 3) {
-      this.calcularPreview();
-    }
-    this.step.set(next);
   }
 
   irAConfirmar(): void {
-    this.step.set(4);
+    this.step.set(3);
   }
 
   pasoAnterior(): void {
@@ -522,6 +833,5 @@ export class NuevaFacturaWizardComponent implements OnInit {
   // --- Helpers ---
   readonly formatCLP   = formatCLP;
   readonly formatFecha = formatDate;
-
-  readonly nombreMes = nombreMes;
+  readonly nombreMes   = nombreMes;
 }

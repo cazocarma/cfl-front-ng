@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
+import { formatDate as formatDateFn } from '../../../core/utils/format.utils';
 import { AuthnService } from '../../../core/services/authn.service';
 import { MantenedorConfig, MANTENEDORES_MAP } from '../mantenedor.config';
 import { MantenedorFormModalComponent } from '../mantenedor-form/mantenedor-form-modal.component';
-import { FolioDetalleModalComponent } from '../folios/folio-detalle-modal.component';
 
 @Component({
     selector: 'app-mantenedor-tabla',
@@ -15,7 +15,6 @@ import { FolioDetalleModalComponent } from '../folios/folio-detalle-modal.compon
         CommonModule,
         FormsModule,
         MantenedorFormModalComponent,
-        FolioDetalleModalComponent,
     ],
     host: { class: 'flex flex-1 flex-col overflow-hidden' },
     templateUrl: './mantenedor-tabla.component.html'
@@ -76,10 +75,6 @@ export class MantenedorTablaComponent implements OnInit {
   /* ── Modales ───────────────────────────────────────────────── */
   formModalVisible  = signal(false);
   formModalRow      = signal<Record<string, unknown> | null>(null);
-
-  folioModalVisible = signal(false);
-  folioModalRow     = signal<Record<string, unknown> | null>(null);
-  folioToggleLoadingId = signal<number | null>(null);
 
   constructor(
     private route:  ActivatedRoute,
@@ -203,12 +198,6 @@ export class MantenedorTablaComponent implements OnInit {
     const cfg = this.config();
     if (!cfg) return;
 
-    if (cfg.tipoEspecial === 'folios') {
-      this.folioModalRow.set(row);
-      this.folioModalVisible.set(true);
-      return;
-    }
-
     this.formModalRow.set(row);
     this.formModalVisible.set(true);
   }
@@ -238,49 +227,6 @@ export class MantenedorTablaComponent implements OnInit {
 
   onFormCerrado(): void { this.formModalVisible.set(false); }
 
-  onFolioGuardado(): void {
-    this.folioModalVisible.set(false);
-    this._showToast('Folio actualizado');
-    this._reloadAfterAction();
-  }
-
-  onFolioCerrado(): void { this.folioModalVisible.set(false); }
-
-  isFolioBlocked(row: Record<string, unknown>): boolean {
-    const value = row['bloqueado'];
-    return value === true || value === 1;
-  }
-
-  canToggleFolioBloqueo(row: Record<string, unknown>): boolean {
-    const cfg = this.config();
-    if (!cfg || cfg.tipoEspecial !== 'folios') return false;
-    const folioNumero = String(row['folio_numero'] ?? '').trim();
-    return folioNumero !== '0';
-  }
-
-  toggleFolioBloqueo(row: Record<string, unknown>): void {
-    const cfg = this.config();
-    if (!cfg || cfg.tipoEspecial !== 'folios') return;
-
-    const idFolio = Number(row['id_folio']);
-    if (!Number.isInteger(idFolio) || idFolio <= 0) return;
-
-    const nuevoBloqueado = !this.isFolioBlocked(row);
-    this.folioToggleLoadingId.set(idFolio);
-
-    this.api.toggleFolioBloqueo(idFolio, nuevoBloqueado).subscribe({
-      next: () => {
-        this.folioToggleLoadingId.set(null);
-        this._showToast(`Folio ${nuevoBloqueado ? 'bloqueado' : 'desbloqueado'}`);
-        this._reloadAfterAction();
-      },
-      error: (err) => {
-        this.folioToggleLoadingId.set(null);
-        this._showToast(err?.error?.error ?? 'Error al cambiar bloqueo del folio', true);
-      },
-    });
-  }
-
   private _reloadAfterAction(): void {
     const cfg = this.config();
     if (!cfg) return;
@@ -292,8 +238,7 @@ export class MantenedorTablaComponent implements OnInit {
   formatCell(value: unknown, tipo?: string): string {
     if (value === null || value === undefined || value === '') return '—';
     if (tipo === 'date') {
-      const d = new Date(String(value));
-      return isNaN(d.getTime()) ? String(value) : d.toLocaleDateString('es-CL');
+      return formatDateFn(value);
     }
     if (tipo === 'currency') {
       return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(Number(value));

@@ -1,7 +1,7 @@
 import { CriterioAgrupacion } from '../models/factura.model';
 
 /** Criterio de agrupación por defecto para las pre facturas */
-export const CRITERIO_DEFECTO: CriterioAgrupacion = 'centro_costo';
+export const CRITERIO_DEFECTO: CriterioAgrupacion = 'tipo_flete';
 
 /** Nombres de meses en español (index 0 vacío para que index=mes) */
 export const NOMBRES_MESES = [
