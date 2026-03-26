@@ -1,5 +1,5 @@
-﻿import { CommonModule } from '@angular/common';
-import { Component, Input, signal } from '@angular/core';
+﻿import { NgClass } from '@angular/common';
+import { ChangeDetectionStrategy, Component, Input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { AuthnService } from '../../core/services/authn.service';
@@ -15,7 +15,8 @@ type WorkspaceSection =
 
 @Component({
     selector: 'app-workspace-shell',
-    imports: [CommonModule, RouterLink],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [RouterLink, NgClass],
     templateUrl: './workspace-shell.component.html'
 })
 export class WorkspaceShellComponent {

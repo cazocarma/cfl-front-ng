@@ -1,6 +1,6 @@
 
 import { TitleCasePipe } from '@angular/common';
-import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 
@@ -32,6 +32,7 @@ interface PlanillasOverviewData {
 
 @Component({
     selector: 'app-planillas-sap',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [RouterLink, WorkspaceShellComponent, GenerarPlanillaModalComponent, TitleCasePipe],
     template: `
     <app-workspace-shell

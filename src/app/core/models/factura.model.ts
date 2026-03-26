@@ -72,6 +72,7 @@ export interface FacturaListItem {
   estado: EstadoFactura;
   criterio_agrupacion: CriterioAgrupacion | null;
   observaciones: string | null;
+  numero_factura_recibida: string | null;
   created_at: string;
   updated_at: string;
   cantidad_movimientos: number;

@@ -1,6 +1,7 @@
 
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { FacturaDetalle } from '../../core/models/factura.model';
@@ -11,7 +12,8 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 
 @Component({
     selector: 'app-factura-detalle',
-    imports: [RouterLink, WorkspaceShellComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
     <app-workspace-shell [title]="factura() ? 'Pre Factura ' + factura()!.numero_factura : 'Detalle de Pre Factura'"
                          subtitle="Cabecera y movimientos de la pre factura."
@@ -76,6 +78,12 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
               <p class="text-[11px] font-semibold uppercase tracking-widest text-forest-500">Moneda</p>
               <p class="mt-1 text-sm font-semibold text-forest-900">{{ factura()!.moneda }}</p>
             </div>
+            @if (factura()!.numero_factura_recibida) {
+              <div class="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-widest text-blue-500">N° Factura Recibida</p>
+                <p class="mt-1 text-sm font-semibold text-blue-900">{{ factura()!.numero_factura_recibida }}</p>
+              </div>
+            }
           </div>
 
           <!-- Observaciones (solo lectura) -->
@@ -112,11 +120,6 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                       (click)="confirmarAnular()"
                       class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
                 Anular
-              </button>
-              <button type="button" aria-label="Eliminar pre factura permanentemente"
-                      (click)="confirmarEliminar()"
-                      class="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
-                Eliminar pre factura
               </button>
             }
           </div>
@@ -240,37 +243,26 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
               La pre factura <strong>{{ factura()?.numero_factura }}</strong> se marcara como <strong>Recibida</strong>.
               Una vez recibida, no podra ser modificada ni anulada.
             </p>
+            <div class="mt-3">
+              <label for="numFacturaRecibida" class="block text-xs font-semibold uppercase tracking-widest text-forest-500">
+                N° Factura Recibida <span class="text-red-500">*</span>
+              </label>
+              <input id="numFacturaRecibida" type="text"
+                     [ngModel]="inputNumeroFacturaRecibida()"
+                     (ngModelChange)="inputNumeroFacturaRecibida.set($event)"
+                     placeholder="Ej: FAC-00123"
+                     maxlength="60"
+                     class="mt-1 w-full rounded-xl border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+            </div>
             <div class="mt-4 flex justify-end gap-3">
-              <button type="button" (click)="showConfirmRecibir.set(false)"
+              <button type="button" (click)="cancelarRecibir()"
                       class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
                 Cancelar
               </button>
-              <button type="button" (click)="recibirFactura()" [disabled]="cambiandoEstado()"
+              <button type="button" (click)="recibirFactura()"
+                      [disabled]="cambiandoEstado() || !inputNumeroFacturaRecibida().trim()"
                       class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
                 {{ cambiandoEstado() ? 'Procesando...' : 'Confirmar recibida' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- Modal: Confirmar eliminar -->
-      @if (showConfirmEliminar()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="text-base font-semibold text-red-800">Eliminar pre factura</h3>
-            <p class="mt-2 text-sm text-forest-600">
-              Se eliminara permanentemente la pre factura <strong>{{ factura()?.numero_factura }}</strong>.
-              Todos los movimientos volveran a estar disponibles.
-            </p>
-            <div class="mt-4 flex justify-end gap-3">
-              <button type="button" (click)="showConfirmEliminar.set(false)"
-                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
-                Cancelar
-              </button>
-              <button type="button" (click)="eliminarFactura()" [disabled]="cambiandoEstado()"
-                      class="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60">
-                {{ cambiandoEstado() ? 'Eliminando...' : 'Eliminar definitivamente' }}
               </button>
             </div>
           </div>
@@ -290,7 +282,7 @@ export class FacturaDetalleComponent implements OnInit {
   readonly cambiandoEstado    = signal(false);
   readonly showConfirmAnular  = signal(false);
   readonly showConfirmRecibir = signal(false);
-  readonly showConfirmEliminar = signal(false);
+  readonly inputNumeroFacturaRecibida = signal('');
   readonly removingMovimiento = signal<number | null>(null);
 
   private idFactura = 0;
@@ -320,8 +312,8 @@ export class FacturaDetalleComponent implements OnInit {
   }
 
   confirmarAnular(): void { this.showConfirmAnular.set(true); }
-  confirmarRecibir(): void { this.showConfirmRecibir.set(true); }
-  confirmarEliminar(): void { this.showConfirmEliminar.set(true); }
+  confirmarRecibir(): void { this.inputNumeroFacturaRecibida.set(''); this.showConfirmRecibir.set(true); }
+  cancelarRecibir(): void { this.inputNumeroFacturaRecibida.set(''); this.showConfirmRecibir.set(false); }
 
   anularFactura(): void {
     this.cambiandoEstado.set(true);
@@ -335,24 +327,15 @@ export class FacturaDetalleComponent implements OnInit {
   }
 
   recibirFactura(): void {
+    const numFac = this.inputNumeroFacturaRecibida().trim();
+    if (!numFac) return;
     this.cambiandoEstado.set(true);
     this.actionError.set('');
-    this.cflApi.cambiarEstadoFactura(this.idFactura, 'recibida')
+    this.cflApi.cambiarEstadoFactura(this.idFactura, 'recibida', { numero_factura_recibida: numFac })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => { this.cambiandoEstado.set(false); this.showConfirmRecibir.set(false); this.loadFacturaData(); },
+        next: () => { this.cambiandoEstado.set(false); this.showConfirmRecibir.set(false); this.inputNumeroFacturaRecibida.set(''); this.loadFacturaData(); },
         error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al marcar como recibida.'); this.cambiandoEstado.set(false); },
-      });
-  }
-
-  eliminarFactura(): void {
-    this.cambiandoEstado.set(true);
-    this.actionError.set('');
-    this.cflApi.eliminarFactura(this.idFactura)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => { this.cambiandoEstado.set(false); this.showConfirmEliminar.set(false); this.router.navigate(['/facturas']); },
-        error: (err) => { this.actionError.set(err?.error?.error ?? 'Error al eliminar.'); this.cambiandoEstado.set(false); },
       });
   }
 

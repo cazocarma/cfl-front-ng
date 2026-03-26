@@ -1,7 +1,8 @@
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-confirm-modal',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
   template: `
     @if (open()) {

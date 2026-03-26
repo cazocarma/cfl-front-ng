@@ -9,6 +9,10 @@ import {
   SolicitarControlFleteCargaPorVbelnRequest,
 } from '../models/control-flete-carga-job.model';
 import {
+  CandidatoRow,
+  FleteEnCursoRow,
+} from '../models/flete.model';
+import {
   EmpresaElegible,
   FacturaDetalle,
   FacturaListItem,
@@ -40,16 +44,16 @@ export class CflApiService {
   constructor(private http: HttpClient) {}
 
   // ── Dashboard: candidatos SAP (no ingresados) ──────────────────────────────
-  getMissingFletes(params: Record<string, unknown> = {}): Observable<PagedResponse<unknown>> {
-    return this.http.get<PagedResponse<unknown>>(
+  getMissingFletes(params: Record<string, unknown> = {}): Observable<PagedResponse<CandidatoRow>> {
+    return this.http.get<PagedResponse<CandidatoRow>>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados`,
       { params: this._toHttpParams(params) }
     );
   }
 
   // ── Dashboard: fletes completados ──────────────────────────────────────────
-  getCompletados(params: Record<string, unknown> = {}): Observable<PagedResponse<unknown>> {
-    return this.http.get<PagedResponse<unknown>>(
+  getCompletados(params: Record<string, unknown> = {}): Observable<PagedResponse<FleteEnCursoRow>> {
+    return this.http.get<PagedResponse<FleteEnCursoRow>>(
       `${API_BASE}/api/dashboard/fletes/completados`,
       { params: this._toHttpParams(params) }
     );
@@ -337,12 +341,8 @@ export class CflApiService {
     return this.http.put<{ message: string }>(`${API_BASE}/api/facturas/${id}`, body);
   }
 
-  cambiarEstadoFactura(id: number, estado: string): Observable<{ message: string }> {
-    return this.http.patch<{ message: string }>(`${API_BASE}/api/facturas/${id}/estado`, { estado });
-  }
-
-  eliminarFactura(id: number): Observable<{ message: string }> {
-    return this.http.delete<{ message: string }>(`${API_BASE}/api/facturas/${id}`);
+  cambiarEstadoFactura(id: number, estado: string, extras?: { numero_factura_recibida?: string }): Observable<{ message: string }> {
+    return this.http.patch<{ message: string }>(`${API_BASE}/api/facturas/${id}/estado`, { estado, ...extras });
   }
 
   agregarMovimientosAFactura(id: number, ids: number[]): Observable<{ message: string }> {

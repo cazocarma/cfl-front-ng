@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 
 import {
@@ -12,6 +12,7 @@ import {
 } from '../../core/models/control-flete-carga-job.model';
 import { AuthnService } from '../../core/services/authn.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { ToastService } from '../../core/services/toast.service';
 import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
@@ -62,10 +63,13 @@ const DEFAULT_POLL_INTERVAL_MS = 5000;
 
 @Component({
   selector: 'app-carga-entregas',
-  imports: [CommonModule, FormsModule, WorkspaceShellComponent],
+  imports: [FormsModule, WorkspaceShellComponent],
   templateUrl: './carga-entregas.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CargaEntregasComponent implements OnInit, OnDestroy {
+  private destroyRef = inject(DestroyRef);
+
   /* ── Auth context ───────────────────────────────────────────── */
   private authContextLoaded = signal(false);
   private authContextLoading = signal(false);
@@ -89,12 +93,9 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   recentJobs = signal<ControlFleteCargaJob[]>([]);
   recentJobsLoading = signal(false);
 
-  /* ── Toast ──────────────────────────────────────────────────── */
-  toastMsg = signal('');
-  toastIsError = signal(false);
+  private toast = inject(ToastService);
 
   /* ── Timers ─────────────────────────────────────────────────── */
-  private _toastTimer?: ReturnType<typeof setTimeout>;
   private _pollTimer?: ReturnType<typeof setTimeout>;
 
   /* ── Computed ───────────────────────────────────────────────── */
@@ -132,7 +133,6 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    clearTimeout(this._toastTimer);
     this._clearPollTimer();
   }
 
@@ -141,7 +141,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   solicitarPorNumeroEntrega(): void {
     const numeros = this.parsedNumerosEntrega();
     if (numeros.length === 0) {
-      this._showToast('Ingresa al menos un número de entrega para iniciar la carga.', true);
+      this.toast.show('Ingresa al menos un número de entrega para iniciar la carga.', true);
       return;
     }
 
@@ -149,13 +149,14 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
     this.cflApi
       .solicitarControlFleteCargaPorVbeln({ vbeln: numeros })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           this.submitting.set(null);
           this.numerosEntregaInput.set('');
           const id = String(response.data?.job_id ?? '').trim();
           if (!id) {
-            this._showToast('No se recibió un identificador válido para la solicitud.', true);
+            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
             return;
           }
 
@@ -167,7 +168,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             this._loadSolicitud(id, false, false);
           }
 
-          this._showToast('Solicitud enviada correctamente. Se está procesando la carga.');
+          this.toast.show('Solicitud enviada correctamente. Se está procesando la carga.');
           this._refreshRecentJobs();
         },
         error: (err) => {
@@ -178,13 +179,13 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           if (err?.status === 409 && existingId) {
             this.solicitudId.set(existingId);
             this._loadSolicitud(existingId, true, false);
-            this._showToast(
+            this.toast.show(
               'Ya existe una solicitud activa para estas entregas. Se muestra su estado actual.',
               true,
             );
             return;
           }
-          this._showToast(err?.error?.error ?? 'No fue posible enviar la solicitud de carga.', true);
+          this.toast.show(err?.error?.error ?? 'No fue posible enviar la solicitud de carga.', true);
         },
       });
   }
@@ -194,12 +195,12 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
     const hasta = this.fechaHasta();
 
     if (!desde || !hasta) {
-      this._showToast('Debes indicar una fecha de inicio y una fecha de término.', true);
+      this.toast.show('Debes indicar una fecha de inicio y una fecha de término.', true);
       return;
     }
 
     if (desde > hasta) {
-      this._showToast('La fecha de inicio no puede ser posterior a la fecha de término.', true);
+      this.toast.show('La fecha de inicio no puede ser posterior a la fecha de término.', true);
       return;
     }
 
@@ -207,12 +208,13 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
     this.cflApi
       .solicitarControlFleteCargaPorRangoFechas({ fecha_desde: desde, fecha_hasta: hasta })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           this.submitting.set(null);
           const id = String(response.data?.job_id ?? '').trim();
           if (!id) {
-            this._showToast('No se recibió un identificador válido para la solicitud.', true);
+            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
             return;
           }
 
@@ -224,7 +226,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             this._loadSolicitud(id, false, false);
           }
 
-          this._showToast('Solicitud por rango de fechas enviada. Se está procesando la carga.');
+          this.toast.show('Solicitud por rango de fechas enviada. Se está procesando la carga.');
           this._refreshRecentJobs();
         },
         error: (err) => {
@@ -235,13 +237,13 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           if (err?.status === 409 && existingId) {
             this.solicitudId.set(existingId);
             this._loadSolicitud(existingId, true, false);
-            this._showToast(
+            this.toast.show(
               'Ya existe una solicitud activa para este rango. Se muestra su estado actual.',
               true,
             );
             return;
           }
-          this._showToast(
+          this.toast.show(
             err?.error?.error ?? 'No fue posible enviar la solicitud por rango de fechas.',
             true,
           );
@@ -254,7 +256,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   consultarSolicitud(): void {
     const id = this.solicitudId().trim();
     if (!id) {
-      this._showToast('Ingresa un identificador de solicitud para consultar su estado.', true);
+      this.toast.show('Ingresa un identificador de solicitud para consultar su estado.', true);
       return;
     }
     this._loadSolicitud(id, true, false);
@@ -389,7 +391,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   private _loadSolicitud(id: string, showLoader: boolean, fromPolling: boolean): void {
     if (showLoader) this.solicitudLoading.set(true);
 
-    this.cflApi.getControlFleteCargaJob(id).subscribe({
+    this.cflApi.getControlFleteCargaJob(id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.solicitudLoading.set(false);
         this._applySolicitudState(response.data, !fromPolling);
@@ -398,7 +400,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
         this.solicitudLoading.set(false);
         this._clearPollTimer();
         if (this._handleAuthError(err)) return;
-        this._showToast(
+        this.toast.show(
           err?.error?.error ?? `No fue posible consultar la solicitud ${id}.`,
           true,
         );
@@ -451,16 +453,16 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
     switch (normalized) {
       case 'COMPLETED':
-        this._showToast('La carga de entregas finalizó correctamente.');
+        this.toast.show('La carga de entregas finalizó correctamente.');
         break;
       case 'PARTIAL_SUCCESS':
-        this._showToast('La carga finalizó con algunas observaciones. Revisa el detalle.', true);
+        this.toast.show('La carga finalizó con algunas observaciones. Revisa el detalle.', true);
         break;
       case 'FAILED':
-        this._showToast('La carga falló. Revisa los errores en el detalle.', true);
+        this.toast.show('La carga falló. Revisa los errores en el detalle.', true);
         break;
       case 'CANCELLED':
-        this._showToast('La solicitud fue cancelada.', true);
+        this.toast.show('La solicitud fue cancelada.', true);
         break;
     }
 
@@ -472,7 +474,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   private _loadAuthContext(): void {
     this.authContextLoading.set(true);
 
-    this.cflApi.getAuthzContext().subscribe({
+    this.cflApi.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (ctx) => {
         const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
           .map((r) => String(r ?? '').trim().toLowerCase())
@@ -486,19 +488,12 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
         this.authContextLoaded.set(true);
         this.authContextLoading.set(false);
       },
-      error: (err) => {
+      error: () => {
         this.authRoles.set([]);
         this.authPermissions.set(new Set());
         this.authContextLoaded.set(false);
         this.authContextLoading.set(false);
-
-        const status = Number(err?.status || 0);
-        if (status === 401) {
-          this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
-          this.auth.logout();
-          return;
-        }
-        this._showToast('No fue posible verificar tus permisos. Algunas acciones estarán bloqueadas.', true);
+        // 401/403 ya los maneja el interceptor global
       },
     });
   }
@@ -516,16 +511,8 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
   private _handleAuthError(err: { status?: number; error?: { error?: string } }): boolean {
     const status = Number(err?.status || 0);
-    if (status === 401) {
-      this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
-      this.auth.logout();
-      return true;
-    }
-    if (status === 403) {
-      this._showToast(err?.error?.error ?? 'No tienes permisos para ejecutar esta acción.', true);
-      return true;
-    }
-    return false;
+    // 401/403 ya los maneja el interceptor global (toast + logout)
+    return status === 401 || status === 403;
   }
 
   /* ── Historial: acciones ────────────────────────────────────── */
@@ -564,7 +551,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
   private _loadRecentJobs(): void {
     this.recentJobsLoading.set(true);
-    this.cflApi.getControlFleteCargaRecentJobs(20).subscribe({
+    this.cflApi.getControlFleteCargaRecentJobs(20).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.recentJobsLoading.set(false);
         this.recentJobs.set(response.data ?? []);
@@ -576,7 +563,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   private _autoResumeLatestJob(): void {
-    this.cflApi.getControlFleteCargaLatestJob().subscribe({
+    this.cflApi.getControlFleteCargaLatestJob().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         const job = response.data;
         if (!job) return;
@@ -590,7 +577,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   private _refreshRecentJobs(): void {
-    this.cflApi.getControlFleteCargaRecentJobs(20).subscribe({
+    this.cflApi.getControlFleteCargaRecentJobs(20).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.recentJobs.set(response.data ?? []);
       },
@@ -600,12 +587,6 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
   /* ── Private: Utilities ─────────────────────────────────────── */
 
-  private _showToast(msg: string, isError = false): void {
-    clearTimeout(this._toastTimer);
-    this.toastMsg.set(msg);
-    this.toastIsError.set(isError);
-    this._toastTimer = setTimeout(() => this.toastMsg.set(''), 5000);
-  }
 
   private _setDefaultDateRange(): void {
     const today = new Date();

@@ -1,4 +1,6 @@
 import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   EventEmitter,
@@ -8,6 +10,7 @@ import {
   Output,
   SimpleChanges,
   computed,
+  inject,
   signal,
 } from '@angular/core';
 import { NgStyle } from '@angular/common';
@@ -20,6 +23,7 @@ export interface SearchableOption {
 
 @Component({
     selector: 'app-searchable-combobox',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [NgStyle],
     template: `
     <div class="grid gap-2">
@@ -36,8 +40,8 @@ export interface SearchableOption {
           [readOnly]="disabled"
           [value]="displayText"
           (input)="onInput($any($event.target).value)"
-          (focus)="openDropdown()"
-          (blur)="closeDropdownDelayed()"
+          (click)="toggleDropdown()"
+          (keydown.escape)="close()"
           autocomplete="off"
         />
         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-forest-400">
@@ -79,7 +83,6 @@ export interface SearchableOption {
     .combobox-dropdown {
       position: fixed;
       z-index: 9999;
-      max-height: 208px;
       overflow-y: auto;
       border-radius: 0.75rem;
       border: 1px solid theme('colors.forest.200');
@@ -116,7 +119,6 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   private readonly _options = signal<SearchableOption[]>([]);
   displayText = '';
   isOpen = false;
-  openUpward = false;
   dropdownStyle: Record<string, string> = {};
 
   readonly filteredOptions = computed(() => {
@@ -126,20 +128,22 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
     return opts.filter(opt => opt.label.toLowerCase().includes(query));
   });
 
-  private _closeTimeoutId: ReturnType<typeof setTimeout> | null = null;
-
   private _scrollHandler = (event: Event) => {
     if (this._el.nativeElement.contains(event.target as Node)) return;
-    this._closeImmediate();
+    this._close();
   };
+
+  private _clickOutsideHandler = (event: MouseEvent) => {
+    if (this._el.nativeElement.contains(event.target as Node)) return;
+    this._close();
+  };
+
+  private readonly _cdr = inject(ChangeDetectorRef);
 
   constructor(private _el: ElementRef) {}
 
   ngOnDestroy(): void {
-    this._removeScrollListener();
-    if (this._closeTimeoutId !== null) {
-      clearTimeout(this._closeTimeoutId);
-    }
+    this._removeGlobalListeners();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -157,7 +161,9 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
     if (!value) {
       this.valueChange.emit('');
     }
-    this.isOpen = true;
+    if (!this.isOpen) {
+      this._open();
+    }
   }
 
   selectOption(option: SearchableOption | null): void {
@@ -170,60 +176,75 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
       this.displayText = option.label;
       this.valueChange.emit(option.value);
     }
-    this.isOpen = false;
+    this._close();
   }
 
-  openDropdown(): void {
-    if (!this.disabled) {
-      this.searchText.set('');
-      this._calcDirection();
-      this.isOpen = true;
-      this._addScrollListener();
+  toggleDropdown(): void {
+    if (this.disabled) return;
+    if (this.isOpen) {
+      this._close();
+    } else {
+      this._open();
     }
   }
 
-  private _calcDirection(): void {
+  close(): void {
+    this._close();
+  }
+
+  private _open(): void {
+    this.searchText.set('');
+    this._calcPosition();
+    this.isOpen = true;
+    this._cdr.markForCheck();
+    this._addGlobalListeners();
+  }
+
+  private _close(): void {
+    if (!this.isOpen) return;
+    this.isOpen = false;
+    this._syncDisplayText();
+    this._removeGlobalListeners();
+    this._cdr.markForCheck();
+  }
+
+  private _calcPosition(): void {
     const input: HTMLElement = this._el.nativeElement.querySelector('input');
     if (!input) return;
-    const rect = input.getBoundingClientRect();
-    const dropdownHeight = 220;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    this.openUpward = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
 
-    if (this.openUpward) {
+    const rect = input.getBoundingClientRect();
+    const maxDropH = 208;
+    const gap = 4;
+    const spaceBelow = window.innerHeight - rect.bottom - gap;
+    const spaceAbove = rect.top - gap;
+    const openUp = spaceBelow < maxDropH && spaceAbove > spaceBelow;
+    const maxH = Math.max(80, openUp ? Math.min(maxDropH, spaceAbove) : Math.min(maxDropH, spaceBelow));
+
+    if (openUp) {
       this.dropdownStyle = {
-        top: `${rect.top - dropdownHeight + 8}px`,
+        bottom: `${window.innerHeight - rect.top + gap}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
+        maxHeight: `${maxH}px`,
       };
     } else {
       this.dropdownStyle = {
-        top: `${rect.bottom + 4}px`,
+        top: `${rect.bottom + gap}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
+        maxHeight: `${maxH}px`,
       };
     }
   }
 
-  closeDropdownDelayed(): void {
-    this._closeTimeoutId = setTimeout(() => {
-      this._closeTimeoutId = null;
-      this._closeImmediate();
-    }, 180);
-  }
-
-  private _closeImmediate(): void {
-    this.isOpen = false;
-    this._syncDisplayText();
-    this._removeScrollListener();
-  }
-
-  private _addScrollListener(): void {
+  private _addGlobalListeners(): void {
     document.addEventListener('scroll', this._scrollHandler, { capture: true, passive: true });
+    document.addEventListener('mousedown', this._clickOutsideHandler, { capture: true });
   }
 
-  private _removeScrollListener(): void {
+  private _removeGlobalListeners(): void {
     document.removeEventListener('scroll', this._scrollHandler, { capture: true });
+    document.removeEventListener('mousedown', this._clickOutsideHandler, { capture: true });
   }
 
   private _syncDisplayText(): void {

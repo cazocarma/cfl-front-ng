@@ -1,7 +1,9 @@
-import { CommonModule } from '@angular/common';
 import {
+  ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   Output,
@@ -9,6 +11,7 @@ import {
   computed,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
@@ -26,7 +29,8 @@ interface RutaOpt {
 
 @Component({
   selector: 'app-ruta-form-modal',
-  imports: [ReactiveFormsModule, CommonModule],
+  imports: [ReactiveFormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -120,6 +124,8 @@ interface RutaOpt {
   `,
 })
 export class RutaFormModalComponent implements OnChanges {
+  private destroyRef = inject(DestroyRef);
+
   @Input() config!: MantenedorConfig;
   @Input() row: Record<string, unknown> | null = null;
   @Input() visible = false;
@@ -216,7 +222,7 @@ export class RutaFormModalComponent implements OnChanges {
       ? this.api.updateMaintainerRow('rutas', Number(editId), payload)
       : this.api.createMaintainerRow('rutas', payload);
 
-    obs$.subscribe({
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.saving.set(false); this.guardado.emit(); },
       error: (err) => { this.errorMsg.set(err?.error?.error ?? 'Error al guardar la ruta.'); this.saving.set(false); },
     });
@@ -243,7 +249,7 @@ export class RutaFormModalComponent implements OnChanges {
     forkJoin({
       nodos: this.api.listMaintainerRows('nodos'),
       rutas: this.api.listMaintainerRows('rutas'),
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ nodos, rutas }) => {
         this.nodos.set(this._rows(nodos.data).map((r) => ({
           id_nodo: this._num(this._pick(r, 'id_nodo', 'IdNodo')) ?? 0,

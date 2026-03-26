@@ -1,5 +1,6 @@
 
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
@@ -150,9 +151,11 @@ interface AuditoriaOverviewData {
         </section>
       </div>
     </app-workspace-shell>
-  `
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AuditoriaComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
   readonly loading = signal(false);
   readonly data = signal<AuditoriaOverviewData | null>(null);
 
@@ -165,7 +168,7 @@ export class AuditoriaComponent implements OnInit {
   load(): void {
     this.loading.set(true);
 
-    this.cflApi.getAuditoriaOverview().subscribe({
+    this.cflApi.getAuditoriaOverview().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.data.set(response.data as AuditoriaOverviewData);
         this.loading.set(false);

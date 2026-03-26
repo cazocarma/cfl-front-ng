@@ -242,6 +242,7 @@
                     type="text"
                     class="cfl-input pl-9 w-44"
                     placeholder="Guía / N° entrega"
+                    aria-label="Buscar por guía o número de entrega"
                     [ngModel]="guiaFilter()"
                     (ngModelChange)="guiaFilter.set($event)"
                     (keyup.enter)="applyFilters()"
@@ -253,6 +254,7 @@
                 @if (activeTab() === 'en_curso') {
                   <select
                     class="cfl-select w-44"
+                    aria-label="Filtrar por estado"
                     [ngModel]="estadoFilter()"
                     (ngModelChange)="estadoFilter.set($event); applyFilters()"
                     name="estadoFilter"
@@ -266,6 +268,7 @@
                 <!-- Filtro de fecha -->
                 <select
                   class="cfl-select w-48"
+                  aria-label="Filtrar por período"
                   [ngModel]="fechaFilterValue()"
                   (ngModelChange)="onFechaFilterChange($event)"
                   name="fechaFilter"
@@ -324,6 +327,7 @@
                 <span>{{ totalItems() }} resultado{{ totalItems() !== 1 ? 's' : '' }}</span>
                 <select
                   class="cfl-select w-20 text-xs"
+                  aria-label="Registros por página"
                   [ngModel]="itemsPerPage()"
                   (ngModelChange)="onItemsPerPageChange($event)"
                   name="perPage"
@@ -342,15 +346,63 @@
             <table class="min-w-full">
               <thead>
                 <tr style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">
-                  <th class="table-header-cell">
-                    {{ activeTab() === 'candidatos' ? 'N° Entrega / Guía' : 'N° Guía' }}
+                  <th class="table-header-cell sortable-header" (click)="toggleSort('id')">
+                    <span class="inline-flex items-center gap-1">
+                      {{ activeTab() === 'candidatos' ? 'N° Entrega / Guía' : 'N° Guía' }}
+                      @if (sortBy() === 'id') {
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            [attr.d]="sortDir() === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'"/>
+                        </svg>
+                      }
+                    </span>
                   </th>
-                  <th class="table-header-cell">Tipo flete</th>
+                  <th class="table-header-cell sortable-header" (click)="toggleSort('tipo_flete')">
+                    <span class="inline-flex items-center gap-1">
+                      Tipo flete
+                      @if (sortBy() === 'tipo_flete') {
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            [attr.d]="sortDir() === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'"/>
+                        </svg>
+                      }
+                    </span>
+                  </th>
                   <th class="table-header-cell">Ruta</th>
                   <th class="table-header-cell">Transportista</th>
-                  <th class="table-header-cell">Fecha</th>
-                  <th class="table-header-cell text-right">Monto</th>
-                  <th class="table-header-cell">Estado</th>
+                  <th class="table-header-cell sortable-header" (click)="toggleSort('fecha')">
+                    <span class="inline-flex items-center gap-1">
+                      Fecha
+                      @if (sortBy() === 'fecha') {
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            [attr.d]="sortDir() === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'"/>
+                        </svg>
+                      }
+                    </span>
+                  </th>
+                  <th class="table-header-cell text-right sortable-header" (click)="toggleSort('monto')">
+                    <span class="inline-flex items-center gap-1 justify-end">
+                      Monto
+                      @if (sortBy() === 'monto') {
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            [attr.d]="sortDir() === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'"/>
+                        </svg>
+                      }
+                    </span>
+                  </th>
+                  <th class="table-header-cell sortable-header" (click)="toggleSort('estado')">
+                    <span class="inline-flex items-center gap-1">
+                      Estado
+                      @if (sortBy() === 'estado') {
+                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            [attr.d]="sortDir() === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'"/>
+                        </svg>
+                      }
+                    </span>
+                  </th>
                   <th class="table-header-cell text-center sticky right-0" style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">Acciones</th>
                 </tr>
               </thead>
@@ -381,6 +433,9 @@
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                         </svg>
                         <span class="font-medium">{{ flete.destino }}</span>
+                        @if (flete.sentidoFlete === 'VUELTA') {
+                          <span class="ml-0.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">V</span>
+                        }
                       </div>
                     </td>
 
@@ -425,21 +480,22 @@
                     <!-- Acciones -->
                     <td class="table-cell text-center sticky right-0 bg-white group-hover:bg-forest-50">
                       <div class="flex items-center justify-center gap-1">
-                        <!-- Ver -->
-                        <button
-                          type="button"
-                          (click)="openViewModal(flete)"
-                          [disabled]="!canViewFlete() || areActionsBlocked()"
-                          class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Ver información del flete"
-                        >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                          </svg>
-                        </button>
+                        <!-- Generar retorno -->
+                        @if (flete.kind === 'en_curso') {
+                          <button
+                            type="button"
+                            (click)="openRetornoModal(flete)"
+                            [disabled]="areActionsBlocked()"
+                            class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Generar retorno"
+                            aria-label="Generar retorno de este flete"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 10h10a5 5 0 010 10H9m4-10l-4-4m4 4l-4 4"/>
+                            </svg>
+                          </button>
+                        }
 
                         <!-- Editar -->
                         <button
@@ -583,28 +639,7 @@
 
 </div><!-- /layout -->
 
-<!-- 
-     TOAST NOTIFICATION
-      -->
-@if (toastMsg()) {
-  <div
-    class="fixed bottom-6 right-6 z-[100] flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg text-sm font-medium animate-slide-down"
-    [class]="toastIsError() ? 'bg-red-600 text-white' : 'bg-forest-700 text-white'"
-  >
-    @if (toastIsError()) {
-      <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-    } @else {
-      <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-    }
-    {{ toastMsg() }}
-  </div>
-}
-
-<!-- 
+<!--
      CONFIRMACION DESCARTE / ANULACION
       -->
 @if (confirmActionVisible()) {

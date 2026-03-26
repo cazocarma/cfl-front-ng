@@ -1,11 +1,12 @@
-import { Component, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { NgClass } from '@angular/common';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthnService } from '../../core/services/authn.service';
 
 @Component({
     selector: 'app-mantenedores-layout',
-    imports: [CommonModule, RouterOutlet, RouterLink],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [NgClass, RouterOutlet, RouterLink],
     template: `
     <!-- translate-x-0 -translate-x-full (Tailwind safelist hint) -->
     <div class="flex h-screen overflow-hidden bg-forest-50 font-sans">

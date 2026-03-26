@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   EventEmitter,
@@ -19,6 +20,7 @@ import { formatCLP } from '../../core/utils/format.utils';
 
 @Component({
     selector: 'app-generar-planilla-modal',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [FormsModule],
     template: `
     @if (open) {

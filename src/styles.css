@@ -63,6 +63,9 @@ body {
   .table-header-cell {
     @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-forest-200;
   }
+  .sortable-header {
+    @apply cursor-pointer select-none hover:text-white transition-colors;
+  }
   .table-cell {
     @apply px-4 py-3 text-sm text-forest-900;
   }

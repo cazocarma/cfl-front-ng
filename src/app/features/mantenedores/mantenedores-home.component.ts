@@ -1,4 +1,5 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { CflApiService } from '../../core/services/cfl-api.service';
@@ -31,9 +32,12 @@ const MANTENEDOR_FRECUENCIA_MAP = new Map<string, number>(
     selector: 'app-mantenedores-home',
     imports: [DecimalPipe],
     host: { class: 'flex flex-1 flex-col overflow-hidden' },
-    templateUrl: './mantenedores-home.component.html'
+    templateUrl: './mantenedores-home.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MantenedoresHomeComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
+
   // Cards visibles según permisos del usuario
   cardsVisibles = signal<MantenedorConfig[]>([]);
   loading       = signal(true);
@@ -64,7 +68,7 @@ export class MantenedoresHomeComponent implements OnInit {
     this.loading.set(true);
 
     // Obtener contexto de auth para filtrar cards por permiso
-    this.api.getAuthzContext().subscribe({
+    this.api.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (ctx) => {
         const permissions = new Set<string>(ctx.data.permissions);
         const role = ctx.data.role;
@@ -91,7 +95,7 @@ export class MantenedoresHomeComponent implements OnInit {
 
   private _loadConteos(): void {
     // Carga conteos desde el endpoint /resumen
-    this.api.listMaintainerRows('resumen' as string).subscribe({
+    this.api.listMaintainerRows('resumen' as string).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         const mapa: Record<string, number> = {};
         if (Array.isArray(res.data)) {

@@ -1,12 +1,16 @@
 import {
+  ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   Output,
   SimpleChanges,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -24,6 +28,7 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
 @Component({
     selector: 'app-mantenedor-form-modal',
     imports: [ReactiveFormsModule, UsuarioFormModalComponent, RutaFormModalComponent, TarifaFormModalComponent],
+    changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <!-- Delegación a modal especial para usuarios -->
     @if (config.tipoEspecial === 'usuarios') {
@@ -274,6 +279,8 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
   `
 })
 export class MantenedorFormModalComponent implements OnChanges {
+  private destroyRef = inject(DestroyRef);
+
   @Input() config!: MantenedorConfig;
   @Input() row: Record<string, unknown> | null = null; // null = crear, datos = editar
   @Input() visible = false;
@@ -364,7 +371,7 @@ export class MantenedorFormModalComponent implements OnChanges {
       requests[entity] = this.api.listMaintainerRows(entity);
     }
 
-    forkJoin(requests).subscribe({
+    forkJoin(requests).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (results) => {
         const opts: EntityOptions = {};
         for (const [entity, res] of Object.entries(results)) {
@@ -468,7 +475,7 @@ export class MantenedorFormModalComponent implements OnChanges {
       ? this.api.updateMaintainerRow(this.config.key, Number(this.row[this.config.idField]), payload)
       : this.api.createMaintainerRow(this.config.key, payload);
 
-    obs$.subscribe({
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.saving.set(false); this.guardado.emit(); },
       error: (err) => {
         this.errorMsg.set(err?.error?.error ?? 'Error al guardar el registro.');

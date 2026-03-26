@@ -87,6 +87,7 @@
                 type="text"
                 class="cfl-input pl-9 w-56"
                 placeholder="Buscar en tabla…"
+                aria-label="Buscar registros en tabla"
                 [ngModel]="searchText()"
                 (ngModelChange)="searchText.set($event); onSearch()"
                 name="searchText"
@@ -103,6 +104,7 @@
             @if (config()!.softDeleteField) {
               <select
                 class="cfl-select w-36 text-xs"
+                aria-label="Filtrar por estado activo"
                 [ngModel]="activoFilter()"
                 (ngModelChange)="onActivoFilterChange($event)"
                 name="activoFilter"
@@ -115,7 +117,7 @@
           </div>
           <div class="flex items-center gap-3 text-sm text-forest-500">
             <span>{{ filteredRows().length }} resultado{{ filteredRows().length !== 1 ? 's' : '' }}</span>
-            <select class="cfl-select w-20 text-xs" [ngModel]="itemsPerPage()" (ngModelChange)="onItemsChange($event)" name="perPage">
+            <select class="cfl-select w-20 text-xs" aria-label="Registros por página" [ngModel]="itemsPerPage()" (ngModelChange)="onItemsChange($event)" name="perPage">
               @for (n of itemsPerPageOptions; track n) { <option [value]="n">{{ n }}</option> }
             </select>
             <span class="text-xs">/ pág.</span>
@@ -266,23 +268,6 @@
       </div><!-- /table card -->
     }
   </div><!-- /content -->
-}
-
-<!-- ════ Toast ════ -->
-@if (toastMsg()) {
-  <div class="fixed bottom-6 right-6 z-[100] flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg text-sm font-medium animate-slide-down"
-       [class]="toastIsError() ? 'bg-red-600 text-white' : 'bg-forest-700 text-white'">
-    @if (toastIsError()) {
-      <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-    } @else {
-      <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-    }
-    {{ toastMsg() }}
-  </div>
 }
 
 <!-- ════ Modal genérico (form crear/editar) ════ -->

@@ -1,9 +1,11 @@
-import { Component, computed, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
+import { SlicePipe } from '@angular/common';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
+import { ToastService } from '../../../core/services/toast.service';
 import { formatDate as formatDateFn } from '../../../core/utils/format.utils';
 import { AuthnService } from '../../../core/services/authn.service';
 import { MantenedorConfig, MANTENEDORES_MAP } from '../mantenedor.config';
@@ -12,14 +14,17 @@ import { MantenedorFormModalComponent } from '../mantenedor-form/mantenedor-form
 @Component({
     selector: 'app-mantenedor-tabla',
     imports: [
-        CommonModule,
+        SlicePipe,
         FormsModule,
         MantenedorFormModalComponent,
     ],
     host: { class: 'flex flex-1 flex-col overflow-hidden' },
-    templateUrl: './mantenedor-tabla.component.html'
+    templateUrl: './mantenedor-tabla.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MantenedorTablaComponent implements OnInit {
+  private destroyRef = inject(DestroyRef);
+
   /* ── Config de entidad ─────────────────────────────────────── */
   config = signal<MantenedorConfig | null>(null);
 
@@ -28,10 +33,7 @@ export class MantenedorTablaComponent implements OnInit {
   loading    = signal(false);
   canEdit    = signal(false);
 
-  /* ── Toast ─────────────────────────────────────────────────── */
-  toastMsg     = signal('');
-  toastIsError = signal(false);
-  private _toastTimer?: ReturnType<typeof setTimeout>;
+  private toast = inject(ToastService);
 
   /* ── Filtros y paginación (client-side) ────────────────────── */
   searchText    = signal('');
@@ -84,7 +86,7 @@ export class MantenedorTablaComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.route.paramMap.subscribe(params => {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const entity = params.get('entity') ?? '';
       const cfg = MANTENEDORES_MAP.get(entity) ?? null;
       this.config.set(cfg);
@@ -115,10 +117,10 @@ export class MantenedorTablaComponent implements OnInit {
 
   /* ── Carga de datos ───────────────────────────────────────── */
   private _loadTemporadas(): void {
-    this.api.getTemporadaActiva().subscribe({
+    this.api.getTemporadaActiva().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         const activa = res.data;
-        this.api.listMaintainerRows('temporadas').subscribe({
+        this.api.listMaintainerRows('temporadas').pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: (t: any) => {
             const rows = this._normalizeRows((t.data as Record<string, unknown>[]) ?? []);
             this.temporadas.set(rows);
@@ -132,7 +134,7 @@ export class MantenedorTablaComponent implements OnInit {
         });
       },
       error: () => {
-        this.api.listMaintainerRows('temporadas').subscribe({
+        this.api.listMaintainerRows('temporadas').pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: (t: any) => {
             this.temporadas.set(this._normalizeRows((t.data as Record<string, unknown>[]) ?? []));
             this._loadTarifas();
@@ -149,7 +151,7 @@ export class MantenedorTablaComponent implements OnInit {
     const params: Record<string, unknown> = { activo: this.activoFilter() };
     if (tempId) params['temporada_id'] = tempId;
 
-    this.api.listMaintainerRows('tarifas', params).subscribe({
+    this.api.listMaintainerRows('tarifas', params).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         this.allRows.set(this._normalizeRows((res.data as Record<string, unknown>[]) ?? []));
         this.canEdit.set(res.permissions?.can_edit ?? false);
@@ -157,7 +159,7 @@ export class MantenedorTablaComponent implements OnInit {
         this.currentPage.set(1);
       },
       error: (err) => {
-        this._showToast(err?.error?.error ?? 'Error cargando tarifas', true);
+        this.toast.show(err?.error?.error ?? 'Error cargando tarifas', true);
         this.loading.set(false);
       },
     });
@@ -169,7 +171,7 @@ export class MantenedorTablaComponent implements OnInit {
 
     this.loading.set(true);
     const params: Record<string, unknown> = { activo: this.activoFilter() };
-    this.api.listMaintainerRows(cfg.key, params).subscribe({
+    this.api.listMaintainerRows(cfg.key, params).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         this.allRows.set(this._normalizeRows((res.data as Record<string, unknown>[]) ?? []));
         this.canEdit.set(res.permissions?.can_edit ?? false);
@@ -177,7 +179,7 @@ export class MantenedorTablaComponent implements OnInit {
         this.currentPage.set(1);
       },
       error: (err) => {
-        this._showToast(err?.error?.error ?? `Error cargando ${cfg.title}`, true);
+        this.toast.show(err?.error?.error ?? `Error cargando ${cfg.title}`, true);
         this.loading.set(false);
       },
     });
@@ -210,18 +212,18 @@ export class MantenedorTablaComponent implements OnInit {
     const current = Boolean(row[cfg.softDeleteField]);
     const nuevoValor = !current;
 
-    this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor, cfg.softDeleteField).subscribe({
+    this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor, cfg.softDeleteField).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
-        this._showToast(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'}`);
+        this.toast.show(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'}`);
         this._reloadAfterAction();
       },
-      error: (err) => this._showToast(err?.error?.error ?? 'Error al cambiar estado', true),
+      error: (err) => this.toast.show(err?.error?.error ?? 'Error al cambiar estado', true),
     });
   }
 
   onFormGuardado(): void {
     this.formModalVisible.set(false);
-    this._showToast('Registro guardado correctamente');
+    this.toast.show('Registro guardado correctamente');
     this._reloadAfterAction();
   }
 
@@ -282,13 +284,6 @@ export class MantenedorTablaComponent implements OnInit {
   get userRole(): string { return this.auth.getCurrentUser()?.role ?? ''; }
   get isAdminOrAutorizador(): boolean { return ['administrador', 'autorizador'].includes(this.userRole); }
 
-  /* ── Toast ─────────────────────────────────────────────────── */
-  private _showToast(msg: string, isError = false): void {
-    clearTimeout(this._toastTimer);
-    this.toastMsg.set(msg);
-    this.toastIsError.set(isError);
-    this._toastTimer = setTimeout(() => this.toastMsg.set(''), 4000);
-  }
 
   private _normalizeRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
     return rows

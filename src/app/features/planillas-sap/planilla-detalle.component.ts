@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
@@ -21,6 +21,7 @@ const ESTADO_CHIP: Record<string, string> = {
 
 @Component({
   selector: 'app-planilla-detalle',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, WorkspaceShellComponent],
   template: `
     <app-workspace-shell

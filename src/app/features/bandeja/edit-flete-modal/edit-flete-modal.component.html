@@ -41,7 +41,7 @@
       </div>
 
       <form [formGroup]="form" (ngSubmit)="onGuardar()" class="space-y-5 px-6 py-6">
-        @if (loadingCatalogos()) {
+        @if (loadingCatalogos() || detailLoading()) {
           <div class="flex justify-center py-12">
             <svg class="h-8 w-8 animate-spin text-forest-500" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -50,109 +50,29 @@
           </div>
         } @else {
           @if (showSapSnapshot()) {
-            <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3">
-              <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 border border-amber-200 mt-0.5">
-                <svg class="h-4 w-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1.5">Origen SAP vinculado</p>
-                <div class="flex flex-wrap gap-2">
-                  @if (getSapNumeroEntrega()) {
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
-                      <span class="text-amber-500">Entrega:</span> {{ getSapNumeroEntrega() }}
-                    </span>
-                  }
-                  @if (getSapGuiaRemision()) {
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
-                      <span class="text-amber-500">Guía:</span> {{ getSapGuiaRemision() }}
-                    </span>
-                  }
-                  @if (getSapDestinatario()) {
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
-                      <span class="text-amber-500">Productor:</span> {{ getSapDestinatario() }}
-                    </span>
-                  }
-                  @if (detailRows().length > 0) {
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
-                      <span class="text-amber-500">Posiciones:</span> {{ detailRows().length }}
-                    </span>
-                  }
-                </div>
-              </div>
+            <div class="mb-4">
+              <app-sap-snapshot-card
+                [entrega]="getSapNumeroEntrega()"
+                [guia]="getSapGuiaRemision()"
+                [productor]="getSapDestinatario()"
+                [posicionCount]="detailRows().length"
+              />
             </div>
           }
 
           <!-- Tarjeta de ruta y tarifa -->
-          <div
-            class="rounded-2xl border px-4 py-4"
-            [class]="hasResolvedRoute()
-              ? 'border-forest-200 bg-gradient-to-br from-forest-50 to-emerald-50/40'
-              : 'border-forest-100 bg-forest-50/50'"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="flex items-start gap-3">
-                <div
-                  class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl mt-0.5"
-                  [class]="hasResolvedRoute() ? 'bg-forest-100 border border-forest-200' : 'bg-forest-100/60 border border-forest-100'"
-                >
-                  <svg
-                    class="h-4 w-4"
-                    [class]="hasResolvedRoute() ? 'text-forest-600' : 'text-forest-400'"
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-forest-500">Ruta estimada</p>
-                  <p class="mt-0.5 text-sm font-semibold" [class]="hasResolvedRoute() ? 'text-forest-900' : 'text-forest-400'">
-                    {{ hasResolvedRoute() ? resolvedRouteName : 'Pendiente por resolver' }}
-                  </p>
-                  <p class="mt-0.5 text-[11px] text-forest-500">{{ routeResolutionHint }}</p>
-                </div>
-              </div>
-              <div
-                class="rounded-xl border px-4 py-3 text-right shadow-sm min-w-[140px]"
-                [class]="hasResolvedMonto()
-                  ? 'border-emerald-200 bg-white'
-                  : 'border-forest-100 bg-white'"
-              >
-                <p class="text-[10px] font-bold uppercase tracking-widest" [class]="hasResolvedMonto() ? 'text-emerald-600' : 'text-forest-400'">
-                  {{ getCurrentTemporadaLabel() }}
-                </p>
-                <p class="mt-1 text-xl font-bold" [class]="hasResolvedMonto() ? 'text-forest-900' : 'text-forest-300'">
-                  {{ getMontoTotalLabel() }}
-                </p>
-                @if (resolvedRouteDistanceKm !== null) {
-                  <p class="mt-0.5 text-[11px] text-forest-400">{{ resolvedRouteDistanceKm }} km</p>
-                }
-              </div>
-            </div>
-
-            <!-- Visualización de la ruta origen → destino -->
-            <div class="mt-4 flex items-center gap-2">
-              <div class="route-node flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-forest-400 flex-shrink-0"></span>
-                {{ getRouteOriginLabel() }}
-              </div>
-              <div class="flex min-w-0 flex-1 items-center gap-1">
-                <span class="h-px flex-1" [class]="hasResolvedRoute() ? 'bg-forest-400' : 'bg-forest-200'"></span>
-                <svg class="h-3 w-3 flex-shrink-0" [class]="hasResolvedRoute() ? 'text-forest-500' : 'text-forest-300'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                </svg>
-                <span class="h-px flex-1" [class]="hasResolvedRoute() ? 'bg-forest-400' : 'bg-forest-200'"></span>
-              </div>
-              <div class="route-node flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
-                {{ getRouteDestinationLabel() }}
-              </div>
-            </div>
-          </div>
+          <app-route-summary-card
+            [resolved]="!detailLoading() && hasResolvedRoute()"
+            [hasMonto]="!detailLoading() && hasResolvedMonto()"
+            [routeName]="detailLoading() ? '' : resolvedRouteName"
+            [hint]="routeResolutionHint"
+            [temporadaLabel]="getCurrentTemporadaLabel()"
+            [montoTotalLabel]="getMontoTotalLabel()"
+            [distanceKm]="resolvedRouteDistanceKm"
+            [origenLabel]="getRouteOriginLabel()"
+            [destinoLabel]="getRouteDestinationLabel()"
+            [sentido]="detailLoading() ? null : resolvedSentido"
+          />
 
           <div class="flex flex-wrap gap-2 rounded-2xl border border-forest-100 bg-forest-50/70 p-2">
             <button
@@ -378,28 +298,71 @@
                   </svg>
                   <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Ruta y tarifa</h3>
                 </div>
-                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
-                  <app-searchable-combobox
-                    label="Origen"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
-                    [options]="getOrigenNodoOptions()"
-                    [value]="getControlValue('id_origen_nodo')"
-                    (valueChange)="setRouteNodeValue('id_origen_nodo', $event)"
-                  />
+                <div class="grid grid-cols-1 gap-4 px-5 py-5 xl:grid-cols-[2fr_1fr]">
+                  <!-- Nodos origen/destino + botón ida/vuelta -->
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(200px,1fr)_auto_minmax(200px,1fr)]">
+                    <app-searchable-combobox
+                      label="Origen"
+                      nullLabel="Sin especificar"
+                      [disabled]="isReadOnly()"
+                      [options]="getOrigenNodoOptions()"
+                      [value]="getControlValue('id_origen_nodo')"
+                      (valueChange)="setRouteNodeValue('id_origen_nodo', $event)"
+                    />
 
-                  <app-searchable-combobox
-                    label="Destino"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
-                    [hint]="getDestinoHint()"
-                    [options]="getDestinoNodoOptions()"
-                    [value]="getControlValue('id_destino_nodo')"
-                    (valueChange)="setRouteNodeValue('id_destino_nodo', $event)"
-                  />
+                    <!-- Espacio reservado para botón ida/vuelta (md+) -->
+                    <div class="hidden md:flex items-start justify-center pt-6">
+                      @if (!isReadOnly() && resolvedSentido) {
+                        <button
+                          type="button"
+                          (click)="toggleSentido()"
+                          class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                          [class]="resolvedSentido === 'IDA'
+                            ? 'border-forest-200 bg-white text-forest-700 hover:bg-forest-50'
+                            : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'"
+                          title="Invertir sentido de la ruta"
+                        >
+                          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                          </svg>
+                          {{ getSentidoLabel() }}
+                        </button>
+                      }
+                    </div>
+
+                    <app-searchable-combobox
+                      label="Destino"
+                      nullLabel="Sin especificar"
+                      [disabled]="isReadOnly()"
+                      [hint]="getDestinoHint()"
+                      [options]="getDestinoNodoOptions()"
+                      [value]="getControlValue('id_destino_nodo')"
+                      (valueChange)="setRouteNodeValue('id_destino_nodo', $event)"
+                    />
+
+                    <!-- Botón ida/vuelta mobile -->
+                    @if (!isReadOnly() && resolvedSentido) {
+                      <div class="flex justify-center md:hidden">
+                        <button
+                          type="button"
+                          (click)="toggleSentido()"
+                          class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                          [class]="resolvedSentido === 'IDA'
+                            ? 'border-forest-200 bg-white text-forest-700 hover:bg-forest-50'
+                            : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'"
+                          title="Invertir sentido de la ruta"
+                        >
+                          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                          </svg>
+                          {{ getSentidoLabel() }}
+                        </button>
+                      </div>
+                    }
+                  </div>
 
                   <div
-                    class="rounded-xl border px-4 py-3 md:col-span-2 xl:col-span-1 space-y-3"
+                    class="rounded-xl border px-4 py-3 space-y-3"
                     [class]="hasResolvedMonto() ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50/30' : 'border-forest-100 bg-forest-50/60'"
                   >
                     <!-- Tarifa base -->
@@ -441,14 +404,25 @@
 
                     <!-- Total -->
                     <div class="border-t border-forest-200/60 pt-2">
-                      <p class="text-[10px] font-bold uppercase tracking-widest" [class]="hasResolvedMonto() ? 'text-emerald-600' : 'text-forest-500'">
+                      <label class="text-[10px] font-bold uppercase tracking-widest" [class]="hasResolvedMonto() ? 'text-emerald-600' : 'text-forest-500'">
                         Monto total aplicado
-                      </p>
-                      <p class="mt-0.5 text-2xl font-bold" [class]="hasResolvedMonto() ? 'text-forest-900' : 'text-forest-300'">
-                        {{ getMontoTotalLabel() }}
-                      </p>
+                      </label>
+                      @if (!isReadOnly()) {
+                        <input
+                          type="number"
+                          formControlName="monto_aplicado"
+                          class="cfl-input mt-0.5 text-lg font-bold"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                        />
+                      } @else {
+                        <p class="mt-0.5 text-2xl font-bold" [class]="hasResolvedMonto() ? 'text-forest-900' : 'text-forest-300'">
+                          {{ getMontoTotalLabel() }}
+                        </p>
+                      }
                       <p class="mt-1 text-[11px] text-forest-400">
-                        Tarifa base + extra. Calculado desde la ruta y la tarifa vigente.
+                        Editable. Tarifa base como referencia.
                       </p>
                     </div>
                   </div>
@@ -469,173 +443,15 @@
               </section>
             </div>
           } @else {
-            <section class="rounded-2xl border border-forest-100 bg-white shadow-sm">
-              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-forest-100 px-5 py-3">
-                <div class="flex items-start gap-2">
-                  <svg class="h-4 w-4 text-forest-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                  </svg>
-                  <div>
-                    <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">
-                      {{ isSapBacked() ? 'Posiciones obtenidas desde LIPS' : 'Detalle de flete' }}
-                    </h3>
-                    <p class="mt-1 text-xs text-forest-500">
-                      @if (isSapBacked()) {
-                        Las posiciones se cargan desde SAP y se enviaran junto con la cabecera.
-                      } @else {
-                        Agrega una o mas lineas para construir el detalle manual.
-                      }
-                    </p>
-                  </div>
-                </div>
-                @if (canManageDetailRows()) {
-                  <button type="button" (click)="addDetailRow()" class="btn-secondary">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Agregar detalle
-                  </button>
-                }
-              </div>
-
-              <div class="space-y-4 px-5 py-5">
-                @if (detailLoading()) {
-                  <div class="flex justify-center py-10">
-                    <svg class="h-7 w-7 animate-spin text-forest-500" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                  </div>
-                } @else {
-                  @if (detailError()) {
-                    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {{ detailError() }}
-                    </div>
-                  }
-
-                  @if (groupedRows().length === 0) {
-                    <div class="rounded-2xl border border-dashed border-forest-200 bg-forest-50/60 px-5 py-8 text-center">
-                      <p class="text-sm font-medium text-forest-700">Aun no hay detalles cargados.</p>
-                      <p class="mt-1 text-xs text-forest-500">
-                        @if (canManageDetailRows()) {
-                          Usa "Agregar detalle" para ingresar lineas manuales.
-                        } @else {
-                          No se encontraron posiciones SAP para esta entrega.
-                        }
-                      </p>
-                    </div>
-                  } @else {
-                    @for (group of groupedRows(); track group.materialKey) {
-                      <div class="rounded-2xl border border-forest-100 bg-white shadow-sm overflow-hidden">
-
-                        <!-- ── Bloque principal ─────────────────────────────── -->
-                        <div class="p-4">
-                          <div class="flex flex-wrap items-start gap-4">
-
-                            <!-- Material + Descripción + Especie -->
-                            <div class="flex-1 min-w-0 space-y-2">
-                              @if (group.material) {
-                                <div class="flex items-baseline gap-2.5">
-                                  <span class="font-mono text-base font-bold text-forest-900 bg-forest-100 rounded-lg px-2.5 py-0.5 tracking-wide">{{ group.material }}</span>
-                                </div>
-                                <p class="text-[15px] font-semibold text-forest-800 leading-snug">{{ group.descripcion || '—' }}</p>
-                              } @else {
-                                <p class="text-base font-semibold text-forest-500 italic">Sin material asignado</p>
-                              }
-
-                              <!-- Especie dentro del bloque principal -->
-                              <div class="pt-1">
-                                <app-searchable-combobox
-                                  label="Especie"
-                                  nullLabel="Sin especificar"
-                                  [disabled]="isReadOnly()"
-                                  [options]="getEspecieOptions()"
-                                  [value]="group.id_especie"
-                                  (valueChange)="updateGroupEspecie(group.materialKey, $event)"
-                                />
-                              </div>
-                            </div>
-
-                            <!-- Totales + Quitar -->
-                            <div class="flex items-start gap-4 shrink-0">
-                              @if ((group.posicion_count > 1 || isSapBacked()) && group.cantidad_total > 0) {
-                                <div class="text-right">
-                                  <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Cantidad</p>
-                                  <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(group.cantidad_total, 2) }}</p>
-                                  
-                                </div>
-                              }
-                              @if (canManageDetailRows()) {
-                                <button type="button"
-                                        (click)="removeDetailGroup(group.materialKey)"
-                                        class="inline-flex items-center rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
-                                  Quitar
-                                </button>
-                              }
-                            </div>
-                          </div>
-
-                          <!-- Campos editables (solo fletes manuales) -->
-                          @if (!isSapBacked()) {
-                            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                              <div>
-                                <label class="field-label">Material</label>
-                                <input type="text" class="cfl-input"
-                                       [readOnly]="isReadOnly()"
-                                       [value]="group.material"
-                                       (change)="updateGroupField(group.materialKey, 'material', $any($event.target).value)"
-                                       placeholder="Código material" />
-                              </div>
-                              <div class="sm:col-span-2">
-                                <label class="field-label">Descripción</label>
-                                <input type="text" class="cfl-input"
-                                       [readOnly]="isReadOnly()"
-                                       [value]="group.descripcion"
-                                       (change)="updateGroupField(group.materialKey, 'descripcion', $any($event.target).value)"
-                                       placeholder="Descripción del material" />
-                              </div>
-                              <div>
-                                <label class="field-label">Cantidad</label>
-                                <input type="number" class="cfl-input"
-                                       [readOnly]="isReadOnly()"
-                                       [value]="group.cantidad_total || ''"
-                                       (change)="updateGroupField(group.materialKey, 'cantidad', $any($event.target).value)"
-                                       min="0" step="0.01" />
-                              </div>
-                              <div>
-                                <label class="field-label">Unidad</label>
-                                <input type="text" class="cfl-input"
-                                       [readOnly]="isReadOnly()"
-                                       [value]="group.unidad"
-                                       (change)="updateGroupField(group.materialKey, 'unidad', $any($event.target).value)"
-                                       maxlength="3" placeholder="KG" />
-                              </div>
-                            </div>
-                          }
-                        </div>
-
-                        <!-- ── Bloque secundario: lotes y posiciones agrupadas ── -->
-                        @if (group.posicion_count > 1 || group.lotes.length > 0) {
-                          <div class="border-t border-forest-100 bg-forest-50/70 px-4 py-2 flex flex-wrap items-center gap-2">
-                            @if (group.posicion_count > 1) {
-                              <span class="text-[11px] text-forest-400 font-medium">{{ group.posicion_count }} posiciones SAP agrupadas</span>
-                            }
-                            @if (group.posicion_count > 1 && group.lotes.length > 0) {
-                              <span class="text-forest-300 select-none">·</span>
-                            }
-                            @for (lote of group.lotes; track lote) {
-                              <span class="detail-chip">Lote {{ lote }}</span>
-                            }
-                          </div>
-                        }
-
-                      </div>
-                    }
-                  }
-                }
-              </div>
-            </section>
+            <app-detalles-tab
+              [rows]="detailRows()"
+              [readOnly]="isReadOnly()"
+              [sapBacked]="isSapBacked()"
+              [especieOptions]="especieOptions"
+              [loading]="detailLoading()"
+              [error]="detailError()"
+              (rowsChange)="detailRows.set($event)"
+            />
           }
 
           @if (errorMsg()) {

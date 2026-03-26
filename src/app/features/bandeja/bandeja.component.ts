@@ -1,5 +1,6 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, OnDestroy, OnInit, signal } from '@angular/core';
+import { NgClass } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
@@ -17,16 +18,20 @@ import {
 } from '../../core/models/flete.model';
 import { AuthnService } from '../../core/services/authn.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
-import { EditFleteModalComponent, ModalMode } from './edit-flete-modal.component';
+import { ToastService } from '../../core/services/toast.service';
+import { EditFleteModalComponent, ModalMode } from './edit-flete-modal/edit-flete-modal.component';
 
 type ConfirmActionType = 'descartar' | 'anular';
 
 @Component({
     selector: 'app-bandeja',
-    imports: [CommonModule, FormsModule, RouterLink, EditFleteModalComponent],
-    templateUrl: './bandeja.component.html'
+    imports: [NgClass, FormsModule, RouterLink, EditFleteModalComponent],
+    templateUrl: './bandeja.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BandejaComponent implements OnInit, OnDestroy {
+  private destroyRef = inject(DestroyRef);
+
   /*  User session  */
   get userName(): string {
     const u = this.auth.getCurrentUser();
@@ -68,10 +73,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   authPermissions = signal<Set<string>>(new Set());
   authRoles = signal<string[]>([]);
 
-  /*  Toast  */
-  toastMsg = signal('');
-  toastIsError = signal(false);
-  private _toastTimer?: ReturnType<typeof setTimeout>;
+  private toast = inject(ToastService);
   /*  Modal edición / vista  */
   editModalFlete = signal<FleteTabla | null>(null);
   editModalVisible = signal(false);
@@ -99,6 +101,10 @@ export class BandejaComponent implements OnInit, OnDestroy {
   fechaFilterValue = signal('all'); // 'all' | 'YYYY-MM' | 'rango'
   fechaDesdeFilter = signal('');
   fechaHastaFilter = signal('');
+
+  /*  Ordenamiento  */
+  sortBy = signal<string>('id');
+  sortDir = signal<'asc' | 'desc'>('desc');
 
   /*  Computed  */
   paginatedFletes = computed(() => this.allFletes());
@@ -162,9 +168,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.loadFletes();
   }
 
-  ngOnDestroy(): void {
-    clearTimeout(this._toastTimer);
-  }
+  ngOnDestroy(): void {}
 
   /*  Carga de datos  */
   loadFletes(): void {
@@ -189,8 +193,11 @@ export class BandejaComponent implements OnInit, OnDestroy {
       fecha_hasta = this.fechaHastaFilter() || undefined;
     }
 
+    const sort_by = this.sortBy();
+    const sort_dir = this.sortDir();
+
     if (this.activeTab() === 'candidatos') {
-      this.cflApi.getMissingFletes({ page, page_size, search, fecha_desde, fecha_hasta }).subscribe({
+      this.cflApi.getMissingFletes({ page, page_size, search, fecha_desde, fecha_hasta }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as CandidatoRow[]).map(adaptCandidato));
           this.totalServerItems.set(res.pagination.total);
@@ -200,11 +207,11 @@ export class BandejaComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.loading.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this._showToast(err?.error?.error ?? 'Error cargando candidatos SAP', true);
+          this.toast.show(err?.error?.error ?? 'Error cargando candidatos SAP', true);
         },
       });
     } else {
-      this.cflApi.getCompletados({ page, page_size, search, estado, fecha_desde, fecha_hasta }).subscribe({
+      this.cflApi.getCompletados({ page, page_size, search, estado, fecha_desde, fecha_hasta, sort_by, sort_dir }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           this.allFletes.set((res.data as FleteEnCursoRow[]).map(adaptFleteEnCurso));
           this.totalServerItems.set(res.pagination.total);
@@ -214,7 +221,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.loading.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this._showToast(err?.error?.error ?? 'Error cargando fletes en curso', true);
+          this.toast.show(err?.error?.error ?? 'Error cargando fletes en curso', true);
         },
       });
     }
@@ -230,6 +237,20 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.fechaFilterValue.set('all');
     this.fechaDesdeFilter.set('');
     this.fechaHastaFilter.set('');
+    this.sortBy.set('id');
+    this.sortDir.set('desc');
+    this.loadFletes();
+  }
+
+  /*  Ordenamiento  */
+  toggleSort(column: string): void {
+    if (this.sortBy() === column) {
+      this.sortDir.set(this.sortDir() === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortBy.set(column);
+      this.sortDir.set('desc');
+    }
+    this.currentPage.set(1);
     this.loadFletes();
   }
 
@@ -333,6 +354,12 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.editModalVisible.set(true);
   }
 
+  openRetornoModal(flete: FleteTabla): void {
+    this.editModalMode.set('retorno');
+    this.editModalFlete.set(flete);
+    this.editModalVisible.set(true);
+  }
+
   openEditModal(flete: FleteTabla | null): void {
     if (!this.canEditForFlete(flete)) {
       this._showActionBlockedToast();
@@ -407,7 +434,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
     const motivo = this.confirmActionMotivo().trim();
     if (!motivo) {
-      this._showToast('Debes ingresar un motivo para continuar', true);
+      this.toast.show('Debes ingresar un motivo para continuar', true);
       return;
     }
 
@@ -419,17 +446,17 @@ export class BandejaComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo }).subscribe({
+      this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.confirmActionSaving.set(false);
           this.closeConfirmAction();
-          this._showToast('Ingreso SAP descartado');
+          this.toast.show('Ingreso SAP descartado');
           this.loadFletes();
         },
         error: (err) => {
           this.confirmActionSaving.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this._showToast(err?.error?.error ?? 'Error al descartar ingreso SAP', true);
+          this.toast.show(err?.error?.error ?? 'Error al descartar ingreso SAP', true);
         },
       });
       return;
@@ -440,17 +467,17 @@ export class BandejaComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.cflApi.anularFlete(flete.idCabeceraFlete, { motivo }).subscribe({
+    this.cflApi.anularFlete(flete.idCabeceraFlete, { motivo }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.confirmActionSaving.set(false);
         this.closeConfirmAction();
-        this._showToast('Flete anulado');
+        this.toast.show('Flete anulado');
         this.loadFletes();
       },
       error: (err) => {
         this.confirmActionSaving.set(false);
         if (this._handleAuthorizationError(err)) return;
-        this._showToast(err?.error?.error ?? 'Error al anular flete', true);
+        this.toast.show(err?.error?.error ?? 'Error al anular flete', true);
       },
     });
   }
@@ -458,7 +485,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   /*  Modal edición  */
   onEditGuardado(): void {
     this.editModalVisible.set(false);
-    this._showToast('Flete guardado correctamente');
+    this.toast.show('Flete guardado correctamente');
     this.loadFletes();
   }
 
@@ -530,50 +557,35 @@ export class BandejaComponent implements OnInit, OnDestroy {
     return f.id;
   }
 
-  /*  Toast  */
-  private _showToast(msg: string, isError = false): void {
-    clearTimeout(this._toastTimer);
-    this.toastMsg.set(msg);
-    this.toastIsError.set(isError);
-    this._toastTimer = setTimeout(() => this.toastMsg.set(''), 4000);
-  }
-
   private _showActionBlockedToast(): void {
     if (!this.auth.isLoggedIn()) {
-      this._showToast('Sesión expirada. Inicia sesión nuevamente.', true);
+      this.toast.show('Sesión expirada. Inicia sesión nuevamente.', true);
       this.auth.logout();
       return;
     }
 
     if (!this.authContextLoaded()) {
-      this._showToast('No se pudo validar tu perfil. Acción bloqueada por seguridad.', true);
+      this.toast.show('No se pudo validar tu perfil. Acción bloqueada por seguridad.', true);
       return;
     }
 
-    this._showToast('No tienes permisos para ejecutar esta acción', true);
+    this.toast.show('No tienes permisos para ejecutar esta acción', true);
   }
 
   private _handleAuthorizationError(err: { status?: number; error?: { error?: string } }): boolean {
     const status = Number(err?.status || 0);
-    if (status === 401) {
-      this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
-      this.auth.logout();
+    if (status === 401 || status === 403) {
+      // El interceptor global ya maneja 401/403, solo refrescamos contexto en 403
+      if (status === 403) this._loadAuthContext();
       return true;
     }
-
-    if (status === 403) {
-      this._showToast(err?.error?.error ?? 'No tienes permisos para ejecutar esta acción', true);
-      this._loadAuthContext();
-      return true;
-    }
-
     return false;
   }
 
   private _loadAuthContext(): void {
     this.authContextLoading.set(true);
 
-    this.cflApi.getAuthzContext().subscribe({
+    this.cflApi.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (ctx) => {
         const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
           .map((role) => this._normalizeText(role))
@@ -595,12 +607,12 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
         const status = Number(err?.status || 0);
         if (status === 401) {
-          this._showToast('Tu sesión expiró. Inicia sesión nuevamente.', true);
+          this.toast.show('Tu sesión expiró. Inicia sesión nuevamente.', true);
           this.auth.logout();
           return;
         }
 
-        this._showToast(
+        this.toast.show(
           err?.error?.error ?? 'No fue posible cargar permisos de usuario. Acciones bloqueadas.',
           true,
         );

@@ -1,5 +1,5 @@
 
-import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -20,6 +20,7 @@ interface GrupoPrefactura {
 
 @Component({
     selector: 'app-nueva-factura-wizard',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
     <app-workspace-shell title="Nueva Pre Factura" subtitle="Generacion de pre facturas de transporte por periodo y tipo de flete." activeSection="facturas">

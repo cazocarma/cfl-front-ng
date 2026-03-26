@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthnService } from '../../core/services/authn.service';
@@ -111,7 +112,7 @@ import { AuthnService } from '../../core/services/authn.service';
 
               <!-- Error message -->
               @if (errorMsg()) {
-                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div role="alert" aria-live="assertive" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {{ errorMsg() }}
                 </div>
               }
@@ -147,9 +148,11 @@ import { AuthnService } from '../../core/services/authn.service';
         </div>
       </div>
     </div>
-  `
+  `,
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LoginComponent {
+  private destroyRef = inject(DestroyRef);
   email    = signal('');
   password = signal('');
   loading  = signal(false);
@@ -164,7 +167,7 @@ export class LoginComponent {
     this.loading.set(true);
     this.errorMsg.set('');
 
-    this.auth.login(this.email().trim(), this.password()).subscribe({
+    this.auth.login(this.email().trim(), this.password()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.router.navigate(['/bandeja']);
       },

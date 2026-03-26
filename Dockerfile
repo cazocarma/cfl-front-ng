@@ -36,6 +36,11 @@ RUN if [ -d /tmp/dist/browser ]; then \
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Prepare dirs writable by nginx user (needed for non-root runtime)
+RUN chown -R nginx:nginx /var/cache/nginx /var/run /var/log/nginx
+
+USER nginx
+
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

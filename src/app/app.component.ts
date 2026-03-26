@@ -1,15 +1,18 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastService } from './core/services/toast.service';
 
 @Component({
     selector: 'app-root',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [RouterOutlet],
     template: `
       <router-outlet />
 
       @if (toast.current(); as t) {
         <div
+          role="alert"
+          aria-live="assertive"
           class="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 animate-fade-in"
           (click)="toast.dismiss()"
         >

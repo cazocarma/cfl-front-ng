@@ -1,13 +1,17 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   Output,
   signal,
   SimpleChanges,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -230,6 +234,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
       </div>
     }
   `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
     styles: [`
     .field-label {
       @apply block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5;
@@ -237,6 +242,8 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
   `]
 })
 export class UsuarioFormModalComponent implements OnChanges {
+  private destroyRef = inject(DestroyRef);
+
   @Input() row: Record<string, unknown> | null = null;
   @Input() visible = false;
   @Output() guardado = new EventEmitter<void>();
@@ -331,7 +338,7 @@ export class UsuarioFormModalComponent implements OnChanges {
         })
       : forkJoin({ roles: this.api.listMaintainerRows('roles') });
 
-    (req$ as ReturnType<typeof forkJoin>).subscribe({
+    (req$ as ReturnType<typeof forkJoin>).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res: any) => {
         this.roles.set(res['roles'].data as Record<string, unknown>[]);
 
@@ -387,7 +394,7 @@ export class UsuarioFormModalComponent implements OnChanges {
       ? this.api.updateMaintainerRow('usuarios', Number(this.row['id_usuario']), body)
       : this.api.createMaintainerRow('usuarios', body);
 
-    obs$.subscribe({
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.saving.set(false); this.guardado.emit(); },
       error: (err) => {
         this.errorMsg.set(err?.error?.error ?? 'Error al guardar el usuario.');

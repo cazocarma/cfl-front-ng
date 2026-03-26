@@ -13,6 +13,12 @@ export interface JwtUser {
   role: string | null;
 }
 
+interface JwtPayload extends JwtUser {
+  exp?: number;
+  iat?: number;
+  jti?: string;
+}
+
 export interface LoginResponse {
   token: string;
   user: JwtUser;
@@ -40,7 +46,9 @@ export class AuthnService {
   logout(): void {
     const token = this.getToken();
     if (token) {
-      this.http.post(`${API_BASE}/api/authn/logout`, {}).subscribe({ error: () => {} });
+      this.http.post(`${API_BASE}/api/authn/logout`, {}).subscribe({
+        error: (err) => console.warn('logout request failed', err?.status),
+      });
     }
     localStorage.removeItem(TOKEN_KEY);
     this.currentUser.set(null);
@@ -55,10 +63,9 @@ export class AuthnService {
     const token = this.getToken();
     if (!token) return false;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const payload = this._decodePayload(token) as any;
-      if (!payload?.exp) return true; // sin expiración, asumimos válido
-      return (payload.exp as number) * 1000 > Date.now();
+      const payload = this._decodePayload(token);
+      if (!payload?.exp) return false; // sin expiración = token inválido
+      return payload.exp * 1000 > Date.now();
     } catch {
       return false;
     }
@@ -72,18 +79,16 @@ export class AuthnService {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return this._decodePayload(token) as unknown as JwtUser;
+      return this._decodePayload(token) as JwtUser;
     } catch {
       return null;
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _decodePayload(token: string): any {
+  private _decodePayload(token: string): JwtPayload {
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Invalid token');
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
+    return JSON.parse(atob(base64)) as JwtPayload;
   }
 }

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { Chart, registerables } from 'chart.js';
@@ -43,6 +43,7 @@ const PALETTE = [
 
 @Component({
   selector: 'app-estadisticas',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DecimalPipe, WorkspaceShellComponent],
   template: `
     <app-workspace-shell title="Dashboard" subtitle="Panel ejecutivo de control de fletes — indicadores, tendencias y distribuciones." activeSection="estadisticas">

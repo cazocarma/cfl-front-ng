@@ -1,7 +1,9 @@
-import { CommonModule } from '@angular/common';
 import {
+  ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   Output,
@@ -9,6 +11,8 @@ import {
   computed,
   signal,
 } from '@angular/core';
+import { NgStyle } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -38,7 +42,8 @@ const MONEDAS = [
 
 @Component({
   selector: 'app-tarifa-form-modal',
-  imports: [ReactiveFormsModule, CommonModule],
+  imports: [ReactiveFormsModule, NgStyle],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -209,6 +214,8 @@ const MONEDAS = [
   `,
 })
 export class TarifaFormModalComponent implements OnChanges {
+  private destroyRef = inject(DestroyRef);
+
   @Input() config!: MantenedorConfig;
   @Input() row: Record<string, unknown> | null = null;
   @Input() visible = false;
@@ -378,7 +385,7 @@ export class TarifaFormModalComponent implements OnChanges {
       ? this.api.updateMaintainerRow('tarifas', Number(editId), payload)
       : this.api.createMaintainerRow('tarifas', payload);
 
-    obs$.subscribe({
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.saving.set(false); this.guardado.emit(); },
       error: (err) => { this.errorMsg.set(err?.error?.error ?? 'Error al guardar la tarifa.'); this.saving.set(false); },
     });
@@ -415,7 +422,7 @@ export class TarifaFormModalComponent implements OnChanges {
       rutas: this.api.listMaintainerRows('rutas'),
       tipos: this.api.listMaintainerRows('tipos-camion'),
       temporadas: this.api.listMaintainerRows('temporadas'),
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ nodos, rutas, tipos, temporadas }) => {
         this.nodos.set(this._rows(nodos.data).map((r) => ({ id_nodo: this._num(this._pick(r, 'id_nodo', 'IdNodo')) ?? 0, nombre: String(this._pick(r, 'nombre', 'Nombre') ?? '') })).filter((n) => n.id_nodo > 0 && !!n.nombre));
         this.rutas.set(this._rows(rutas.data).map((r) => ({
@@ -477,7 +484,7 @@ export class TarifaFormModalComponent implements OnChanges {
   }
 
   private _loadTarifasTemporada(idTemporada: number): void {
-    this.api.listTarifas(idTemporada).subscribe({
+    this.api.listTarifas(idTemporada).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.tarifasTemporada.set(this._rows(res.data).map((r) => ({
           id_tarifa: this._num(this._pick(r, 'id_tarifa', 'IdTarifa')) ?? 0,

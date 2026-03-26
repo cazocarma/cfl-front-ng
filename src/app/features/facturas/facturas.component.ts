@@ -1,5 +1,5 @@
 
-import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -12,6 +12,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 
 @Component({
     selector: 'app-facturas',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [FormsModule, RouterLink, WorkspaceShellComponent],
     template: `
     <app-workspace-shell title="Pre Facturas" subtitle="Listado y gestión de pre facturas internas de transporte." activeSection="facturas">
@@ -110,6 +111,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                   <th class="px-4 py-3 text-center">Movimientos</th>
                   <th class="px-4 py-3 text-right">Monto Total</th>
                   <th class="px-4 py-3">Estado</th>
+                  <th class="px-4 py-3">N° Factura Recibida</th>
                   <th class="px-4 py-3">Fecha Emisión</th>
                   <th class="px-4 py-3 sticky right-0 bg-white">Acciones</th>
                 </tr>
@@ -128,6 +130,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                         {{ estadoLabel(fac.estado) }}
                       </span>
                     </td>
+                    <td class="px-4 py-3 text-forest-600">{{ fac.numero_factura_recibida || '—' }}</td>
                     <td class="px-4 py-3 text-forest-600">{{ formatDate(fac.fecha_emision) }}</td>
                     <td class="px-4 py-3 sticky right-0 bg-white">
                       <div class="flex items-center gap-1">

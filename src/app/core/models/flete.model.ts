@@ -68,6 +68,7 @@ export interface FleteEnCursoRow {
   numero_entrega: string | null;
   sap_numero_entrega: string | null;
   sap_destinatario: string | null;
+  sentido_flete: string | null;
 }
 
 export interface FleteTabla {
@@ -98,6 +99,7 @@ export interface FleteTabla {
   idImputacionFlete?: number | null;
   idProductor?: number | null;
   idRuta?: number | null;
+  sentidoFlete?: string | null;
   productorCodigoProveedor?: string | null;
   productorRut?: string | null;
   productorNombre?: string | null;
@@ -168,8 +170,8 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     numeroGuia: row.numero_guia ?? '-',
     tipoFlete: row.tipo_flete_nombre ?? '-',
     rutaLabel: row.ruta_nombre ?? '-',
-    origen: row.ruta_origen_nombre ?? '-',
-    destino: row.ruta_destino_nombre ?? '-',
+    origen: row.sentido_flete === 'VUELTA' ? (row.ruta_destino_nombre ?? '-') : (row.ruta_origen_nombre ?? '-'),
+    destino: row.sentido_flete === 'VUELTA' ? (row.ruta_origen_nombre ?? '-') : (row.ruta_destino_nombre ?? '-'),
     transportista: row.movil_empresa ?? row.sap_empresa_transporte ?? '-',
     chofer: row.movil_chofer_nombre ?? row.sap_nombre_chofer ?? '-',
     camion: formatCamion(row.movil_patente ?? row.sap_patente, row.sap_carro, row.movil_tipo_camion),
@@ -186,6 +188,7 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     idImputacionFlete: row.id_imputacion_flete ?? null,
     idProductor: row.id_productor ?? null,
     idRuta: row.id_ruta ?? null,
+    sentidoFlete: row.sentido_flete ?? null,
     productorCodigoProveedor: productorCodigo,
     productorRut,
     productorNombre,
