@@ -1,4 +1,4 @@
-export type ControlFleteCargaJobTipoSolicitud = 'vbeln' | 'rango_fechas';
+export type ControlFleteCargaJobTipoSolicitud = 'vbeln' | 'xblnr' | 'rango_fechas';
 
 export type ControlFleteCargaJobEstado =
   | 'PENDING'
@@ -12,6 +12,7 @@ export type ControlFleteCargaJobEstado =
 
 export interface ControlFleteCargaJobParametros {
   vbeln?: string[] | null;
+  xblnr?: string[] | null;
   fecha_desde?: string | null;
   fecha_hasta?: string | null;
 }
@@ -64,6 +65,11 @@ export interface ControlFleteCargaJob {
 
 export interface SolicitarControlFleteCargaPorVbelnRequest {
   vbeln?: string[];
+  source_system?: string | null;
+}
+
+export interface SolicitarControlFleteCargaPorXblnrRequest {
+  xblnr?: string[];
   source_system?: string | null;
 }
 

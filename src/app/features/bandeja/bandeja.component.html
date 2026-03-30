@@ -134,25 +134,6 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <!-- Refresh -->
-        <button
-          type="button"
-          (click)="loadFletes()"
-          [disabled]="loading()"
-          class="btn-ghost"
-          title="Actualizar"
-        >
-          <svg
-            class="h-5 w-5"
-            [class.animate-spin]="loading()"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          <span class="hidden sm:inline">Actualizar</span>
-        </button>
-
         <!-- New manual flete -->
         <button
           type="button"
@@ -230,9 +211,9 @@
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <!-- Filters -->
               <div class="flex flex-wrap items-center gap-2">
-                <!-- Guía search -->
-                <div class="relative">
-                  <span class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-forest-400">
+                <!-- Búsqueda universal -->
+                <div class="relative flex-1 min-w-[220px] max-w-md">
+                  <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-forest-400">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -240,14 +221,24 @@
                   </span>
                   <input
                     type="text"
-                    class="cfl-input pl-9 w-44"
-                    placeholder="Guía / N° entrega"
-                    aria-label="Buscar por guía o número de entrega"
-                    [ngModel]="guiaFilter()"
-                    (ngModelChange)="guiaFilter.set($event)"
-                    (keyup.enter)="applyFilters()"
-                    name="guiaFilter"
+                    class="cfl-input pl-9 w-full"
+                    [placeholder]="activeTab() === 'en_curso'
+                      ? 'Buscar guía, empresa, chofer, patente, productor...'
+                      : 'Buscar entrega, guía, empresa, chofer, patente...'"
+                    aria-label="Buscar fletes"
+                    [ngModel]="searchFilter()"
+                    (ngModelChange)="onSearchInput($event)"
+                    name="searchFilter"
                   />
+                  @if (searchFilter()) {
+                    <button type="button"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 text-forest-300 hover:text-forest-600"
+                      (click)="onSearchInput('')">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  }
                 </div>
 
                 <!-- Estado (solo para tab en_curso) -->
@@ -428,14 +419,16 @@
                     <!-- Ruta -->
                     <td class="table-cell">
                       <div class="flex items-center gap-1 text-xs text-forest-700">
+                        @if (flete.sentidoFlete === 'VUELTA') {
+                          <span class="inline-flex items-center justify-center rounded-full bg-amber-100 w-5 h-5 text-[10px] font-bold text-amber-700 flex-shrink-0">V</span>
+                        } @else {
+                          <span class="inline-flex items-center justify-center rounded-full bg-emerald-100 w-5 h-5 text-[10px] font-bold text-emerald-700 flex-shrink-0">I</span>
+                        }
                         <span class="font-medium">{{ flete.origen }}</span>
                         <svg class="h-3 w-3 text-forest-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                         </svg>
                         <span class="font-medium">{{ flete.destino }}</span>
-                        @if (flete.sentidoFlete === 'VUELTA') {
-                          <span class="ml-0.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">V</span>
-                        }
                       </div>
                     </td>
 

@@ -50,7 +50,7 @@ export class DetallesTabComponent {
           descripcion: row.descripcion,
           cantidad_total: Number(row.cantidad) || 0,
           peso_total: Number(row.peso) || 0,
-          unidad: row.unidad,
+          unidad: row.unidad || 'UN',
           id_especie: row.id_especie,
           rowIds: [row.rowId],
           lotes: row.sap_lote ? [row.sap_lote] : [],
@@ -78,7 +78,7 @@ export class DetallesTabComponent {
     const newRow: DetalleDraft = {
       rowId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       id_especie: '', material: '', descripcion: '', cantidad: '',
-      unidad: '', peso: '', sap_posicion: '', sap_posicion_superior: '', sap_lote: '',
+      unidad: 'UN', peso: '', sap_posicion: '', sap_posicion_superior: '', sap_lote: '',
     };
     const updated = [...this._rows(), newRow];
     this._rows.set(updated);

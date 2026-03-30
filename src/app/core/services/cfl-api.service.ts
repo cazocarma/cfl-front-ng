@@ -7,6 +7,7 @@ import {
   ControlFleteCargaJobResponse,
   SolicitarControlFleteCargaPorRangoFechasRequest,
   SolicitarControlFleteCargaPorVbelnRequest,
+  SolicitarControlFleteCargaPorXblnrRequest,
 } from '../models/control-flete-carga-job.model';
 import {
   CandidatoRow,
@@ -23,6 +24,7 @@ import {
 } from '../models/factura.model';
 import {
   GenerarPlanillaRequest,
+  MovimientoPlanillaRow,
   PlanillaSapDetalle,
   PlanillaSapListItem,
 } from '../models/planilla-sap.model';
@@ -64,6 +66,15 @@ export class CflApiService {
   ): Observable<ControlFleteCargaJobResponse> {
     return this.http.post<ControlFleteCargaJobResponse>(
       `${API_BASE}/api/fletes/cargas-sap/vbeln`,
+      body
+    );
+  }
+
+  solicitarControlFleteCargaPorXblnr(
+    body: SolicitarControlFleteCargaPorXblnrRequest,
+  ): Observable<ControlFleteCargaJobResponse> {
+    return this.http.post<ControlFleteCargaJobResponse>(
+      `${API_BASE}/api/fletes/cargas-sap/xblnr`,
       body
     );
   }
@@ -270,8 +281,15 @@ export class CflApiService {
     return this.http.get<{ data: PlanillaSapDetalle }>(`${API_BASE}/api/planillas-sap/${id}`);
   }
 
-  generarPlanillaSap(body: GenerarPlanillaRequest): Observable<{ data: { id_planilla_sap: number } }> {
-    return this.http.post<{ data: { id_planilla_sap: number } }>(`${API_BASE}/api/planillas-sap/generar`, body);
+  getPlanillaMovimientos(facturasIds: number[]): Observable<{ data: MovimientoPlanillaRow[] }> {
+    const params = new HttpParams().set('facturas_ids', facturasIds.join(','));
+    return this.http.get<{ data: MovimientoPlanillaRow[] }>(
+      `${API_BASE}/api/planillas-sap/movimientos`, { params }
+    );
+  }
+
+  generarPlanillaSap(body: GenerarPlanillaRequest): Observable<{ data: { id_planilla_sap: number }; warnings?: string[] }> {
+    return this.http.post<{ data: { id_planilla_sap: number }; warnings?: string[] }>(`${API_BASE}/api/planillas-sap/generar`, body);
   }
 
   exportarPlanillaSap(id: number): Observable<Blob> {

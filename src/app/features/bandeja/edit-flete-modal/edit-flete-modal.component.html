@@ -31,6 +31,22 @@
         </div>
         <button
           type="button"
+          (click)="refreshCatalogs()"
+          [disabled]="refreshingCatalogs()"
+          class="rounded-lg p-2 text-white/60 hover:text-white hover:bg-white/10 transition flex-shrink-0"
+          title="Actualizar catálogos e información"
+        >
+          <svg
+            class="h-5 w-5"
+            [class.animate-spin]="refreshingCatalogs()"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+        <button
+          type="button"
           (click)="cerrado.emit()"
           class="rounded-lg p-2 text-white/60 hover:text-white hover:bg-white/10 transition flex-shrink-0"
         >
@@ -159,8 +175,9 @@
                       type="date"
                       formControlName="fecha_salida"
                       class="cfl-input"
+                      [class.border-red-400]="isInvalid('fecha_salida')"
                       [readOnly]="isReadOnly()"
-                      (change)="setControlValue('fecha_salida', $any($event.target).value)"
+                      (blur)="onDateBlur('fecha_salida')"
                     />
                     @if (isInvalid('fecha_salida')) {
                       <p class="mt-1 text-xs font-medium text-red-600">Campo requerido</p>
@@ -169,7 +186,13 @@
 
                   <div>
                     <label class="field-label">Hora salida *</label>
-                    <input type="time" formControlName="hora_salida" class="cfl-input" [readOnly]="isReadOnly()" />
+                    <input
+                      type="time"
+                      formControlName="hora_salida"
+                      class="cfl-input"
+                      [class.border-red-400]="isInvalid('hora_salida')"
+                      [readOnly]="isReadOnly()"
+                    />
                     @if (isInvalid('hora_salida')) {
                       <p class="mt-1 text-xs font-medium text-red-600">Campo requerido</p>
                     }

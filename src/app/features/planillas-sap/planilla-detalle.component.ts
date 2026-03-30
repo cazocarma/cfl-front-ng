@@ -49,13 +49,22 @@ const ESTADO_CHIP: Record<string, string> = {
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-bold text-forest-900">Pre Factura {{ planilla()!.numero_factura }}</h1>
+                <h1 class="text-xl font-bold text-forest-900">Planilla SAP</h1>
                 <span class="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
                       [class]="estadoChip(planilla()!.estado)">
                   {{ estadoLabel(planilla()!.estado) }}
                 </span>
               </div>
               <p class="mt-1 text-sm text-forest-600">{{ planilla()!.empresa_nombre }}</p>
+              @if (planilla()!.facturas && planilla()!.facturas.length > 0) {
+                <div class="mt-1 flex flex-wrap gap-1">
+                  @for (fac of planilla()!.facturas; track fac.id_factura) {
+                    <span class="inline-flex items-center rounded-full bg-forest-100 px-2 py-0.5 text-[10px] font-semibold text-forest-700">
+                      {{ fac.numero_factura }} · {{ fac.empresa_nombre }}
+                    </span>
+                  }
+                </div>
+              }
               <p class="mt-1 text-xs text-forest-500">{{ planilla()!.glosa_cabecera }}</p>
             </div>
             <div class="rounded-2xl border border-forest-100 bg-forest-50 px-5 py-3 text-right">

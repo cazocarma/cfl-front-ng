@@ -18,6 +18,11 @@ export class FleteCatalogService {
 
   constructor(private cflApi: CflApiService) {}
 
+  /** Invalida el cache para forzar recarga desde el servidor. */
+  invalidateCache(): void {
+    FleteCatalogService.cache = null;
+  }
+
   /**
    * Carga todos los catálogos necesarios para el modal de fletes.
    * Usa cache de 5 minutos para evitar llamadas repetidas.

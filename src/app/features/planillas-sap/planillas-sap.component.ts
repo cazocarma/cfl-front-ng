@@ -181,19 +181,15 @@ interface PlanillasOverviewData {
                   </div>
                 </div>
 
-                <!-- Botón generar planilla por cada factura del grupo -->
+                <!-- Botón generar planilla SAP para el lote -->
                 @if (permissions()?.can_generate_planillas !== false) {
                   <div class="mt-5">
-                    <p class="text-xs text-forest-500 mb-3">Genera la planilla SAP para cada pre factura de este lote:</p>
-                    <div class="flex flex-wrap gap-2">
-                      @for (invoice of selectedGroup()?.facturas ?? []; track invoice['id_factura']) {
-                        <button type="button"
-                                (click)="abrirModalGenerar(invoice)"
-                                class="rounded-xl bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition">
-                          Generar {{ invoice['numero_factura'] || 'Planilla' }}
-                        </button>
-                      }
-                    </div>
+                    <button type="button"
+                            (click)="abrirModalGenerar()"
+                            class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 transition">
+                      Generar Planilla SAP
+                    </button>
+                    <p class="text-xs text-forest-400 mt-2">Agrupa todas las pre facturas del lote en una sola planilla SAP.</p>
                   </div>
                 }
               </div>
@@ -235,8 +231,8 @@ interface PlanillasOverviewData {
                 <tbody class="divide-y divide-forest-100">
                   @for (p of planillas(); track p.id_planilla_sap) {
                     <tr class="hover:bg-forest-50 transition">
-                      <td class="px-4 py-3 font-semibold text-forest-900">{{ p.numero_factura }}</td>
-                      <td class="px-4 py-3 text-forest-700">{{ p.empresa_nombre }}</td>
+                      <td class="px-4 py-3 font-semibold text-forest-900">{{ p.facturas_numeros || '-' }}</td>
+                      <td class="px-4 py-3 text-forest-700">{{ p.empresas_nombres || '-' }}</td>
                       <td class="px-4 py-3 text-forest-600 text-xs">{{ p.glosa_cabecera }}</td>
                       <td class="px-4 py-3 text-center text-forest-800">{{ p.total_documentos }}</td>
                       <td class="px-4 py-3 text-right font-semibold text-forest-900">{{ fmtCLP(p.monto_total) }}</td>
@@ -270,10 +266,7 @@ interface PlanillasOverviewData {
       @if (modalOpen()) {
         <app-generar-planilla-modal
           [open]="modalOpen()"
-          [facturaId]="modalFacturaId()"
-          [facturaNumero]="modalFacturaNumero()"
-          [empresaNombre]="modalEmpresaNombre()"
-          [montoTotal]="modalMontoTotal()"
+          [facturasIds]="modalFacturasIds()"
           (cancel)="modalOpen.set(false)"
           (generated)="onPlanillaGenerada()" />
       }
@@ -292,10 +285,7 @@ export class PlanillasSapComponent implements OnInit {
 
   // Modal state
   readonly modalOpen          = signal(false);
-  readonly modalFacturaId     = signal(0);
-  readonly modalFacturaNumero = signal('');
-  readonly modalEmpresaNombre = signal('');
-  readonly modalMontoTotal    = signal(0);
+  readonly modalFacturasIds   = signal<number[]>([]);
 
   readonly selectedGroup = computed<PlanillaGrupo | null>(() => {
     const data = this.overview();
@@ -346,11 +336,11 @@ export class PlanillasSapComponent implements OnInit {
     this.selectedGroupKey.set(groupKey);
   }
 
-  abrirModalGenerar(invoice: Record<string, unknown>): void {
-    this.modalFacturaId.set(Number(invoice['id_factura']) || 0);
-    this.modalFacturaNumero.set(String(invoice['numero_factura'] || ''));
-    this.modalEmpresaNombre.set(String(invoice['empresa_nombre'] || ''));
-    this.modalMontoTotal.set(Number(invoice['monto_total']) || 0);
+  abrirModalGenerar(): void {
+    const facturas = this.selectedGroup()?.facturas ?? [];
+    const ids = facturas.map(f => Number(f['id_factura'])).filter(n => n > 0);
+    if (ids.length === 0) return;
+    this.modalFacturasIds.set(ids);
     this.modalOpen.set(true);
   }
 
@@ -364,7 +354,7 @@ export class PlanillasSapComponent implements OnInit {
     this.cflApi.exportarPlanillaSap(p.id_planilla_sap)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (blob) => triggerDownload(blob, `planilla-sap-${p.numero_factura}.xlsx`),
+        next: (blob) => triggerDownload(blob, `planilla-sap-${p.id_planilla_sap}.xlsx`),
         error: () => {},
       });
   }

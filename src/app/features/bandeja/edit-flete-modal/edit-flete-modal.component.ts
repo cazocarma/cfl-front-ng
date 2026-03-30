@@ -80,6 +80,7 @@ export class EditFleteModalComponent implements OnChanges {
   loadingCatalogos = signal(false);
   detailLoading = signal(false);
   saving = signal(false);
+  refreshingCatalogs = signal(false);
   errorMsg = signal('');
   detailError = signal('');
 
@@ -193,6 +194,28 @@ export class EditFleteModalComponent implements OnChanges {
     }
   }
 
+  /**
+   * Recarga catálogos e información del flete sin perder los valores del formulario.
+   */
+  refreshCatalogs(): void {
+    this.refreshingCatalogs.set(true);
+    this.catalogService.invalidateCache();
+    this.catalogService.loadAll().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (snapshot) => {
+        this._applyCatalogSnapshot(snapshot);
+        this._refreshRouteNodeFilters(false);
+        this._syncRouteAndTarifa(true);
+        this._syncImputacionFromFields();
+        this.refreshingCatalogs.set(false);
+        this._loadProductoresDeferred();
+      },
+      error: () => {
+        this.errorMsg.set('Error actualizando catálogos. Intenta nuevamente.');
+        this.refreshingCatalogs.set(false);
+      },
+    });
+  }
+
   isReadOnly(): boolean {
     return this.mode === 'view';
   }
@@ -239,14 +262,17 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getSapNumeroEntrega(): string {
+    if (this.mode === 'retorno') return '';
     return fleteToString(this.sapSnapshot?.['sap_numero_entrega']) || fleteToString(this.flete?.sapNumeroEntrega) || '';
   }
 
   getSapGuiaRemision(): string {
+    if (this.mode === 'retorno') return '';
     return fleteToString(this.sapSnapshot?.['sap_guia_remision']) || fleteToString(this.flete?.sapGuiaRemision) || '';
   }
 
   getSapDestinatario(): string {
+    if (this.mode === 'retorno') return '';
     return fleteToString(this.sapSnapshot?.['sap_destinatario']) || fleteToString(this.flete?.sapDestinatario) || '';
   }
 
@@ -327,7 +353,14 @@ export class EditFleteModalComponent implements OnChanges {
 
   isInvalid(key: string): boolean {
     const ctrl = this.form.get(key);
-    return !!(ctrl?.invalid && (ctrl.dirty || ctrl.touched));
+    return !!(ctrl?.invalid && ctrl.touched);
+  }
+
+  onDateBlur(key: string): void {
+    const value = this.getControlValue(key);
+    if (value) {
+      this.setControlValue(key, value);
+    }
   }
 
   getControlValue(key: string): string {

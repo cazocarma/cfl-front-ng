@@ -2,6 +2,7 @@ import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime } from 'rxjs';
 import { RouterLink } from '@angular/router';
 
 import {
@@ -96,11 +97,13 @@ export class BandejaComponent implements OnInit, OnDestroy {
   serverTotalPages = signal(0);
 
   /*  Filtros  */
-  guiaFilter = signal('');
+  searchFilter = signal('');
   estadoFilter = signal<LifecycleStatus | 'all'>('all');
   fechaFilterValue = signal('all'); // 'all' | 'YYYY-MM' | 'rango'
   fechaDesdeFilter = signal('');
   fechaHastaFilter = signal('');
+
+  private searchDebounce$ = new Subject<string>();
 
   /*  Ordenamiento  */
   sortBy = signal<string>('id');
@@ -166,6 +169,10 @@ export class BandejaComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this._loadAuthContext();
     this.loadFletes();
+    this.searchDebounce$.pipe(
+      debounceTime(400),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(() => this.applyFilters());
   }
 
   ngOnDestroy(): void {}
@@ -177,7 +184,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
     const page = this.currentPage();
     const page_size = this.itemsPerPage();
-    const search = this.guiaFilter().trim() || undefined;
+    const search = this.searchFilter().trim() || undefined;
     const estado = this.estadoFilter() !== 'all' ? this.estadoFilter() : undefined;
 
     let fecha_desde: string | undefined;
@@ -232,7 +239,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     if (this.activeTab() === tab) return;
     this.activeTab.set(tab);
     this.currentPage.set(1);
-    this.guiaFilter.set('');
+    this.searchFilter.set('');
     this.estadoFilter.set('all');
     this.fechaFilterValue.set('all');
     this.fechaDesdeFilter.set('');
@@ -255,13 +262,18 @@ export class BandejaComponent implements OnInit, OnDestroy {
   }
 
   /*  Filtros  */
+  onSearchInput(value: string): void {
+    this.searchFilter.set(value);
+    this.searchDebounce$.next(value);
+  }
+
   applyFilters(): void {
     this.currentPage.set(1);
     this.loadFletes();
   }
 
   clearFilters(): void {
-    this.guiaFilter.set('');
+    this.searchFilter.set('');
     this.estadoFilter.set('all');
     this.fechaFilterValue.set('all');
     this.fechaDesdeFilter.set('');
@@ -271,7 +283,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   }
 
   hasActiveFilters(): boolean {
-    if (this.guiaFilter() !== '') return true;
+    if (this.searchFilter() !== '') return true;
     if (this.estadoFilter() !== 'all') return true;
     const fv = this.fechaFilterValue();
     if (fv !== 'all' && fv !== 'rango') return true;

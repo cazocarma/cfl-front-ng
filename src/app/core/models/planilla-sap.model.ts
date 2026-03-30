@@ -2,9 +2,6 @@ export type EstadoPlanilla = 'generada' | 'descargada' | 'contabilizada';
 
 export interface PlanillaSapListItem {
   id_planilla_sap: number;
-  id_factura: number;
-  numero_factura: string;
-  empresa_nombre: string;
   fecha_documento: string;
   fecha_contabilizacion: string;
   glosa_cabecera: string;
@@ -14,6 +11,9 @@ export interface PlanillaSapListItem {
   monto_total: number;
   estado: EstadoPlanilla;
   fecha_creacion: string;
+  facturas_count: number;
+  facturas_numeros: string | null;
+  empresas_nombres: string | null;
 }
 
 export interface PlanillaSapLinea {
@@ -40,23 +40,46 @@ export interface PlanillaSapDocumento {
   numero_documento: number;
   centro_costo_codigo: string | null;
   cuenta_mayor_codigo: string | null;
+  referencia: string | null;
+  numero_pre_factura: string | null;
   monto_debito: number;
   total_lineas: number;
   lineas: PlanillaSapLinea[];
 }
 
-export interface PlanillaSapDetalle extends PlanillaSapListItem {
+export interface PlanillaSapFacturaVinculada {
+  id_factura: number;
+  numero_factura: string;
+  empresa_nombre: string;
+}
+
+export interface PlanillaSapDetalle {
+  id_planilla_sap: number;
+  fecha_documento: string;
+  fecha_contabilizacion: string;
+  glosa_cabecera: string;
+  referencia: string | null;
   sociedad_fi: string;
   clase_documento: string;
   moneda: string;
+  temporada: string | null;
   codigo_cargo_abono: string | null;
   glosa_cargo_abono: string | null;
   indicador_impuesto: string;
+  total_lineas: number;
+  total_documentos: number;
+  monto_total: number;
+  estado: EstadoPlanilla;
+  fecha_creacion: string;
+  numero_factura: string;
+  empresa_nombre: string;
+  facturas: PlanillaSapFacturaVinculada[];
   documentos: PlanillaSapDocumento[];
 }
 
 export interface GenerarPlanillaRequest {
-  id_factura: number;
+  facturas_ids: number[];
+  movimientos_ids: number[];
   fecha_documento: string;
   fecha_contabilizacion: string;
   glosa_cabecera: string;
@@ -71,12 +94,30 @@ export interface GenerarPlanillaRequest {
   }>;
 }
 
+export interface MovimientoPlanillaRow {
+  id_cabecera_flete: number;
+  id_factura: number;
+  numero_factura: string;
+  fecha_salida: string;
+  numero_guia: string;
+  centro_costo_codigo: string;
+  cuenta_mayor_codigo: string;
+  cuenta_mayor_glosa: string;
+  id_productor: number;
+  productor_nombre: string;
+  codigo_proveedor: string;
+  monto_aplicado: number;
+  especie_nombre: string | null;
+  tipo_flete_nombre: string;
+  selected: boolean;
+}
+
 export interface ProductorOcRow {
   id_productor: number;
   codigo_proveedor: string;
   nombre: string;
   monto: number;
-  especie: string | null;
+  especies: string[];
   orden_compra: string;
   posicion_oc: string;
 }

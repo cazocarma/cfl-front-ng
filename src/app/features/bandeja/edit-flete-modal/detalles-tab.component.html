@@ -132,11 +132,20 @@
                   </div>
                   <div>
                     <label class="field-label">Unidad</label>
-                    <input type="text" class="cfl-input"
-                           [readOnly]="readOnly"
-                           [value]="group.unidad"
-                           (change)="updateGroupField(group.materialKey, 'unidad', $any($event.target).value)"
-                           maxlength="3" placeholder="KG" />
+                    <select class="cfl-input"
+                            [disabled]="readOnly"
+                            [value]="group.unidad || 'UN'"
+                            (change)="updateGroupField(group.materialKey, 'unidad', $any($event.target).value)">
+                      <option value="KG">KG — Kilogramos</option>
+                      <option value="TON">TON — Toneladas</option>
+                      <option value="UN">UN — Unidades</option>
+                      <option value="LT">LT — Litros</option>
+                      <option value="M3">M3 — Metros cúbicos</option>
+                      <option value="MT">MT — Metros</option>
+                      <option value="CJ">CJ — Cajas</option>
+                      <option value="BL">BL — Bultos</option>
+                      <option value="PL">PL — Pallets</option>
+                    </select>
                   </div>
                 </div>
               }

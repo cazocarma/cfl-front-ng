@@ -16,7 +16,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
-type SolicitudMode = 'numero_entrega' | 'rango_fechas';
+type SolicitudMode = 'guia_despacho' | 'numero_entrega' | 'rango_fechas';
 
 const STATUS_LABELS: Record<ControlFleteCargaJobEstado, string> = {
   PENDING: 'Pendiente',
@@ -77,6 +77,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   private authRoles = signal<string[]>([]);
 
   /* ── Solicitud de carga ─────────────────────────────────────── */
+  guiasDespachoInput = signal('');
   numerosEntregaInput = signal('');
   fechaDesde = signal('');
   fechaHasta = signal('');
@@ -99,6 +100,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   private _pollTimer?: ReturnType<typeof setTimeout>;
 
   /* ── Computed ───────────────────────────────────────────────── */
+  parsedGuiasDespacho = computed(() => this._parseEntregaList(this.guiasDespachoInput()));
   parsedNumerosEntrega = computed(() => this._parseEntregaList(this.numerosEntregaInput()));
 
   currentStatus = computed<ControlFleteCargaJobEstado>(() =>
@@ -137,6 +139,58 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   /* ── Acciones de solicitud ──────────────────────────────────── */
+
+  solicitarPorGuiaDespacho(): void {
+    const guias = this.parsedGuiasDespacho();
+    if (guias.length === 0) {
+      this.toast.show('Ingresa al menos una guía de despacho para iniciar la carga.', true);
+      return;
+    }
+
+    this.submitting.set('guia_despacho');
+
+    this.cflApi
+      .solicitarControlFleteCargaPorXblnr({ xblnr: guias })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.submitting.set(null);
+          this.guiasDespachoInput.set('');
+          const id = String(response.data?.job_id ?? '').trim();
+          if (!id) {
+            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
+            return;
+          }
+
+          this.solicitudId.set(id);
+
+          if (response.data?.estado) {
+            this._applySolicitudState(response.data, true);
+          } else {
+            this._loadSolicitud(id, false, false);
+          }
+
+          this.toast.show('Solicitud por guía de despacho enviada. Se está procesando la carga.');
+          this._refreshRecentJobs();
+        },
+        error: (err) => {
+          this.submitting.set(null);
+          if (this._handleAuthError(err)) return;
+
+          const existingId = String(err?.error?.data?.existing_job_id ?? '').trim();
+          if (err?.status === 409 && existingId) {
+            this.solicitudId.set(existingId);
+            this._loadSolicitud(existingId, true, false);
+            this.toast.show(
+              'Ya existe una solicitud activa para estas guías. Se muestra su estado actual.',
+              true,
+            );
+            return;
+          }
+          this.toast.show(err?.error?.error ?? 'No fue posible enviar la solicitud de carga.', true);
+        },
+      });
+  }
 
   solicitarPorNumeroEntrega(): void {
     const numeros = this.parsedNumerosEntrega();
@@ -253,15 +307,6 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
   /* ── Consulta de estado ─────────────────────────────────────── */
 
-  consultarSolicitud(): void {
-    const id = this.solicitudId().trim();
-    if (!id) {
-      this.toast.show('Ingresa un identificador de solicitud para consultar su estado.', true);
-      return;
-    }
-    this._loadSolicitud(id, true, false);
-  }
-
   refrescarSolicitud(): void {
     const id = this.solicitud()?.job_id ?? this.solicitudId().trim();
     if (!id) return;
@@ -314,6 +359,13 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   requestLabel(): string {
     const s = this.solicitud();
     if (!s) return '-';
+
+    if (s.tipo_solicitud === 'xblnr') {
+      const refs = s.parametros?.xblnr ?? [];
+      if (refs.length === 0) return 'Carga por guía de despacho';
+      if (refs.length === 1) return `Guía ${refs[0]}`;
+      return `${refs.length} guías solicitadas`;
+    }
 
     if (s.tipo_solicitud === 'vbeln') {
       const nums = s.parametros?.vbeln ?? [];
@@ -523,6 +575,12 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   }
 
   historyJobLabel(job: ControlFleteCargaJob): string {
+    if (job.tipo_solicitud === 'xblnr') {
+      const refs = job.parametros?.xblnr ?? [];
+      if (refs.length === 0) return 'Carga por XBLNR';
+      if (refs.length === 1) return `Guía ${refs[0]}`;
+      return `${refs.length} guías`;
+    }
     if (job.tipo_solicitud === 'vbeln') {
       const nums = job.parametros?.vbeln ?? [];
       if (nums.length === 0) return 'Carga por VBELN';
