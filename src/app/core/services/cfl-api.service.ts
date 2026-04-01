@@ -300,6 +300,18 @@ export class CflApiService {
     return this.http.patch<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/estado`, { estado });
   }
 
+  getPlanillaFacturasElegibles(id: number): Observable<{ data: Array<Record<string, unknown>> }> {
+    return this.http.get<{ data: Array<Record<string, unknown>> }>(`${API_BASE}/api/planillas-sap/${id}/facturas-elegibles`);
+  }
+
+  agregarFacturasPlanilla(id: number, facturasIds: number[]): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/facturas`, { facturas_ids: facturasIds });
+  }
+
+  quitarFacturaPlanilla(id: number, idFactura: number): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/facturas/${idFactura}`);
+  }
+
   getEstadisticasOverview(): Observable<{ data: unknown }> {
     return this.http.get<{ data: unknown }>(
       `${API_BASE}/api/operaciones/estadisticas/overview`

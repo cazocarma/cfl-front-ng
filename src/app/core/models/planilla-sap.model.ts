@@ -1,4 +1,4 @@
-export type EstadoPlanilla = 'generada' | 'descargada' | 'contabilizada';
+export type EstadoPlanilla = 'generada' | 'enviada' | 'anulada';
 
 export interface PlanillaSapListItem {
   id_planilla_sap: number;
@@ -12,7 +12,7 @@ export interface PlanillaSapListItem {
   estado: EstadoPlanilla;
   fecha_creacion: string;
   facturas_count: number;
-  facturas_numeros: string | null;
+  periodo_label: string | null;
   empresas_nombres: string | null;
 }
 
@@ -71,7 +71,7 @@ export interface PlanillaSapDetalle {
   monto_total: number;
   estado: EstadoPlanilla;
   fecha_creacion: string;
-  numero_factura: string;
+  periodo_label: string;
   empresa_nombre: string;
   facturas: PlanillaSapFacturaVinculada[];
   documentos: PlanillaSapDocumento[];

@@ -221,8 +221,8 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getModalTitle(): string {
-    if (this.mode === 'retorno') {
-      return `Generar retorno desde #${this.flete?.numeroGuia ?? ''}`;
+    if (this.mode === 'clonar') {
+      return `Clonar movimiento #${this.flete?.numeroGuia ?? ''}`;
     }
 
     if (this.isReadOnly()) {
@@ -243,12 +243,12 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   showSapSnapshot(): boolean {
-    if (this.mode === 'retorno') return false;
+    if (this.mode === 'clonar') return false;
     return this.isSapBacked();
   }
 
   isSapBacked(): boolean {
-    if (this.mode === 'retorno') return false;
+    if (this.mode === 'clonar') return false;
     return Boolean(this.flete?.kind === 'candidato' || this.getSapNumeroEntrega());
   }
 
@@ -262,17 +262,17 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   getSapNumeroEntrega(): string {
-    if (this.mode === 'retorno') return '';
+    if (this.mode === 'clonar') return '';
     return fleteToString(this.sapSnapshot?.['sap_numero_entrega']) || fleteToString(this.flete?.sapNumeroEntrega) || '';
   }
 
   getSapGuiaRemision(): string {
-    if (this.mode === 'retorno') return '';
+    if (this.mode === 'clonar') return '';
     return fleteToString(this.sapSnapshot?.['sap_guia_remision']) || fleteToString(this.flete?.sapGuiaRemision) || '';
   }
 
   getSapDestinatario(): string {
-    if (this.mode === 'retorno') return '';
+    if (this.mode === 'clonar') return '';
     return fleteToString(this.sapSnapshot?.['sap_destinatario']) || fleteToString(this.flete?.sapDestinatario) || '';
   }
 
@@ -585,7 +585,7 @@ export class EditFleteModalComponent implements OnChanges {
     const payload = this._buildPayload();
     let obs$: Observable<unknown>;
 
-    if (this.mode === 'retorno') {
+    if (this.mode === 'clonar') {
       obs$ = this.cflApi.crearFleteManual(payload);
     } else if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
       obs$ = this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
@@ -644,11 +644,11 @@ export class EditFleteModalComponent implements OnChanges {
 
   private _seedBaseForm(): void {
     const now = new Date();
-    const isRetorno = this.mode === 'retorno';
+    const isClonar = this.mode === 'clonar';
 
     this.form.reset({
-      numero_entrega: isRetorno ? '' : (this.flete?.numeroEntrega ?? ''),
-      guia_remision: isRetorno ? '' : (this.flete?.guiaRemision ?? ''),
+      numero_entrega: isClonar ? '' : (this.flete?.numeroEntrega ?? ''),
+      guia_remision: isClonar ? '' : (this.flete?.guiaRemision ?? ''),
       tipo_movimiento: 'PUSH',
       id_tipo_flete: toControlValue(this.flete?.idTipoFlete),
       id_tipo_camion: '',
@@ -665,9 +665,9 @@ export class EditFleteModalComponent implements OnChanges {
       id_chofer: '',
       id_camion: '',
       id_productor: toControlValue(this.flete?.idProductor),
-      monto_aplicado: isRetorno ? null : (this.flete?.monto ?? null),
-      monto_extra: isRetorno ? 0 : (this.flete?.montoExtra ?? 0),
-      sentido_flete: isRetorno ? 'VUELTA' : '',
+      monto_aplicado: isClonar ? null : (this.flete?.monto ?? null),
+      monto_extra: isClonar ? 0 : (this.flete?.montoExtra ?? 0),
+      sentido_flete: '',
       id_cuenta_mayor: toControlValue(this.flete?.idCuentaMayor),
       observaciones: '',
     });
@@ -711,13 +711,13 @@ export class EditFleteModalComponent implements OnChanges {
       return;
     }
 
-    if ((this.flete?.kind === 'en_curso' || this.mode === 'retorno') && this.flete?.idCabeceraFlete) {
+    if ((this.flete?.kind === 'en_curso' || this.mode === 'clonar') && this.flete?.idCabeceraFlete) {
       this.detailLoading.set(true);
       this.cflApi.getFleteById(this.flete.idCabeceraFlete).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           if (!this._isCurrentContext(contextVersion)) return;
-          if (this.mode === 'retorno') {
-            this._hydrateRetorno(res as FleteDetalleResponse);
+          if (this.mode === 'clonar') {
+            this._hydrateClonar(res as FleteDetalleResponse);
           } else {
             this._hydrateExisting(res as FleteDetalleResponse);
           }
@@ -862,20 +862,9 @@ export class EditFleteModalComponent implements OnChanges {
     }, { emitEvent: false });
   }
 
-  private _hydrateRetorno(response: FleteDetalleResponse): void {
+  private _hydrateClonar(response: FleteDetalleResponse): void {
     const cabecera = response.data?.cabecera ?? {};
     const now = new Date();
-
-    // Nodos canónicos de la ruta: invertirlos para el retorno
-    const canonOrigen = toControlValue(cabecera['id_origen_nodo']);
-    const canonDestino = toControlValue(cabecera['id_destino_nodo']);
-    const storedSentido = toControlValue(cabecera['sentido_flete']) || 'IDA';
-
-    // Si el flete origen era IDA (A→B), el retorno es VUELTA (B→A)
-    // Si el flete origen ya era VUELTA (B→A), el retorno es IDA (A→B)
-    const isRetornoVuelta = storedSentido !== 'VUELTA';
-    const formOrigen = isRetornoVuelta ? canonDestino : canonOrigen;
-    const formDestino = isRetornoVuelta ? canonOrigen : canonDestino;
 
     // Snapshot mínimo para que _applyProductorFallback pueda resolver por hints
     this.sapSnapshot = {
@@ -886,14 +875,14 @@ export class EditFleteModalComponent implements OnChanges {
       sap_destinatario: cabecera['sap_destinatario'],
     };
     this.form.patchValue({
-      // Copiar estructura operativa del flete origen
+      // Copiar toda la estructura del flete origen tal cual
       tipo_movimiento: toControlValue(cabecera['tipo_movimiento']) || 'PUSH',
       id_tipo_flete: toControlValue(cabecera['id_tipo_flete']),
       id_imputacion_flete: toControlValue(cabecera['id_imputacion_flete']),
       id_centro_costo: toControlValue(cabecera['id_centro_costo']),
       id_detalle_viaje: toControlValue(cabecera['id_detalle_viaje']),
-      id_origen_nodo: formOrigen,
-      id_destino_nodo: formDestino,
+      id_origen_nodo: toControlValue(cabecera['id_origen_nodo']),
+      id_destino_nodo: toControlValue(cabecera['id_destino_nodo']),
       id_ruta: toControlValue(cabecera['id_ruta']),
       id_tarifa: toControlValue(cabecera['id_tarifa']),
       id_empresa_transporte: toControlValue(cabecera['id_empresa_transporte']),
@@ -901,12 +890,12 @@ export class EditFleteModalComponent implements OnChanges {
       id_camion: toControlValue(cabecera['id_camion']),
       id_productor: toControlValue(cabecera['id_productor']),
       id_cuenta_mayor: toControlValue(cabecera['id_cuenta_mayor']),
-      // Campos limpios para el retorno
+      sentido_flete: toControlValue(cabecera['sentido_flete']) || '',
+      // Campos limpios para el clon
       numero_entrega: '',
       guia_remision: '',
       fecha_salida: formatDateValue(now),
       hora_salida: formatTimeValue(now),
-      sentido_flete: isRetornoVuelta ? 'VUELTA' : 'IDA',
       monto_aplicado: null,
       monto_extra: 0,
       observaciones: '',

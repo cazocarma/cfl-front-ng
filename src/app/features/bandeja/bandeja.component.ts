@@ -170,7 +170,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this._loadAuthContext();
     this.loadFletes();
     this.searchDebounce$.pipe(
-      debounceTime(400),
+      debounceTime(800),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(() => this.applyFilters());
   }
@@ -366,8 +366,8 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.editModalVisible.set(true);
   }
 
-  openRetornoModal(flete: FleteTabla): void {
-    this.editModalMode.set('retorno');
+  openClonarModal(flete: FleteTabla): void {
+    this.editModalMode.set('clonar');
     this.editModalFlete.set(flete);
     this.editModalVisible.set(true);
   }

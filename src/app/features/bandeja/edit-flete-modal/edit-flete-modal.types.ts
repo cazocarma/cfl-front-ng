@@ -3,7 +3,7 @@
  */
 
 export type ModalTab = 'cabecera' | 'detalles';
-export type ModalMode = 'edit' | 'view' | 'retorno';
+export type ModalMode = 'edit' | 'view' | 'clonar';
 
 export interface DetalleDraft {
   rowId: string;

@@ -25,6 +25,18 @@ interface GrupoPrefactura {
     template: `
     <app-workspace-shell title="Nueva Pre Factura" subtitle="Generacion de pre facturas de transporte por periodo y tipo de flete." activeSection="facturas">
 
+      <!-- Breadcrumb -->
+      <div class="mb-4 flex items-center gap-2 text-sm text-forest-500">
+        <a routerLink="/facturas" class="inline-flex items-center justify-center rounded-lg p-1.5 text-forest-500 hover:bg-forest-100 hover:text-forest-900 transition" title="Volver a Pre Facturas">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </a>
+        <a routerLink="/facturas" class="hover:text-forest-900 transition">Pre Facturas</a>
+        <span>›</span>
+        <span class="text-forest-900">Nueva</span>
+      </div>
+
       <!-- Stepper -->
       <nav class="mb-8 flex items-center gap-0 overflow-x-auto">
         @for (s of steps; track s.n) {
