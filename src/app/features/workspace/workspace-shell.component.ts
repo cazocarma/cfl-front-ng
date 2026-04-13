@@ -1,8 +1,11 @@
-﻿import { NgClass } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input, signal } from '@angular/core';
+import { NgClass } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, Input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { AuthnService } from '../../core/services/authn.service';
+import { AuthzService } from '../../core/services/authz.service';
+import { Perms, ROLE_LABELS, Roles } from '../../core/config/permissions';
+import type { RoleName } from '../../core/config/permissions';
 
 type WorkspaceSection =
   | 'bandeja'
@@ -26,7 +29,35 @@ export class WorkspaceShellComponent {
 
   sidebarOpen = signal(false);
 
-  constructor(private auth: AuthnService) {}
+  readonly canSeeFacturas = computed(() =>
+    this.authz.hasAnyPermission(Perms.FACTURAS_VER, Perms.FACTURAS_EDITAR, Perms.FACTURAS_CONCILIAR)
+  );
+
+  readonly canSeePlanillas = computed(() =>
+    this.authz.hasAnyPermission(Perms.PLANILLAS_VER, Perms.PLANILLAS_GENERAR)
+  );
+
+  readonly canSeeCargaEntregas = computed(() =>
+    this.authz.hasAnyPermission(Perms.FLETES_SAP_ETL_EJECUTAR, Perms.FLETES_SAP_ETL_VER)
+  );
+
+  readonly canSeeEstadisticas = computed(() =>
+    this.authz.hasPermission(Perms.REPORTES_VIEW)
+  );
+
+  readonly canSeeAuditoria = computed(() =>
+    this.authz.primaryRole() === Roles.ADMINISTRADOR
+  );
+
+  readonly canSeeMantenedores = computed(() =>
+    this.authz.hasAnyPermission(Perms.MANTENEDORES_VIEW, Perms.MANTENEDORES_ADMIN)
+  );
+
+  readonly canSeeAdminSection = computed(() =>
+    this.canSeeCargaEntregas() || this.canSeeEstadisticas() || this.canSeeAuditoria() || this.canSeeMantenedores()
+  );
+
+  constructor(private auth: AuthnService, private authz: AuthzService) {}
 
   get userName(): string {
     const user = this.auth.getCurrentUser();
@@ -37,17 +68,9 @@ export class WorkspaceShellComponent {
       : 'Usuario';
   }
 
-  get userRole(): string {
-    return this.auth.getCurrentUser()?.role ?? '';
-  }
-
   get roleLabel(): string {
-    const labels: Record<string, string> = {
-      ingresador: 'Ingresador',
-      autorizador: 'Autorizador',
-      administrador: 'Administrador',
-    };
-    return labels[this.userRole] ?? this.userRole;
+    const role = this.authz.primaryRole() ?? this.auth.getCurrentUser()?.role ?? '';
+    return ROLE_LABELS[role as RoleName] ?? role;
   }
 
   get userInitials(): string {

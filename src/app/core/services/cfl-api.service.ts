@@ -25,6 +25,7 @@ import {
 import {
   GenerarPlanillaRequest,
   MovimientoPlanillaRow,
+  OrdenCompraOption,
   PlanillaSapDetalle,
   PlanillaSapListItem,
 } from '../models/planilla-sap.model';
@@ -111,6 +112,10 @@ export class CflApiService {
     return this.http.get<unknown>(`${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/detalle`);
   }
 
+  getRomanaEntregaDetalle(id: number): Observable<unknown> {
+    return this.http.get<unknown>(`${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${id}/detalle`);
+  }
+
   ingresarFletePendiente(id: number): Observable<unknown> {
     return this.http.post<unknown>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/ingresar`,
@@ -118,9 +123,35 @@ export class CflApiService {
     );
   }
 
+  cargarRomanaRangoFechas(body: { centro: string; fecha_desde: string; fecha_hasta: string }): Observable<unknown> {
+    return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/rango-fechas`, body);
+  }
+
+  cargarRomanaNPartida(body: { centro: string; n_partida: string }): Observable<unknown> {
+    return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/npartida`, body);
+  }
+
+  cargarRomanaGuia(body: { centro: string; guia: string }): Observable<unknown> {
+    return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/guia`, body);
+  }
+
+  descartarTodosCandidatos(body: { motivo?: string | null } = {}): Observable<{ message: string; data: { descartados: number } }> {
+    return this.http.post<{ message: string; data: { descartados: number } }>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/descartar-todos`,
+      { motivo: body.motivo ?? null }
+    );
+  }
+
   descartarFletePendiente(id: number, body: { motivo?: string | null } = {}): Observable<unknown> {
     return this.http.post<unknown>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/descartar`,
+      { motivo: body.motivo ?? null }
+    );
+  }
+
+  descartarRomanaPendiente(idRomanaEntrega: number, body: { motivo?: string | null } = {}): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${idRomanaEntrega}/descartar`,
       { motivo: body.motivo ?? null }
     );
   }
@@ -135,6 +166,13 @@ export class CflApiService {
   crearCabeceraDesdeCandidato(id: number, body: unknown): Observable<unknown> {
     return this.http.post<unknown>(
       `${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/crear`,
+      body
+    );
+  }
+
+  crearCabeceraDesdeRomana(idRomanaEntrega: number, body: unknown): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${idRomanaEntrega}/crear`,
       body
     );
   }
@@ -159,6 +197,12 @@ export class CflApiService {
   }
 
   // ── Mantenedores ──────────────────────────────────────────────────────────
+  syncMaintainerSap(entity: string): Observable<{ message: string; data: { inserted: number; updated: number; unchanged: number; total: number } }> {
+    return this.http.post<{ message: string; data: { inserted: number; updated: number; unchanged: number; total: number } }>(
+      `${API_BASE}/api/mantenedores/${entity}/sync-sap`, {}
+    );
+  }
+
   listMaintainerRows(entity: string, params: Record<string, unknown> = {}): Observable<{ data: unknown[]; permissions?: unknown }> {
     return this.http.get<{ data: unknown[]; permissions?: unknown }>(
       `${API_BASE}/api/mantenedores/${entity}`,
@@ -237,27 +281,6 @@ export class CflApiService {
     );
   }
 
-  // ── Auth context ──────────────────────────────────────────────────────────
-  getAuthzContext(): Observable<{
-    data: {
-      role: string | null;
-      roles: string[];
-      permissions: string[];
-      source: string | null;
-    };
-  }> {
-    return this.http.get<{
-      data: {
-        role: string | null;
-        roles: string[];
-        permissions: string[];
-        source: string | null;
-      };
-    }>(
-      `${API_BASE}/api/authn/context`
-    );
-  }
-
   // —— Operaciones: Facturas / Planillas / Estadísticas / Auditoría ————————
   getFacturasOverview(): Observable<{ data: unknown; permissions?: unknown }> {
     return this.http.get<{ data: unknown; permissions?: unknown }>(
@@ -285,6 +308,12 @@ export class CflApiService {
     const params = new HttpParams().set('facturas_ids', facturasIds.join(','));
     return this.http.get<{ data: MovimientoPlanillaRow[] }>(
       `${API_BASE}/api/planillas-sap/movimientos`, { params }
+    );
+  }
+
+  getOrdenesCompraProveedor(codigoProveedor: string): Observable<{ data: { ordenes: OrdenCompraOption[] } }> {
+    return this.http.get<{ data: { ordenes: OrdenCompraOption[] } }>(
+      `${API_BASE}/api/planillas-sap/ordenes-compra/${encodeURIComponent(codigoProveedor)}`
     );
   }
 
@@ -316,6 +345,20 @@ export class CflApiService {
     return this.http.get<{ data: unknown }>(
       `${API_BASE}/api/operaciones/estadisticas/overview`
     );
+  }
+
+  getEstadisticasViajes(params: Record<string, unknown> = {}): Observable<{ data: unknown[] }> {
+    return this.http.get<{ data: unknown[] }>(
+      `${API_BASE}/api/operaciones/estadisticas/viajes`,
+      { params: this._toHttpParams(params) }
+    );
+  }
+
+  exportEstadisticasViajes(params: Record<string, unknown> = {}): Observable<Blob> {
+    return this.http.get(`${API_BASE}/api/operaciones/estadisticas/viajes/export`, {
+      params: this._toHttpParams(params),
+      responseType: 'blob',
+    });
   }
 
   getAuditoriaOverview(limit?: number): Observable<{ data: unknown }> {

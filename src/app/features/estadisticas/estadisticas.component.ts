@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { Chart, registerables } from 'chart.js';
@@ -156,6 +156,74 @@ const PALETTE = [
           </div>
         </div>
 
+        <!-- Viajes por Chofer y Transportista -->
+        <div class="rounded-2xl border border-forest-100 bg-white shadow-sm mb-6">
+          <div class="flex flex-wrap items-center gap-3 border-b border-forest-100 px-5 py-4">
+            <h2 class="text-sm font-semibold text-forest-900 flex-shrink-0">Viajes por Chofer y Transportista</h2>
+            <div class="flex-1"></div>
+            <select class="cfl-select w-48 text-xs" [value]="viajesTemporadaId()" (change)="viajesTemporadaId.set($any($event.target).value); loadViajes()">
+              <option value="">Todas las temporadas</option>
+              @for (t of viajesTemporadas(); track t.id) {
+                <option [value]="t.id">{{ t.label }}</option>
+              }
+            </select>
+            <select class="cfl-select w-48 text-xs" [value]="viajesEmpresaId()" (change)="viajesEmpresaId.set($any($event.target).value); loadViajes()">
+              <option value="">Todas las empresas</option>
+              @for (e of viajesEmpresas(); track e.id) {
+                <option [value]="e.id">{{ e.label }}</option>
+              }
+            </select>
+            <button type="button" (click)="exportViajes()" [disabled]="viajesExporting()" class="inline-flex items-center gap-1.5 rounded-lg border border-forest-200 bg-white px-3 py-1.5 text-xs font-medium text-forest-700 hover:bg-forest-50 transition disabled:opacity-50">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              {{ viajesExporting() ? 'Exportando...' : 'Excel' }}
+            </button>
+          </div>
+
+          @if (viajesLoading()) {
+            <div class="px-5 py-8 text-center text-sm text-forest-500">Cargando viajes...</div>
+          } @else if (viajesRows().length === 0) {
+            <div class="px-5 py-8 text-center text-sm text-forest-400">Sin datos para los filtros seleccionados.</div>
+          } @else {
+            <div class="overflow-x-auto">
+              <table class="min-w-full">
+                <thead>
+                  <tr class="bg-forest-50 border-b border-forest-100">
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Empresa</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Chofer</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">RUT Chofer</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Temporada</th>
+                    <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Periodo</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-forest-600">Viajes</th>
+                    <th class="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wider text-forest-600">Monto Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-forest-50">
+                  @for (row of viajesRows(); track $index) {
+                    <tr class="hover:bg-forest-50/50 transition-colors">
+                      <td class="px-4 py-2 text-sm text-forest-900">{{ row.empresa_nombre || 'Sin asignar' }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-900">{{ row.chofer_nombre || 'Sin asignar' }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-500 font-mono text-xs">{{ row.chofer_rut || '-' }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-700">{{ row.temporada_codigo || '-' }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-700 font-mono">{{ row.periodo }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-900 text-right font-semibold">{{ row.total_viajes | number }}</td>
+                      <td class="px-4 py-2 text-sm text-forest-900 text-right font-semibold">{{ clp(row.monto_total) }}</td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot>
+                  <tr class="bg-forest-50 border-t border-forest-200 font-bold">
+                    <td colspan="5" class="px-4 py-2 text-sm text-forest-900">TOTAL</td>
+                    <td class="px-4 py-2 text-sm text-forest-900 text-right">{{ viajesTotalViajes() | number }}</td>
+                    <td class="px-4 py-2 text-sm text-forest-900 text-right">{{ clp(viajesTotalMonto()) }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          }
+        </div>
+
       }
     </app-workspace-shell>
   `
@@ -179,6 +247,7 @@ export class EstadisticasComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.loadData();
+    this.loadViajes();
   }
 
   ngAfterViewInit(): void {}
@@ -443,5 +512,73 @@ export class EstadisticasComponent implements OnInit, AfterViewInit {
 
   private truncate(s: string, max: number): string {
     return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  }
+
+  // ── Viajes por Chofer y Transportista ───────────────────────────────
+  viajesRows = signal<any[]>([]);
+  viajesLoading = signal(false);
+  viajesExporting = signal(false);
+  viajesTemporadaId = signal('');
+  viajesEmpresaId = signal('');
+  viajesTemporadas = signal<{ id: string; label: string }[]>([]);
+  viajesEmpresas = signal<{ id: string; label: string }[]>([]);
+
+  viajesTotalViajes = computed(() => this.viajesRows().reduce((s: number, r: any) => s + Number(r.total_viajes || 0), 0));
+  viajesTotalMonto = computed(() => this.viajesRows().reduce((s: number, r: any) => s + Number(r.monto_total || 0), 0));
+
+  loadViajes(): void {
+    this.viajesLoading.set(true);
+    const params: Record<string, unknown> = {};
+    if (this.viajesTemporadaId()) params['temporada_id'] = this.viajesTemporadaId();
+    if (this.viajesEmpresaId()) params['empresa_id'] = this.viajesEmpresaId();
+
+    this.cflApi.getEstadisticasViajes(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const rows = res.data || [];
+          this.viajesRows.set(rows);
+          this.viajesLoading.set(false);
+          this.extractViajesFilters(rows);
+        },
+        error: () => this.viajesLoading.set(false),
+      });
+  }
+
+  private extractViajesFilters(rows: any[]): void {
+    const temps = new Map<string, string>();
+    const emps = new Map<string, string>();
+    for (const r of rows) {
+      if (r.id_temporada) temps.set(String(r.id_temporada), r.temporada_codigo || r.temporada_nombre || String(r.id_temporada));
+      if (r.id_empresa) emps.set(String(r.id_empresa), r.empresa_nombre || String(r.id_empresa));
+    }
+    if (this.viajesTemporadas().length === 0) {
+      this.viajesTemporadas.set([...temps.entries()].map(([id, label]) => ({ id, label })));
+    }
+    if (this.viajesEmpresas().length === 0) {
+      this.viajesEmpresas.set([...emps.entries()].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)));
+    }
+  }
+
+  exportViajes(): void {
+    this.viajesExporting.set(true);
+    const params: Record<string, unknown> = {};
+    if (this.viajesTemporadaId()) params['temporada_id'] = this.viajesTemporadaId();
+    if (this.viajesEmpresaId()) params['empresa_id'] = this.viajesEmpresaId();
+
+    this.cflApi.exportEstadisticasViajes(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          this.viajesExporting.set(false);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `estadisticas-viajes-${new Date().toISOString().slice(0, 10)}.xlsx`;
+          a.click();
+          URL.revokeObjectURL(url);
+        },
+        error: () => this.viajesExporting.set(false),
+      });
   }
 }

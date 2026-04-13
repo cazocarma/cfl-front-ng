@@ -56,6 +56,7 @@ export interface MantenedorConfig {
   softDeleteField?: string;  // campo para activar/desactivar (activo | activa)
   permiso: string;           // clave base de permiso (sin prefijo mantenedores.view.)
   tipoEspecial?: TipoEspecial;
+  syncSap?: boolean;         // habilita botón "Sincronizar SAP"
 }
 
 // ─── Configuración de todas las entidades ────────────────────────────────────
@@ -95,6 +96,7 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     idField: 'IdProductor',
     softDeleteField: 'Activo',
     permiso: 'productores',
+    syncSap: true,
     columnas: [
       { key: 'CodigoProveedor',    label: 'Codigo',      tipo: 'mono' },
       { key: 'Rut',                label: 'RUT',         tipo: 'mono' },

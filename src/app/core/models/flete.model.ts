@@ -15,6 +15,7 @@ export interface CandidatoRow {
   sap_centro_costo: string | null;
   sap_cuenta_mayor: string | null;
   sap_fecha_salida: string | null;
+  fecha_referencia: string | null;
   sap_hora_salida: string | null;
   sap_empresa_transporte: string | null;
   sap_nombre_chofer: string | null;
@@ -27,6 +28,7 @@ export interface CandidatoRow {
   id_imputacion_flete?: number | null;
   puede_ingresar: boolean;
   motivo_no_ingreso: string | null;
+  origen_datos: 'DESPACHO' | 'RECEPCION';
 }
 
 export interface FleteEnCursoRow {
@@ -69,6 +71,8 @@ export interface FleteEnCursoRow {
   sap_numero_entrega: string | null;
   sap_destinatario: string | null;
   sentido_flete: string | null;
+  id_especie: number | null;
+  especie_glosa: string | null;
 }
 
 export interface FleteTabla {
@@ -114,6 +118,9 @@ export interface FleteTabla {
   sapNombreChofer?: string | null;
   sapPatente?: string | null;
   sapCarro?: string | null;
+  idEspecie?: number | null;
+  especieGlosa?: string | null;
+  origenDatos?: 'DESPACHO' | 'RECEPCION';
 }
 
 export function adaptCandidato(row: CandidatoRow): FleteTabla {
@@ -132,7 +139,7 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     transportista: row.sap_empresa_transporte ?? '-',
     chofer: row.sap_nombre_chofer ?? '-',
     camion: formatCamion(row.sap_patente, row.sap_carro),
-    fecha: row.sap_fecha_salida ? formatFecha(row.sap_fecha_salida) : '-',
+    fecha: row.fecha_referencia ? formatFecha(row.fecha_referencia) : '-',
     monto: 0,
     montoExtra: 0,
     estado: (row.estado as LifecycleStatus) || 'DETECTADO',
@@ -155,6 +162,7 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     sapNombreChofer: row.sap_nombre_chofer ?? null,
     sapPatente: row.sap_patente ?? null,
     sapCarro: row.sap_carro ?? null,
+    origenDatos: row.origen_datos || 'DESPACHO',
   };
 }
 
@@ -203,6 +211,8 @@ export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {
     sapNombreChofer: row.sap_nombre_chofer ?? null,
     sapPatente: row.sap_patente ?? null,
     sapCarro: row.sap_carro ?? null,
+    idEspecie: row.id_especie ?? null,
+    especieGlosa: row.especie_glosa ?? null,
   };
 }
 

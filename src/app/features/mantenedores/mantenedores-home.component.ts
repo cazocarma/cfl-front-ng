@@ -3,7 +3,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { CflApiService } from '../../core/services/cfl-api.service';
-import { AuthnService } from '../../core/services/authn.service';
+import { AuthzService } from '../../core/services/authz.service';
+import { Perms, Roles } from '../../core/config/permissions';
 import { MANTENEDORES_CONFIG, MantenedorConfig } from './mantenedor.config';
 
 const MANTENEDOR_FRECUENCIA_ORDEN = [
@@ -46,7 +47,7 @@ export class MantenedoresHomeComponent implements OnInit {
   conteos = signal<Record<string, number>>({});
 
   constructor(
-    private auth:   AuthnService,
+    private authz:  AuthzService,
     private api:    CflApiService,
     private router: Router,
   ) {}
@@ -67,30 +68,19 @@ export class MantenedoresHomeComponent implements OnInit {
   private _loadResumenYPermisos(): void {
     this.loading.set(true);
 
-    // Obtener contexto de auth para filtrar cards por permiso
-    this.api.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (ctx) => {
-        const permissions = new Set<string>(ctx.data.permissions);
-        const role = ctx.data.role;
+    const isAdmin =
+      this.authz.hasPermission(Perms.MANTENEDORES_ADMIN) ||
+      this.authz.primaryRole() === Roles.ADMINISTRADOR;
 
-        const isAdmin = role === 'administrador' || permissions.has('mantenedores.admin');
-        const canViewAll = isAdmin || permissions.has('mantenedores.view');
+    const canViewAll = isAdmin || this.authz.hasPermission(Perms.MANTENEDORES_VIEW);
 
-        const visibles = MANTENEDORES_CONFIG.filter(cfg => {
-          if (canViewAll) return true;
-          return permissions.has(`mantenedores.view.${cfg.permiso}`);
-        });
-
-        this.cardsVisibles.set(this._orderByFrecuencia(visibles));
-        this._loadConteos();
-      },
-      error: () => {
-        // Si falla el contexto (usuario normal sin permiso explícito),
-        // mostrar todas las cards igualmente y dejar que el backend rechace 403
-        this.cardsVisibles.set(this._orderByFrecuencia(MANTENEDORES_CONFIG));
-        this._loadConteos();
-      },
+    const visibles = MANTENEDORES_CONFIG.filter(cfg => {
+      if (canViewAll) return true;
+      return this.authz.hasPermission(`mantenedores.view.${cfg.permiso}`);
     });
+
+    this.cardsVisibles.set(this._orderByFrecuencia(visibles));
+    this._loadConteos();
   }
 
   private _loadConteos(): void {

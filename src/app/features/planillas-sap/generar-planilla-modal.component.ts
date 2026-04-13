@@ -15,10 +15,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { SearchableComboboxComponent, SearchableOption } from '../bandeja/searchable-combobox.component';
 import {
   GenerarPlanillaRequest,
   MovimientoPlanillaRow,
+  OrdenCompraOption,
   ProductorOcRow,
 } from '../../core/models/planilla-sap.model';
 import { formatCLP } from '../../core/utils/format.utils';
@@ -26,16 +29,14 @@ import { formatCLP } from '../../core/utils/format.utils';
 @Component({
     selector: 'app-generar-planilla-modal',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [DatePipe, FormsModule],
+    imports: [DatePipe, FormsModule, SearchableComboboxComponent, DisabledIfNoPermissionDirective],
     template: `
     @if (open) {
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-        (click)="cancel.emit()"
+        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       >
         <div
           class="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
-          (click)="$event.stopPropagation()"
         >
           <!-- Header -->
           <div
@@ -191,19 +192,27 @@ import { formatCLP } from '../../core/utils/format.utils';
                 </h3>
 
                 <div class="rounded-xl border border-forest-100 overflow-hidden">
-                  <table class="min-w-full">
+                  <table class="min-w-full table-fixed">
+                    <colgroup>
+                      <col class="w-[110px]" />
+                      <col class="w-auto" />
+                      <col class="w-[100px]" />
+                      <col class="w-[120px]" />
+                      <col class="w-[240px]" />
+                      <col class="w-[100px]" />
+                    </colgroup>
                     <thead>
                       <tr class="bg-forest-50 border-b border-forest-100">
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Código</th>
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Nombre</th>
                         <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-forest-600">Monto</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Especie(s)</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Especie</th>
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Orden de Compra</th>
                         <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Pos OC</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-forest-50">
-                      @for (prod of productores(); track prod.id_productor) {
+                      @for (prod of productores(); track prod.id_productor + '|' + prod.especie) {
                         <tr class="hover:bg-forest-50/50 transition-colors"
                             [class.bg-red-50]="!prod.codigo_proveedor"
                             [class.border-l-2]="!prod.codigo_proveedor"
@@ -215,14 +224,42 @@ import { formatCLP } from '../../core/utils/format.utils';
                           </td>
                           <td class="px-3 py-2 text-sm text-forest-900">{{ prod.nombre }}</td>
                           <td class="px-3 py-2 text-sm text-forest-900 text-right font-semibold">{{ fmtCLP(prod.monto) }}</td>
-                          <td class="px-3 py-2 text-sm text-forest-700">{{ prod.especies.join(', ') || '-' }}</td>
+                          <td class="px-3 py-2 text-sm text-forest-700">{{ prod.especie || '-' }}</td>
                           <td class="px-3 py-2">
-                            <input type="text" [(ngModel)]="prod.orden_compra" placeholder="OC"
-                              class="w-full rounded-md border border-forest-200 bg-white px-2 py-1 text-sm text-forest-900 placeholder:text-forest-300 focus:border-forest-500 focus:ring-1 focus:ring-forest-500 outline-none" />
+                            @if (isLoadingOrdenes(prod.id_productor)) {
+                              <div class="flex items-center gap-1.5 text-xs text-forest-400">
+                                <svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                </svg>
+                                Cargando OC...
+                              </div>
+                            } @else if (getOrdenesForProductor(prod.id_productor).length > 0) {
+                              <app-searchable-combobox
+                                placeholder="Buscar OC..."
+                                nullLabel="Sin OC"
+                                [options]="getOcSearchableOptions(prod.id_productor)"
+                                [value]="prod.orden_compra"
+                                (valueChange)="onOrdenCompraChange(prod, $event)"
+                              />
+                            } @else {
+                              <input type="text" [(ngModel)]="prod.orden_compra" placeholder="OC (sin datos SAP)"
+                                class="cfl-input text-sm" />
+                            }
                           </td>
                           <td class="px-3 py-2">
-                            <input type="text" [(ngModel)]="prod.posicion_oc" placeholder="10"
-                              class="w-20 rounded-md border border-forest-200 bg-white px-2 py-1 text-sm text-forest-900 placeholder:text-forest-300 focus:border-forest-500 focus:ring-1 focus:ring-forest-500 outline-none" />
+                            @if (getPosicionesForProductor(prod).length > 0) {
+                              <app-searchable-combobox
+                                placeholder="Posicion..."
+                                nullLabel="Sin posicion"
+                                [options]="getPosSearchableOptions(prod)"
+                                [value]="prod.posicion_oc"
+                                (valueChange)="prod.posicion_oc = $event"
+                              />
+                            } @else {
+                              <input type="text" [(ngModel)]="prod.posicion_oc" placeholder="10"
+                                class="cfl-input text-sm w-20" />
+                            }
                           </td>
                         </tr>
                       }
@@ -253,6 +290,7 @@ import { formatCLP } from '../../core/utils/format.utils';
               Cancelar
             </button>
             <button type="button" (click)="onGenerar()" [disabled]="submitting() || !isFormValid()"
+              [disabledIfNoPermission]="'planillas.generar'"
               class="rounded-lg bg-forest-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50 transition">
               @if (submitting()) {
                 <span class="inline-flex items-center gap-2">
@@ -287,6 +325,9 @@ export class GenerarPlanillaModalComponent implements OnChanges {
   submitting = signal(false);
   errorMsg = signal('');
 
+  ordenesPorProductor = signal<Map<number, OrdenCompraOption[]>>(new Map());
+  loadingOrdenes = signal<Set<number>>(new Set());
+
   // Computed from selection
   private selectionVersion = signal(0);
 
@@ -309,30 +350,31 @@ export class GenerarPlanillaModalComponent implements OnChanges {
   productores = computed((): ProductorOcRow[] => {
     this.selectionVersion();
     const selected = this.movimientos().filter(m => m.selected);
-    const grouped = new Map<number, ProductorOcRow>();
+    const grouped = new Map<string, ProductorOcRow>();
 
     for (const m of selected) {
       if (!m.id_productor) continue;
-      const existing = grouped.get(m.id_productor);
+      const especie = m.especie_nombre || '';
+      const key = `${m.id_productor}|${especie}`;
+      const existing = grouped.get(key);
       if (existing) {
         existing.monto += m.monto_aplicado || 0;
-        if (m.especie_nombre && !existing.especies.includes(m.especie_nombre)) {
-          existing.especies.push(m.especie_nombre);
-        }
       } else {
-        grouped.set(m.id_productor, {
+        grouped.set(key, {
           id_productor: m.id_productor,
           codigo_proveedor: m.codigo_proveedor || '',
           nombre: m.productor_nombre || '',
           monto: m.monto_aplicado || 0,
-          especies: m.especie_nombre ? [m.especie_nombre] : [],
+          especie,
           orden_compra: '',
           posicion_oc: '10',
         });
       }
     }
 
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).sort((a, b) =>
+      a.codigo_proveedor.localeCompare(b.codigo_proveedor) || a.especie.localeCompare(b.especie)
+    );
   });
 
   hasProductorSinCodigo = computed(() => this.productores().some(p => !p.codigo_proveedor));
@@ -400,6 +442,7 @@ export class GenerarPlanillaModalComponent implements OnChanges {
         .filter(p => p.orden_compra)
         .map(p => ({
           id_productor: p.id_productor,
+          especie: p.especie || undefined,
           orden_compra: p.orden_compra,
           posicion_oc: p.posicion_oc || undefined,
         })),
@@ -420,20 +463,131 @@ export class GenerarPlanillaModalComponent implements OnChanges {
       });
   }
 
+  // ── Ordenes de Compra SAP ────────────────────────────────────────────
+  getOrdenesForProductor(idProductor: number): OrdenCompraOption[] {
+    return this.ordenesPorProductor().get(idProductor) || [];
+  }
+
+  isLoadingOrdenes(idProductor: number): boolean {
+    return this.loadingOrdenes().has(idProductor);
+  }
+
+  getPosicionesForProductor(prod: ProductorOcRow): OrdenCompraOption['posiciones'] {
+    const ordenes = this.getOrdenesForProductor(prod.id_productor);
+    const selected = ordenes.find(o => o.ebeln === prod.orden_compra);
+    return selected?.posiciones || [];
+  }
+
+  onOrdenCompraChange(prod: ProductorOcRow, ebeln: string): void {
+    prod.orden_compra = ebeln;
+    const posiciones = this.getPosicionesForProductor(prod);
+    prod.posicion_oc = posiciones.length > 0 ? this.trimLeadingZeros(posiciones[0].ebelp) : '10';
+  }
+
+  formatOcLabel(oc: OrdenCompraOption): string {
+    const fecha = this.formatSapDate(oc.aedat);
+    const especies = oc.posiciones.map(p => p.txz01).filter(Boolean);
+    const especieHint = especies.length > 0 ? ` [${[...new Set(especies)].join(', ')}]` : '';
+    return `${oc.ebeln} — ${fecha}${especieHint}`;
+  }
+
+  formatPosLabel(pos: { ebelp: string; matnr: string; txz01: string }): string {
+    const posNum = this.trimLeadingZeros(pos.ebelp);
+    const desc = pos.txz01 || pos.matnr || '';
+    return desc ? `${posNum} — ${desc}` : posNum;
+  }
+
+  getOcSearchableOptions(idProductor: number): SearchableOption[] {
+    return this.getOrdenesForProductor(idProductor).map(oc => ({
+      value: oc.ebeln,
+      label: this.formatOcLabel(oc),
+    }));
+  }
+
+  getPosSearchableOptions(prod: ProductorOcRow): SearchableOption[] {
+    return this.getPosicionesForProductor(prod).map(pos => ({
+      value: this.trimLeadingZeros(pos.ebelp),
+      label: this.formatPosLabel(pos),
+    }));
+  }
+
+  private trimLeadingZeros(value: string): string {
+    const trimmed = value.replace(/^0+/, '');
+    return trimmed || '0';
+  }
+
+  private formatSapDate(sapDate: string): string {
+    if (!sapDate || sapDate.length !== 8) return sapDate;
+    return `${sapDate.slice(6, 8)}/${sapDate.slice(4, 6)}/${sapDate.slice(0, 4)}`;
+  }
+
+  private loadOrdenesCompraForAll(): void {
+    const prods = this.productores();
+    for (const prod of prods) {
+      if (prod.codigo_proveedor && !this.ordenesPorProductor().has(prod.id_productor)) {
+        this.loadOrdenesCompra(prod);
+      }
+    }
+  }
+
+  private loadOrdenesCompra(prod: ProductorOcRow): void {
+    const loading = new Set(this.loadingOrdenes());
+    loading.add(prod.id_productor);
+    this.loadingOrdenes.set(loading);
+
+    this.api.getOrdenesCompraProveedor(prod.codigo_proveedor)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const map = new Map(this.ordenesPorProductor());
+          map.set(prod.id_productor, res.data.ordenes || []);
+          this.ordenesPorProductor.set(map);
+
+          const l = new Set(this.loadingOrdenes());
+          l.delete(prod.id_productor);
+          this.loadingOrdenes.set(l);
+        },
+        error: () => {
+          const map = new Map(this.ordenesPorProductor());
+          map.set(prod.id_productor, []);
+          this.ordenesPorProductor.set(map);
+
+          const l = new Set(this.loadingOrdenes());
+          l.delete(prod.id_productor);
+          this.loadingOrdenes.set(l);
+        },
+      });
+  }
+
   private resetForm(): void {
     this.formData = {
       fecha_documento: '',
       fecha_contabilizacion: '',
-      glosa_cabecera: '',
+      glosa_cabecera: 'FLETES VARIOS ZONA SUR',
       temporada: '',
-      indicador_impuesto: '',
-      codigo_cargo_abono: '',
+      indicador_impuesto: 'C0',
+      codigo_cargo_abono: '2012',
       glosa_cargo_abono: '',
     };
     this.movimientos.set([]);
+    this.ordenesPorProductor.set(new Map());
+    this.loadingOrdenes.set(new Set());
     this.errorMsg.set('');
     this.submitting.set(false);
     this.selectionVersion.set(0);
+    this.loadTemporadaActiva();
+  }
+
+  private loadTemporadaActiva(): void {
+    this.api.getTemporadaActiva()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res: any) => {
+          const codigo = res.data?.codigo || res.data?.Codigo || '';
+          if (codigo) this.formData.temporada = String(codigo);
+        },
+        error: () => {},
+      });
   }
 
   private loadMovimientos(): void {
@@ -452,6 +606,7 @@ export class GenerarPlanillaModalComponent implements OnChanges {
           this.movimientos.set(rows);
           this.loadingMovimientos.set(false);
           this.onSelectionChange();
+          this.loadOrdenesCompraForAll();
         },
         error: () => {
           this.loadingMovimientos.set(false);

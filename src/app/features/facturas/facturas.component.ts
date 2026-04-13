@@ -5,6 +5,8 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 
 import { EstadoFactura, FacturaListItem } from '../../core/models/factura.model';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
+import { AuthzService } from '../../core/services/authz.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { estadoChipClass, estadoLabel } from '../../core/utils/factura.utils';
 import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
@@ -13,7 +15,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 @Component({
     selector: 'app-facturas',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
     template: `
     <app-workspace-shell title="Pre Facturas" subtitle="Listado y gestión de pre facturas internas de transporte." activeSection="facturas">
 
@@ -81,12 +83,14 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
         </button>
 
         <div class="ml-auto">
-          <a
-            routerLink="/facturas/nueva"
-            class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
-          >
-            + Nueva Pre Factura
-          </a>
+          @if (authz.hasPermission('facturas.editar')) {
+            <a
+              routerLink="/facturas/nueva"
+              class="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+            >
+              + Nueva Pre Factura
+            </a>
+          }
         </div>
       </div>
 
@@ -174,6 +178,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                           <!-- Anular -->
                           <button type="button" title="Anular pre factura" aria-label="Anular pre factura"
                                   (click)="confirmarAnular(fac)"
+                                  [disabledIfNoPermission]="'facturas.editar'"
                                   class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700">
                             <svg aria-hidden="true" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -202,7 +207,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 
       <!-- Modal de confirmación de anulación -->
       @if (facturaAAnular()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Anular pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
@@ -232,6 +237,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 })
 export class FacturasComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  readonly authz = inject(AuthzService);
 
   readonly loading        = signal(false);
   readonly error          = signal('');

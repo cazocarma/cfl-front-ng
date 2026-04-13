@@ -1,6 +1,6 @@
 @if (visible) {
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+    class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
     (click)="onBackdropClick($event)"
   >
     <div
@@ -68,7 +68,7 @@
           @if (showSapSnapshot()) {
             <div class="mb-4">
               <app-sap-snapshot-card
-                [entrega]="getSapNumeroEntrega()"
+                [identificadorSap]="getSapIdentificador()"
                 [guia]="getSapGuiaRemision()"
                 [productor]="getSapDestinatario()"
                 [posicionCount]="detailRows().length"
@@ -109,7 +109,7 @@
                 ? 'border border-forest-200 bg-white text-forest-800 shadow-sm'
                 : 'text-forest-600 hover:bg-white/70'"
             >
-              {{ isSapBacked() ? 'Posiciones SAP' : 'Detalles' }}
+              {{ isSapBacked() ? (flete?.origenDatos === 'RECEPCION' ? 'Posiciones Romana' : 'Posiciones SAP') : 'Detalles' }}
             </button>
           </div>
 
@@ -125,10 +125,10 @@
                 </div>
                 <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
                   <div class="xl:col-span-2">
-                    <label class="field-label">Numero Entrega</label>
+                    <label class="field-label">N° Entrega / N° Partida</label>
                     <input type="text" formControlName="numero_entrega" class="cfl-input" [readOnly]="isReadOnly()" placeholder="Ej: 0080012345" />
-                    @if (flete?.kind === 'candidato' && getSapNumeroEntrega()) {
-                      <p class="mt-1 text-[11px] text-forest-500">SAP: {{ getSapNumeroEntrega() }}</p>
+                    @if (flete?.kind === 'candidato' && getSapIdentificador()) {
+                      <p class="mt-1 text-[11px] text-forest-500">SAP: {{ getSapIdentificador() }}</p>
                     }
                   </div>
 
@@ -199,13 +199,22 @@
                   </div>
 
                   <app-searchable-combobox
-                    class="md:col-span-2 xl:col-span-2"
+                    class="md:col-span-2"
                     label="Productor"
                     nullLabel="Sin especificar"
                     [disabled]="isReadOnly()"
                     [options]="getProductorOptions()"
                     [value]="getControlValue('id_productor')"
                     (valueChange)="setControlValue('id_productor', $event)"
+                  />
+                  <app-searchable-combobox
+                    class="md:col-span-2"
+                    label="Especie"
+                    nullLabel="Sin especificar"
+                    [disabled]="isReadOnly()"
+                    [options]="getEspecieOptions()"
+                    [value]="getControlValue('id_especie')"
+                    (valueChange)="setControlValue('id_especie', $event)"
                   />
                 </div>
               </section>
@@ -470,6 +479,7 @@
               [rows]="detailRows()"
               [readOnly]="isReadOnly()"
               [sapBacked]="isSapBacked()"
+              [origenDatos]="flete?.origenDatos ?? null"
               [especieOptions]="especieOptions"
               [loading]="detailLoading()"
               [error]="detailError()"

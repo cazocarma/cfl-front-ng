@@ -18,20 +18,25 @@ import {
   LifecycleStatus,
 } from '../../core/models/flete.model';
 import { AuthnService } from '../../core/services/authn.service';
+import { AuthzService } from '../../core/services/authz.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { Perms, ROLE_LABELS, Roles } from '../../core/config/permissions';
+import type { RoleName } from '../../core/config/permissions';
 import { ToastService } from '../../core/services/toast.service';
 import { EditFleteModalComponent, ModalMode } from './edit-flete-modal/edit-flete-modal.component';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 
 type ConfirmActionType = 'descartar' | 'anular';
 
 @Component({
     selector: 'app-bandeja',
-    imports: [NgClass, FormsModule, RouterLink, EditFleteModalComponent],
+    imports: [NgClass, FormsModule, RouterLink, EditFleteModalComponent, DisabledIfNoPermissionDirective],
     templateUrl: './bandeja.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class BandejaComponent implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
+  private authz = inject(AuthzService);
 
   /*  User session  */
   get userName(): string {
@@ -39,25 +44,33 @@ export class BandejaComponent implements OnInit, OnDestroy {
     return u ? (u.nombre ? `${u.nombre} ${u.apellido ?? ''}`.trim() : u.username) : 'Usuario';
   }
 
-  get userRole(): string {
-    const fromContext = this.authRoles()[0];
-    if (fromContext) return fromContext;
-    return this.auth.getCurrentUser()?.role ?? '';
-  }
-
   get roleLabel(): string {
-    const map: Record<string, string> = {
-      ingresador: 'Ingresador',
-      autorizador: 'Autorizador',
-      administrador: 'Administrador',
-    };
-    const normalizedRole = this._normalizedUserRole();
-    return map[normalizedRole] ?? this.userRole;
+    const role = this.authz.primaryRole() ?? this.auth.getCurrentUser()?.role ?? '';
+    return ROLE_LABELS[role as RoleName] ?? role;
   }
 
   get userInitials(): string {
     return this.userName.split(' ').map(w => w[0]?.toUpperCase() ?? '').slice(0, 2).join('');
   }
+
+  /*  Sidebar — computed signals (reactivos con OnPush)  */
+  readonly canSeeFacturas = computed(() =>
+    this.authz.hasAnyPermission(Perms.FACTURAS_VER, Perms.FACTURAS_EDITAR, Perms.FACTURAS_CONCILIAR)
+  );
+  readonly canSeePlanillas = computed(() =>
+    this.authz.hasAnyPermission(Perms.PLANILLAS_VER, Perms.PLANILLAS_GENERAR)
+  );
+  readonly canSeeCargaEntregas = computed(() =>
+    this.authz.hasAnyPermission(Perms.FLETES_SAP_ETL_EJECUTAR, Perms.FLETES_SAP_ETL_VER)
+  );
+  readonly canSeeEstadisticas = computed(() => this.authz.hasPermission(Perms.REPORTES_VIEW));
+  readonly canSeeAuditoria = computed(() => this.authz.primaryRole() === Roles.ADMINISTRADOR);
+  readonly canSeeMantenedores = computed(() =>
+    this.authz.hasAnyPermission(Perms.MANTENEDORES_VIEW, Perms.MANTENEDORES_ADMIN)
+  );
+  readonly canSeeAdminSection = computed(() =>
+    this.canSeeCargaEntregas() || this.canSeeEstadisticas() || this.canSeeAuditoria() || this.canSeeMantenedores()
+  );
 
   /*  Tabs  */
   activeTab = signal<'candidatos' | 'en_curso'>('en_curso');
@@ -68,17 +81,15 @@ export class BandejaComponent implements OnInit, OnDestroy {
   showUserMenu = signal(false);
   mobileSidebarOpen = signal(false);
 
-  /*  Auth context (dinamico por DB)  */
-  authContextLoaded = signal(false);
-  authContextLoading = signal(false);
-  authPermissions = signal<Set<string>>(new Set());
-  authRoles = signal<string[]>([]);
-
   private toast = inject(ToastService);
   /*  Modal edición / vista  */
   editModalFlete = signal<FleteTabla | null>(null);
   editModalVisible = signal(false);
   editModalMode = signal<ModalMode>('edit');
+
+  /*  Vaciar bandeja  */
+  vaciandoBandeja = signal(false);
+  confirmarVaciarVisible = signal(false);
 
   /*  Confirmación descartar/anular  */
   confirmActionVisible = signal(false);
@@ -98,7 +109,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   /*  Filtros  */
   searchFilter = signal('');
-  estadoFilter = signal<LifecycleStatus | 'all'>('all');
+  estadoFilter = signal<string>('PENDIENTES');
   fechaFilterValue = signal('all'); // 'all' | 'YYYY-MM' | 'rango'
   fechaDesdeFilter = signal('');
   fechaHastaFilter = signal('');
@@ -143,15 +154,14 @@ export class BandejaComponent implements OnInit, OnDestroy {
   })();
 
   /*  Opciones estáticas  */
-  estadoOptions: { value: LifecycleStatus | 'all'; label: string }[] = [
-    { value: 'all', label: 'Todos (sin anulados)' },
-    { value: 'DETECTADO', label: 'Detectado' },
-    { value: 'ACTUALIZADO', label: 'Actualizado' },
-    { value: 'EN_REVISION', label: 'En revisión' },
+  estadoOptions: { value: string; label: string }[] = [
+    { value: 'PENDIENTES', label: 'Pendientes' },
+    { value: 'EN_REVISION', label: 'En revision' },
     { value: 'COMPLETADO', label: 'Completado' },
     { value: 'PREFACTURADO', label: 'Pre facturado' },
     { value: 'FACTURADO', label: 'Facturado' },
     { value: 'ANULADO', label: 'Anulado' },
+    { value: 'all', label: 'Todos' },
   ];
   itemsPerPageOptions = [10, 25, 50, 100];
 
@@ -167,7 +177,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this._loadAuthContext();
     this.loadFletes();
     this.searchDebounce$.pipe(
       debounceTime(800),
@@ -185,7 +194,8 @@ export class BandejaComponent implements OnInit, OnDestroy {
     const page = this.currentPage();
     const page_size = this.itemsPerPage();
     const search = this.searchFilter().trim() || undefined;
-    const estado = this.estadoFilter() !== 'all' ? this.estadoFilter() : undefined;
+    const estadoRaw = this.estadoFilter();
+    const estado = estadoRaw === 'PENDIENTES' ? 'PENDIENTES' : estadoRaw === 'all' ? 'TODOS' : estadoRaw || undefined;
 
     let fecha_desde: string | undefined;
     let fecha_hasta: string | undefined;
@@ -214,7 +224,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.loading.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this.toast.show(err?.error?.error ?? 'Error cargando candidatos SAP', true);
+          this.toast.show(err?.error?.error ?? 'No se pudieron cargar los candidatos. Intenta nuevamente.', true);
         },
       });
     } else {
@@ -228,7 +238,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.loading.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this.toast.show(err?.error?.error ?? 'Error cargando fletes en curso', true);
+          this.toast.show(err?.error?.error ?? 'No se pudieron cargar los fletes. Intenta nuevamente.', true);
         },
       });
     }
@@ -240,7 +250,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.activeTab.set(tab);
     this.currentPage.set(1);
     this.searchFilter.set('');
-    this.estadoFilter.set('all');
+    this.estadoFilter.set(tab === 'en_curso' ? 'PENDIENTES' : 'all');
     this.fechaFilterValue.set('all');
     this.fechaDesdeFilter.set('');
     this.fechaHastaFilter.set('');
@@ -274,7 +284,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   clearFilters(): void {
     this.searchFilter.set('');
-    this.estadoFilter.set('all');
+    this.estadoFilter.set(this.activeTab() === 'en_curso' ? 'PENDIENTES' : 'all');
     this.fechaFilterValue.set('all');
     this.fechaDesdeFilter.set('');
     this.fechaHastaFilter.set('');
@@ -284,7 +294,8 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   hasActiveFilters(): boolean {
     if (this.searchFilter() !== '') return true;
-    if (this.estadoFilter() !== 'all') return true;
+    const defaultEstado = this.activeTab() === 'en_curso' ? 'PENDIENTES' : 'all';
+    if (this.estadoFilter() !== defaultEstado) return true;
     const fv = this.fechaFilterValue();
     if (fv !== 'all' && fv !== 'rango') return true;
     if (fv === 'rango' && (this.fechaDesdeFilter() || this.fechaHastaFilter())) return true;
@@ -446,7 +457,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
     const motivo = this.confirmActionMotivo().trim();
     if (!motivo) {
-      this.toast.show('Debes ingresar un motivo para continuar', true);
+      this.toast.show('Escribe un motivo antes de continuar.', true);
       return;
     }
 
@@ -458,17 +469,21 @@ export class BandejaComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      const isRomana = flete.idSapEntrega < 0;
+      const descartarObs$ = isRomana
+        ? this.cflApi.descartarRomanaPendiente(Math.abs(flete.idSapEntrega), { motivo })
+        : this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo });
+      descartarObs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.confirmActionSaving.set(false);
           this.closeConfirmAction();
-          this.toast.show('Ingreso SAP descartado');
+          this.toast.show('Candidato descartado correctamente.');
           this.loadFletes();
         },
         error: (err) => {
           this.confirmActionSaving.set(false);
           if (this._handleAuthorizationError(err)) return;
-          this.toast.show(err?.error?.error ?? 'Error al descartar ingreso SAP', true);
+          this.toast.show(err?.error?.error ?? 'No se pudo descartar el candidato.', true);
         },
       });
       return;
@@ -483,13 +498,13 @@ export class BandejaComponent implements OnInit, OnDestroy {
       next: () => {
         this.confirmActionSaving.set(false);
         this.closeConfirmAction();
-        this.toast.show('Flete anulado');
+        this.toast.show('Flete anulado correctamente.');
         this.loadFletes();
       },
       error: (err) => {
         this.confirmActionSaving.set(false);
         if (this._handleAuthorizationError(err)) return;
-        this.toast.show(err?.error?.error ?? 'Error al anular flete', true);
+        this.toast.show(err?.error?.error ?? 'No se pudo anular el flete.', true);
       },
     });
   }
@@ -497,7 +512,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   /*  Modal edición  */
   onEditGuardado(): void {
     this.editModalVisible.set(false);
-    this.toast.show('Flete guardado correctamente');
+    this.toast.show('Flete guardado exitosamente.');
     this.loadFletes();
   }
 
@@ -520,30 +535,57 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   /*  Permisos / roles  */
   canViewFlete(): boolean {
-    return this._canUseByPermissions(['fletes.candidatos.view', 'fletes.editar', 'fletes.crear']);
+    return this.authz.hasAnyPermission(Perms.FLETES_CANDIDATOS_VIEW, Perms.FLETES_EDITAR, Perms.FLETES_CREAR);
   }
 
   canEditForFlete(flete: FleteTabla | null): boolean {
     if (!this._hasValidAuthState()) return false;
     if (!flete) {
-      return this._canUseByPermissions(['fletes.editar', 'fletes.crear']);
+      return this.authz.hasAnyPermission(Perms.FLETES_EDITAR, Perms.FLETES_CREAR);
     }
     if (flete.kind === 'candidato') {
-      return this._canUseByPermissions(['fletes.crear', 'fletes.editar']);
+      return this.authz.hasAnyPermission(Perms.FLETES_CREAR, Perms.FLETES_EDITAR);
     }
-    return this._canUseByPermissions(['fletes.editar']);
+    return this.authz.hasPermission(Perms.FLETES_EDITAR);
   }
 
   canAnular(): boolean {
-    if (!this._hasValidAuthState()) return false;
-    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
-    return this._canUseByPermissions(['fletes.anular']);
+    return this.authz.hasPermission(Perms.FLETES_ANULAR);
   }
 
   canDescartar(): boolean {
-    if (!this._hasValidAuthState()) return false;
-    if (this._hasAnyRole(['autorizador', 'administrador'])) return true;
-    return this._canUseByPermissions(['fletes.sap.descartar']);
+    return this.authz.hasPermission(Perms.FLETES_SAP_DESCARTAR);
+  }
+
+  abrirConfirmarVaciar(): void {
+    if (!this.canDescartar()) {
+      this._showActionBlockedToast();
+      return;
+    }
+    this.confirmarVaciarVisible.set(true);
+  }
+
+  cerrarConfirmarVaciar(): void {
+    this.confirmarVaciarVisible.set(false);
+  }
+
+  ejecutarVaciarBandeja(): void {
+    this.vaciandoBandeja.set(true);
+    this.cflApi.descartarTodosCandidatos({ motivo: 'Descarte masivo de bandeja' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.vaciandoBandeja.set(false);
+          this.cerrarConfirmarVaciar();
+          this.toast.show(`Bandeja vaciada: ${res.data.descartados} candidato(s) descartados.`);
+          this.loadFletes();
+        },
+        error: (err) => {
+          this.vaciandoBandeja.set(false);
+          if (this._handleAuthorizationError(err)) return;
+          this.toast.show(err?.error?.error ?? 'No se pudo vaciar la bandeja.', true);
+        },
+      });
   }
 
   canAnularFlete(flete: FleteTabla): boolean {
@@ -553,7 +595,7 @@ export class BandejaComponent implements OnInit, OnDestroy {
   }
 
   areActionsBlocked(): boolean {
-    return !this._hasValidAuthState();
+    return !this.auth.isLoggedIn() || !this.authz.loaded();
   }
 
   /*  Formatting  */
@@ -571,99 +613,29 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   private _showActionBlockedToast(): void {
     if (!this.auth.isLoggedIn()) {
-      this.toast.show('Sesión expirada. Inicia sesión nuevamente.', true);
+      this.toast.show('Tu sesion ha expirado. Vuelve a iniciar sesion.', true);
       this.auth.logout();
       return;
     }
 
-    if (!this.authContextLoaded()) {
-      this.toast.show('No se pudo validar tu perfil. Acción bloqueada por seguridad.', true);
+    if (!this.authz.loaded()) {
+      this.toast.show('No se pudo verificar tu perfil. Intenta recargar la pagina.', true);
       return;
     }
 
-    this.toast.show('No tienes permisos para ejecutar esta acción', true);
+    this.toast.show('No cuentas con permisos para realizar esta accion.', true);
   }
 
   private _handleAuthorizationError(err: { status?: number; error?: { error?: string } }): boolean {
     const status = Number(err?.status || 0);
     if (status === 401 || status === 403) {
-      // El interceptor global ya maneja 401/403, solo refrescamos contexto en 403
-      if (status === 403) this._loadAuthContext();
+      // El interceptor global ya maneja 401/403; AuthzService gestiona el contexto
       return true;
     }
     return false;
   }
 
-  private _loadAuthContext(): void {
-    this.authContextLoading.set(true);
-
-    this.cflApi.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (ctx) => {
-        const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
-          .map((role) => this._normalizeText(role))
-          .filter((role): role is string => Boolean(role));
-        const permissions = (ctx.data.permissions ?? [])
-          .map((permission) => this._normalizeText(permission))
-          .filter((permission): permission is string => Boolean(permission));
-
-        this.authRoles.set(Array.from(new Set(roles)));
-        this.authPermissions.set(new Set(permissions));
-        this.authContextLoaded.set(true);
-        this.authContextLoading.set(false);
-      },
-      error: (err) => {
-        this.authRoles.set([]);
-        this.authPermissions.set(new Set());
-        this.authContextLoaded.set(false);
-        this.authContextLoading.set(false);
-
-        const status = Number(err?.status || 0);
-        if (status === 401) {
-          this.toast.show('Tu sesión expiró. Inicia sesión nuevamente.', true);
-          this.auth.logout();
-          return;
-        }
-
-        this.toast.show(
-          err?.error?.error ?? 'No fue posible cargar permisos de usuario. Acciones bloqueadas.',
-          true,
-        );
-      },
-    });
-  }
-
   private _hasValidAuthState(): boolean {
-    return this.auth.isLoggedIn() && this.authContextLoaded() && !this.authContextLoading();
-  }
-
-  private _canUseByPermissions(permissionKeys: string[]): boolean {
-    if (!this._hasValidAuthState()) return false;
-    if (this._isAdminContext()) return true;
-    return permissionKeys.some((key) => this._hasPermission(key));
-  }
-
-  private _isAdminContext(): boolean {
-    return this.authRoles().includes('administrador')
-      || this.authRoles().includes('admin')
-      || this._hasPermission('mantenedores.admin');
-  }
-
-  private _hasPermission(permissionKey: string): boolean {
-    return this.authPermissions().has(this._normalizeText(permissionKey) || '');
-  }
-
-  private _hasAnyRole(roles: string[]): boolean {
-    const roleSet = new Set(this.authRoles());
-    return roles.some((role) => roleSet.has((this._normalizeText(role) || '')));
-  }
-
-  private _normalizeText(value: unknown): string | null {
-    if (value === null || value === undefined) return null;
-    const normalized = String(value).trim().toLowerCase();
-    return normalized || null;
-  }
-
-  private _normalizedUserRole(): string {
-    return this._normalizeText(this.userRole) || '';
+    return this.auth.isLoggedIn() && this.authz.loaded();
   }
 }

@@ -1,7 +1,3 @@
-<!-- ════════════════════════════════════════════════════
-     Mantenedor Tabla — Vista genérica de entidad
-     ════════════════════════════════════════════════════ -->
-
 @if (!config()) {
   <div class="flex items-center justify-center h-full">
     <p class="text-forest-500">Mantenedor no encontrado.</p>
@@ -9,55 +5,86 @@
 }
 
 @if (config()) {
-  <!-- Top bar -->
-  <header class="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-forest-100 bg-white px-4 py-3 shadow-sm sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-4">
-    <button type="button" (click)="goBack()" class="btn-ghost !px-2 !py-2" title="Volver">
+  <!-- Top bar: Back + Title + Search + Actions -->
+  <header class="flex flex-shrink-0 items-center gap-3 border-b border-forest-100 bg-white px-4 py-3 shadow-sm sm:px-6">
+    <button type="button" (click)="goBack()" class="btn-ghost !px-2 !py-2 flex-shrink-0" title="Volver">
       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
     </button>
-    <div class="min-w-0 flex-1">
-      <h1 class="truncate text-lg font-bold text-forest-900">{{ config()!.title }}</h1>
-      <p class="truncate text-xs text-forest-500">{{ config()!.description }}</p>
+
+    <div class="min-w-0 flex-shrink-0">
+      <h1 class="truncate text-base font-bold text-forest-900 sm:text-lg">{{ config()!.title }}</h1>
     </div>
-    @if (isAdminOrAutorizador || canEdit()) {
-      <button type="button" (click)="openCreate()" class="btn-primary">
+
+    <!-- Search (integrado en header) -->
+    <div class="relative flex-1 max-w-md ml-2">
+      <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-forest-400">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
-        Agregar {{ config()!.title | slice:0:15 }}
-      </button>
-    }
+      </span>
+      <input
+        type="text"
+        class="cfl-input pl-9 pr-9 w-full text-sm"
+        placeholder="Buscar por nombre, codigo, RUT..."
+        [ngModel]="searchText()"
+        (ngModelChange)="searchText.set($event); onSearch()"
+        name="searchText"
+      />
+      @if (searchText()) {
+        <button type="button" (click)="searchText.set(''); onSearch()"
+          class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-forest-400 hover:text-red-500 hover:bg-red-50 transition">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+      @if (config()!.syncSap && (isAdminOrAutorizador || canEdit())) {
+        <button type="button" (click)="syncSap()" [disabled]="syncing()"
+          [disabledIfNoPermission]="'mantenedores.admin'"
+          class="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 border border-blue-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100 transition disabled:opacity-50">
+          <svg class="h-3.5 w-3.5" [class.animate-spin]="syncing()" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          <span class="hidden sm:inline">{{ syncing() ? 'Sincronizando...' : 'Sync SAP' }}</span>
+        </button>
+      }
+      @if (isAdminOrAutorizador || canEdit()) {
+        <button type="button" (click)="openCreate()" [disabledIfNoPermission]="'mantenedores.admin'" class="btn-primary !py-2 text-xs sm:text-sm">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          <span class="hidden sm:inline">Agregar</span>
+        </button>
+      }
+    </div>
   </header>
 
-  <!-- Scrollable content -->
-  <div class="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+  <!-- Content -->
+  <div class="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 space-y-4">
 
-    <!-- Filtro especial: Temporadas (solo para Tarifas) -->
+    <!-- Filtro Temporadas (solo Tarifas) -->
     @if (config()!.tipoEspecial === 'tarifas') {
-      <div class="rounded-2xl bg-white shadow-nature overflow-hidden">
-        <div class="px-5 py-3 border-b border-forest-100 bg-forest-50 flex flex-wrap items-center gap-3">
-          <svg class="h-4 w-4 text-forest-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-          </svg>
-          <label class="text-xs font-semibold text-forest-700 uppercase tracking-wide">Temporada:</label>
-          <select
-            class="cfl-select w-64"
-            [value]="selectedTemporadaId() ?? ''"
-            (change)="onTemporadaChange($any($event.target).value)"
-          >
-            <option value="">Todas las temporadas</option>
-            @for (t of temporadas(); track $any(t)['id_temporada']) {
-              <option [value]="$any(t)['id_temporada']">
-                {{ $any(t)['codigo'] }} — {{ $any(t)['nombre'] }}
-              </option>
-            }
-          </select>
-          @if (selectedTemporadaId()) {
-            <span class="badge badge-completado">Temporada activa pre-seleccionada</span>
+      <div class="flex flex-wrap items-center gap-3 rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
+        <svg class="h-4 w-4 text-forest-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <label class="text-xs font-semibold text-forest-700 uppercase tracking-wide">Temporada:</label>
+        <select class="cfl-select w-64" [value]="selectedTemporadaId() ?? ''" (change)="onTemporadaChange($any($event.target).value)">
+          <option value="">Todas las temporadas</option>
+          @for (t of temporadas(); track $any(t)['id_temporada']) {
+            <option [value]="$any(t)['id_temporada']">{{ $any(t)['codigo'] }} — {{ $any(t)['nombre'] }}</option>
           }
-        </div>
+        </select>
+        @if (selectedTemporadaId()) {
+          <span class="badge badge-completado text-[10px]">Activa</span>
+        }
       </div>
     }
 
@@ -65,97 +92,44 @@
     @if (loading()) {
       <div class="flex flex-col items-center justify-center py-20 animate-fade-in">
         <div class="h-10 w-10 rounded-full border-4 border-forest-100 border-t-forest-500 animate-spin mb-3"></div>
-        <p class="text-sm font-medium text-forest-600">Cargando datos…</p>
+        <p class="text-sm font-medium text-forest-600">Cargando datos...</p>
       </div>
     }
 
-    <!-- Table card -->
+    <!-- Table -->
     @if (!loading()) {
       <div class="rounded-2xl bg-white shadow-nature overflow-hidden animate-fade-in">
 
-        <!-- Filter bar -->
-        <div class="px-5 py-3 border-b border-forest-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex items-center gap-2">
-            <!-- Search -->
-            <div class="relative">
-              <span class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-forest-400">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                </svg>
-              </span>
-              <input
-                type="text"
-                class="cfl-input pl-9 w-56"
-                placeholder="Buscar en tabla…"
-                aria-label="Buscar registros en tabla"
-                [ngModel]="searchText()"
-                (ngModelChange)="searchText.set($event); onSearch()"
-                name="searchText"
-              />
-            </div>
-            @if (searchText()) {
-              <button type="button" (click)="searchText.set(''); onSearch()" class="btn-ghost text-red-500 hover:bg-red-50 !px-2 !py-2">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-              </button>
-            }
-            <!-- Filtro activo/inactivo -->
-            @if (config()!.softDeleteField) {
-              <select
-                class="cfl-select w-36 text-xs"
-                aria-label="Filtrar por estado activo"
-                [ngModel]="activoFilter()"
-                (ngModelChange)="onActivoFilterChange($event)"
-                name="activoFilter"
-              >
-                <option value="si">Solo activos</option>
-                <option value="no">Solo inactivos</option>
-                <option value="todos">Todos</option>
-              </select>
-            }
-          </div>
-          <div class="flex items-center gap-3 text-sm text-forest-500">
-            <span>{{ filteredRows().length }} resultado{{ filteredRows().length !== 1 ? 's' : '' }}</span>
-            <select class="cfl-select w-20 text-xs" aria-label="Registros por página" [ngModel]="itemsPerPage()" (ngModelChange)="onItemsChange($event)" name="perPage">
+        <!-- Info bar -->
+        <div class="flex items-center justify-between px-5 py-2.5 border-b border-forest-50 bg-forest-50/40">
+          <span class="text-xs text-forest-500">{{ filteredRows().length }} registro{{ filteredRows().length !== 1 ? 's' : '' }}</span>
+          <div class="flex items-center gap-2 text-xs text-forest-500">
+            <select class="cfl-select w-16 text-xs !py-1 !px-2" [ngModel]="itemsPerPage()" (ngModelChange)="onItemsChange($event)" name="perPage">
               @for (n of itemsPerPageOptions; track n) { <option [value]="n">{{ n }}</option> }
             </select>
-            <span class="text-xs">/ pág.</span>
+            <span>/ pag.</span>
           </div>
         </div>
 
-        <!-- Table -->
         <div class="overflow-x-auto">
           <table class="min-w-full">
             <thead>
               <tr style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">
                 @for (col of config()!.columnas; track col.key) {
-                  <th class="table-header-cell">{{ col.label }}</th>
+                  @if (config()!.softDeleteField !== col.key) {
+                    <th class="table-header-cell whitespace-nowrap">{{ col.label }}</th>
+                  }
                 }
-                <th class="table-header-cell text-center">Acciones</th>
+                <th class="table-header-cell text-center sticky right-0" style="background: #2b6734; min-width: 100px;">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-forest-50">
               @for (row of paginatedRows(); track trackByIndex($index)) {
-                <tr class="table-row group">
+                <tr class="table-row transition-opacity" [class.opacity-50]="isRowInactive(row)">
                   @for (col of config()!.columnas; track col.key) {
-                    <td class="table-cell">
-
-                      <!-- Boolean → switch toggle -->
-                      @if (col.tipo === 'bool') {
-                        @if (config()!.softDeleteField === col.key && (isAdminOrAutorizador || canEdit())) {
-                          <button
-                            type="button"
-                            (click)="toggleActivo(row)"
-                            [title]="asBool(row[col.key]) ? 'Desactivar' : 'Activar'"
-                            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-forest-400 focus:ring-offset-1"
-                            [class]="asBool(row[col.key]) ? 'bg-forest-500' : 'bg-slate-200'"
-                          >
-                            <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
-                                  [class]="asBool(row[col.key]) ? 'translate-x-4' : 'translate-x-0.5'">
-                            </span>
-                          </button>
-                        } @else {
+                    @if (config()!.softDeleteField !== col.key) {
+                      <td class="table-cell">
+                        @if (col.tipo === 'bool') {
                           <span class="inline-flex items-center gap-1 text-xs" [class]="asBool(row[col.key]) ? 'text-emerald-700' : 'text-slate-400'">
                             <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
                               @if (asBool(row[col.key])) {
@@ -164,39 +138,33 @@
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
                               }
                             </svg>
-                            {{ asBool(row[col.key]) ? 'Sí' : 'No' }}
+                            {{ asBool(row[col.key]) ? 'Si' : 'No' }}
                           </span>
+                        } @else if (col.tipo === 'badge') {
+                          <span [class]="getBadgeClass(row[col.key], col.badgeMap)">{{ row[col.key] ?? '—' }}</span>
+                        } @else if (col.tipo === 'mono') {
+                          <span class="font-mono text-xs font-semibold text-forest-800">{{ row[col.key] ?? '—' }}</span>
+                        } @else {
+                          <span class="text-sm text-forest-800">{{ formatCell(row[col.key], col.tipo) }}</span>
                         }
-                      }
-
-                      <!-- Badge -->
-                      @else if (col.tipo === 'badge') {
-                        <span [class]="getBadgeClass(row[col.key], col.badgeMap)">{{ row[col.key] ?? '—' }}</span>
-                      }
-
-                      <!-- Mono text -->
-                      @else if (col.tipo === 'mono') {
-                        <span class="font-mono text-xs font-semibold text-forest-800">{{ row[col.key] ?? '—' }}</span>
-                      }
-
-                      <!-- Default text / date / currency / number -->
-                      @else {
-                        <span class="text-sm text-forest-800">{{ formatCell(row[col.key], col.tipo) }}</span>
-                      }
-
-                    </td>
+                      </td>
+                    }
                   }
 
-                  <!-- Acciones -->
-                  <td class="table-cell text-center">
-                    <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <!-- Ver / Editar -->
-                      <button
-                        type="button"
-                        (click)="openEdit(row)"
-                        class="btn-icon"
-                        title="Editar"
-                      >
+                  <!-- Acciones (sticky, siempre visible) -->
+                  <td class="table-cell text-center sticky right-0 bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.06)]">
+                    <div class="flex items-center justify-center gap-1.5">
+                      @if (config()!.softDeleteField && (isAdminOrAutorizador || canEdit())) {
+                        <button type="button" (click)="toggleActivo(row)"
+                          [title]="isRowInactive(row) ? 'Activar' : 'Desactivar'"
+                          [disabledIfNoPermission]="'mantenedores.admin'"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
+                          [class]="isRowInactive(row) ? 'bg-slate-200' : 'bg-forest-500'">
+                          <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
+                                [class]="isRowInactive(row) ? 'translate-x-0.5' : 'translate-x-4'"></span>
+                        </button>
+                      }
+                      <button type="button" (click)="openEdit(row)" [disabledIfNoPermission]="'mantenedores.admin'" class="rounded-lg p-1.5 text-forest-500 hover:text-forest-700 hover:bg-forest-100 transition" title="Editar">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -207,7 +175,6 @@
                 </tr>
               }
 
-              <!-- Empty state -->
               @if (paginatedRows().length === 0) {
                 <tr>
                   <td [attr.colspan]="config()!.columnas.length + 1" class="py-16 text-center">
@@ -220,7 +187,7 @@
                       </div>
                       <p class="text-sm font-semibold text-forest-700">Sin registros</p>
                       <p class="text-xs text-forest-400">
-                        {{ searchText() ? 'Ningún resultado coincide con la búsqueda.' : 'Aún no hay datos en este catálogo.' }}
+                        {{ searchText() ? 'No se encontraron resultados para la busqueda.' : 'Aun no hay datos en este catalogo.' }}
                       </p>
                     </div>
                   </td>
@@ -234,29 +201,29 @@
         @if (totalPages() > 1) {
           <div class="flex items-center justify-between border-t border-forest-100 px-5 py-3">
             <p class="text-xs text-forest-500">
-              Mostrando {{ paginationStart() }}–{{ paginationEnd() }} de {{ filteredRows().length }}
+              {{ paginationStart() }}–{{ paginationEnd() }} de {{ filteredRows().length }}
             </p>
             <div class="flex items-center gap-1">
               <button type="button" (click)="prevPage()" [disabled]="currentPage() === 1"
-                      class="btn-icon disabled:opacity-30 disabled:cursor-not-allowed">
+                      class="rounded-lg p-1.5 text-forest-500 hover:bg-forest-100 transition disabled:opacity-30">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
               </button>
               @for (p of pageNumbers(); track $index) {
                 @if (p === '...') {
-                  <span class="px-2 text-forest-400 text-sm">…</span>
+                  <span class="px-1.5 text-forest-400 text-xs">...</span>
                 } @else {
                   <button type="button" (click)="goToPage(p)"
                     [class]="currentPage() === p
-                      ? 'rounded-lg bg-forest-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm'
-                      : 'rounded-lg px-3 py-1.5 text-xs font-medium text-forest-600 hover:bg-forest-100 transition'">
+                      ? 'rounded-lg bg-forest-600 px-2.5 py-1 text-xs font-semibold text-white'
+                      : 'rounded-lg px-2.5 py-1 text-xs text-forest-600 hover:bg-forest-100 transition'">
                     {{ p }}
                   </button>
                 }
               }
               <button type="button" (click)="nextPage()" [disabled]="currentPage() === totalPages()"
-                      class="btn-icon disabled:opacity-30 disabled:cursor-not-allowed">
+                      class="rounded-lg p-1.5 text-forest-500 hover:bg-forest-100 transition disabled:opacity-30">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                 </svg>
@@ -264,13 +231,11 @@
             </div>
           </div>
         }
-
-      </div><!-- /table card -->
+      </div>
     }
-  </div><!-- /content -->
+  </div>
 }
 
-<!-- ════ Modal genérico (form crear/editar) ════ -->
 @if (config()) {
   <app-mantenedor-form-modal
     [config]="config()!"

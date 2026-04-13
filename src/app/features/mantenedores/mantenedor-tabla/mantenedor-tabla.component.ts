@@ -2,8 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnIni
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { SlicePipe } from '@angular/common';
-
+import { DisabledIfNoPermissionDirective } from '../../../core/directives/disabled-if-no-permission.directive';
 import { CflApiService } from '../../../core/services/cfl-api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { formatDate as formatDateFn } from '../../../core/utils/format.utils';
@@ -14,9 +13,9 @@ import { MantenedorFormModalComponent } from '../mantenedor-form/mantenedor-form
 @Component({
     selector: 'app-mantenedor-tabla',
     imports: [
-        SlicePipe,
         FormsModule,
         MantenedorFormModalComponent,
+        DisabledIfNoPermissionDirective,
     ],
     host: { class: 'flex flex-1 flex-col overflow-hidden' },
     templateUrl: './mantenedor-tabla.component.html',
@@ -32,12 +31,13 @@ export class MantenedorTablaComponent implements OnInit {
   allRows    = signal<Record<string, unknown>[]>([]);
   loading    = signal(false);
   canEdit    = signal(false);
+  syncing    = signal(false);
 
   private toast = inject(ToastService);
 
   /* ── Filtros y paginación (client-side) ────────────────────── */
   searchText    = signal('');
-  activoFilter  = signal<'si' | 'no' | 'todos'>('si');
+  activoFilter  = signal<'si' | 'no' | 'todos'>('todos');
   currentPage   = signal(1);
   itemsPerPage  = signal(25);
   readonly itemsPerPageOptions = [10, 25, 50];
@@ -159,7 +159,7 @@ export class MantenedorTablaComponent implements OnInit {
         this.currentPage.set(1);
       },
       error: (err) => {
-        this.toast.show(err?.error?.error ?? 'Error cargando tarifas', true);
+        this.toast.show(err?.error?.error ?? 'No se pudieron cargar las tarifas.', true);
         this.loading.set(false);
       },
     });
@@ -179,7 +179,7 @@ export class MantenedorTablaComponent implements OnInit {
         this.currentPage.set(1);
       },
       error: (err) => {
-        this.toast.show(err?.error?.error ?? `Error cargando ${cfg.title}`, true);
+        this.toast.show(err?.error?.error ?? `No se pudieron cargar los datos de ${cfg.title}.`, true);
         this.loading.set(false);
       },
     });
@@ -214,16 +214,16 @@ export class MantenedorTablaComponent implements OnInit {
 
     this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor, cfg.softDeleteField).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
-        this.toast.show(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'}`);
+        this.toast.show(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'} correctamente.`);
         this._reloadAfterAction();
       },
-      error: (err) => this.toast.show(err?.error?.error ?? 'Error al cambiar estado', true),
+      error: (err) => this.toast.show(err?.error?.error ?? 'No se pudo cambiar el estado.', true),
     });
   }
 
   onFormGuardado(): void {
     this.formModalVisible.set(false);
-    this.toast.show('Registro guardado correctamente');
+    this.toast.show('Registro guardado exitosamente.');
     this._reloadAfterAction();
   }
 
@@ -310,4 +310,34 @@ export class MantenedorTablaComponent implements OnInit {
   }
 
   trackByIndex(i: number): number { return i; }
+
+  isRowInactive(row: Record<string, unknown>): boolean {
+    const cfg = this.config();
+    if (!cfg?.softDeleteField) return false;
+    const key = this._toSnakeKey(cfg.softDeleteField);
+    const val = row[key] ?? row[cfg.softDeleteField];
+    return val === false || val === 0 || val === '0';
+  }
+
+  /* ── Sync SAP ─────────────────────────────────────────────── */
+  syncSap(): void {
+    const cfg = this.config();
+    if (!cfg?.syncSap || this.syncing()) return;
+
+    this.syncing.set(true);
+    this.api.syncMaintainerSap(cfg.key)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.syncing.set(false);
+          const d = res.data;
+          this.toast.show(`Sincronizacion completada: ${d.inserted} nuevos, ${d.updated} actualizados.`);
+          this._loadRows();
+        },
+        error: (err) => {
+          this.syncing.set(false);
+          this.toast.show(err?.error?.error ?? err?.error?.message ?? 'No se pudo sincronizar con SAP.', true);
+        },
+      });
+  }
 }

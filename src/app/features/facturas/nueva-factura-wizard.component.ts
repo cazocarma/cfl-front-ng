@@ -6,6 +6,7 @@ import { Router, RouterLink } from '@angular/router';
 
 import { EmpresaElegible, GrupoSugerido, MovimientoElegible, PeriodoDisponible } from '../../core/models/factura.model';
 import { nombreMes } from '../../core/constants/factura.constants';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
@@ -21,7 +22,7 @@ interface GrupoPrefactura {
 @Component({
     selector: 'app-nueva-factura-wizard',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
     template: `
     <app-workspace-shell title="Nueva Pre Factura" subtitle="Generacion de pre facturas de transporte por periodo y tipo de flete." activeSection="facturas">
 
@@ -456,6 +457,7 @@ interface GrupoPrefactura {
           @if (step() === 3 && !generando()) {
             <button type="button"
                     (click)="confirmarGeneracion()"
+                    [disabledIfNoPermission]="'facturas.editar'"
                     class="rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700">
               Generar pre facturas
             </button>

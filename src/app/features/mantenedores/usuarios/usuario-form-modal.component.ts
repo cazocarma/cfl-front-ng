@@ -45,7 +45,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
     template: `
     @if (visible) {
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       >
         <div
           class="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"

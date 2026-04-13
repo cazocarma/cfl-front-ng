@@ -89,6 +89,7 @@ export interface GenerarPlanillaRequest {
   indicador_impuesto?: string;
   productores_oc?: Array<{
     id_productor: number;
+    especie?: string;
     orden_compra: string;
     posicion_oc?: string;
   }>;
@@ -117,7 +118,24 @@ export interface ProductorOcRow {
   codigo_proveedor: string;
   nombre: string;
   monto: number;
-  especies: string[];
+  especie: string;
   orden_compra: string;
   posicion_oc: string;
+}
+
+export interface PosicionOcOption {
+  ebelp: string;
+  matnr: string;
+  txz01: string;
+  menge: string;
+  meins: string;
+}
+
+export interface OrdenCompraOption {
+  ebeln: string;
+  aedat: string;
+  ernam: string;
+  bukrs: string;
+  bsart: string;
+  posiciones: PosicionOcOption[];
 }

@@ -14,9 +14,9 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
       <div class="flex-1 min-w-0">
         <p class="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1.5">Origen SAP vinculado</p>
         <div class="flex flex-wrap gap-2">
-          @if (entrega) {
+          @if (identificadorSap) {
             <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-800 shadow-sm">
-              <span class="text-amber-500">Entrega:</span> {{ entrega }}
+              <span class="text-amber-500">Identificador SAP:</span> {{ identificadorSap }}
             </span>
           }
           @if (guia) {
@@ -40,7 +40,7 @@ import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
   `,
 })
 export class SapSnapshotCardComponent {
-  @Input() entrega = '';
+  @Input() identificadorSap = '';
   @Input() guia = '';
   @Input() productor = '';
   @Input() posicionCount = 0;

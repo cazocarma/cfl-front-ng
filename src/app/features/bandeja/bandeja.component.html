@@ -28,72 +28,55 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 overflow-y-auto px-3 py-5 space-y-1">
-      <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-forest-600">Menú principal</p>
-
-      <!-- Bandeja (active) -->
+    <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+      <p class="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-forest-600">Menú principal</p>
       <a routerLink="/bandeja" class="nav-item nav-item-active" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-        </svg>
+        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
         <span>Bandeja</span>
         <span class="ml-auto flex items-center justify-center rounded-full bg-forest-500 px-2 py-0.5 text-[10px] font-bold text-white">
           {{ totalServerItems() }}
         </span>
       </a>
-
-      <a routerLink="/facturas" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-        <span>Pre Facturas</span>
-      </a>
-
-      <a routerLink="/planillas-sap" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-        </svg>
-        <span>Planillas SAP</span>
-      </a>
-
-      <div class="my-3 border-t border-forest-800"></div>
-      <p class="px-3 mb-2 text-[10px] font-bold uppercase tracking-widest text-forest-600">Administración</p>
-
-      <a routerLink="/carga-entregas" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-        </svg>
-        <span>Carga de Entregas</span>
-      </a>
-
-      <a routerLink="/estadisticas" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-        </svg>
-        <span>Estadísticas</span>
-      </a>
-
-      <a routerLink="/auditoria" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-        </svg>
-        <span>Auditoría</span>
-      </a>
-
-      <a routerLink="/mantenedores" class="nav-item" (click)="closeMobileSidebar()">
-        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-        <span>Mantenedores</span>
-      </a>
+      @if (canSeeFacturas()) {
+        <a routerLink="/facturas" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>Pre Facturas</span>
+        </a>
+      }
+      @if (canSeePlanillas()) {
+        <a routerLink="/planillas-sap" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <span>Planillas SAP</span>
+        </a>
+      }
+      @if (canSeeAdminSection()) {
+        <div class="my-3 border-t border-forest-800"></div>
+        <p class="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-forest-600">Administración</p>
+      }
+      @if (canSeeCargaEntregas()) {
+        <a routerLink="/carga-entregas" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span>Carga de Entregas</span>
+        </a>
+      }
+      @if (canSeeEstadisticas()) {
+        <a routerLink="/estadisticas" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <span>Estadísticas</span>
+        </a>
+      }
+      @if (canSeeAuditoria()) {
+        <a routerLink="/auditoria" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          <span>Auditoría</span>
+        </a>
+      }
+      @if (canSeeMantenedores()) {
+        <a routerLink="/mantenedores" class="nav-item" (click)="closeMobileSidebar()">
+          <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Mantenedores</span>
+        </a>
+      }
     </nav>
 
     <!-- User section -->
@@ -138,6 +121,7 @@
         <button
           type="button"
           (click)="openEditModal(null)"
+          [disabledIfNoPermission]="'fletes.crear'"
           [disabled]="!canEditForFlete(null)"
           class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -184,6 +168,24 @@
             Candidatos SAP
           </span>
         </button>
+
+        @if (activeTab() === 'candidatos' && canDescartar() && allFletes().length > 0) {
+          <button
+            type="button"
+            (click)="abrirConfirmarVaciar()"
+            [disabledIfNoPermission]="'fletes.sap.descartar'"
+            [disabled]="vaciandoBandeja()"
+            class="ml-auto mb-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition disabled:opacity-50"
+          >
+            <span class="flex items-center gap-1.5">
+              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Vaciar bandeja
+            </span>
+          </button>
+        }
       </div>
 
       <!--  TABLE CARD  -->
@@ -397,11 +399,23 @@
 
                     <!-- N° Guía / Entrega -->
                     <td class="table-cell">
-                      <div class="font-mono text-xs font-semibold text-forest-800">{{ flete.numeroGuia }}</div>
-                      @if (flete.kind === 'candidato' && flete.sapGuiaRemision) {
-                        <div class="text-[10px] text-forest-500 mt-0.5">Guía: {{ flete.sapGuiaRemision }}</div>
-                      }
-                      <div class="text-[10px] text-forest-400 mt-0.5">{{ flete.id }}</div>
+                      <div class="flex items-start gap-2">
+                        @if (flete.kind === 'candidato' && flete.origenDatos) {
+                          <span class="mt-0.5 flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none text-white"
+                            [class]="flete.origenDatos === 'RECEPCION' ? 'bg-emerald-500' : 'bg-blue-500'">
+                            {{ flete.origenDatos === 'RECEPCION' ? 'Vuelta' : 'Ida' }}
+                          </span>
+                        }
+                        <div class="min-w-0">
+                          @if (flete.kind === 'candidato') {
+                            <div class="text-sm font-bold text-forest-900">{{ flete.sapGuiaRemision || flete.numeroGuia }}</div>
+                            <div class="text-[11px] font-mono text-forest-500 mt-0.5">{{ flete.numeroGuia }}</div>
+                          } @else {
+                            <div class="text-sm font-semibold text-forest-800">{{ flete.numeroGuia }}</div>
+                          }
+                          <div class="text-[10px] text-forest-400">{{ flete.id }}</div>
+                        </div>
+                      </div>
                     </td>
 
                     <!-- Tipo flete -->
@@ -412,9 +426,9 @@
                     <!-- Ruta -->
                     <td class="table-cell">
                       <div class="flex items-center gap-1 text-xs text-forest-700">
-                        @if (flete.sentidoFlete === 'VUELTA') {
+                        @if (flete.kind === 'en_curso' && flete.sentidoFlete === 'VUELTA') {
                           <span class="inline-flex items-center justify-center rounded-full bg-amber-100 w-5 h-5 text-[10px] font-bold text-amber-700 flex-shrink-0">V</span>
-                        } @else {
+                        } @else if (flete.kind === 'en_curso') {
                           <span class="inline-flex items-center justify-center rounded-full bg-emerald-100 w-5 h-5 text-[10px] font-bold text-emerald-700 flex-shrink-0">I</span>
                         }
                         <span class="font-medium">{{ flete.origen }}</span>
@@ -471,6 +485,7 @@
                           <button
                             type="button"
                             (click)="openClonarModal(flete)"
+                            [disabledIfNoPermission]="'fletes.crear'"
                             [disabled]="areActionsBlocked()"
                             class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Clonar movimiento"
@@ -488,6 +503,7 @@
                         <button
                           type="button"
                           (click)="openEditModal(flete)"
+                          [disabledIfNoPermission]="['fletes.editar', 'fletes.crear']"
                           [disabled]="!canEditForFlete(flete) || areActionsBlocked()"
                           class="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
                           title="Editar flete"
@@ -503,6 +519,7 @@
                           <button
                             type="button"
                             (click)="openConfirmAction('descartar', flete)"
+                            [disabledIfNoPermission]="'fletes.sap.descartar'"
                             [disabled]="areActionsBlocked()"
                             class="btn-danger !px-2 !py-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Descartar ingreso SAP"
@@ -519,6 +536,7 @@
                           <button
                             type="button"
                             (click)="openConfirmAction('anular', flete)"
+                            [disabledIfNoPermission]="'fletes.anular'"
                             [disabled]="!canAnularFlete(flete) || areActionsBlocked()"
                             class="btn-danger !px-2 !py-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             [title]="canAnularFlete(flete) ? 'Anular flete' : 'Este flete no se puede anular'"
@@ -630,12 +648,10 @@
       -->
 @if (confirmActionVisible()) {
   <div
-    class="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in"
-    (click)="closeConfirmAction()"
+    class="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in"
   >
     <div
       class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden"
-      (click)="$event.stopPropagation()"
     >
       <!-- Header con color según acción -->
       <div
@@ -735,7 +751,79 @@
   </div>
 }
 
-<!-- 
+<!-- MODAL VACIAR BANDEJA -->
+@if (confirmarVaciarVisible()) {
+  <div
+    class="modal-overlay fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 animate-fade-in"
+  >
+    <div
+      class="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden"
+    >
+      <div class="px-6 py-5 bg-gradient-to-r from-amber-500 to-amber-400">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20">
+            <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Vaciar bandeja de candidatos</h3>
+            <p class="mt-0.5 text-xs text-white/80">Se descartaran todos los candidatos SAP visibles</p>
+          </div>
+          <button
+            type="button"
+            (click)="cerrarConfirmarVaciar()"
+            [disabled]="vaciandoBandeja()"
+            class="ml-auto rounded-lg p-1.5 text-white/70 hover:text-white hover:bg-white/10 transition disabled:opacity-40"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="px-6 py-5 space-y-3">
+        <p class="text-sm text-forest-600">
+          Todos los candidatos SAP que no tengan flete creado seran descartados.
+          Al realizar una nueva carga SAP, los descartados volveran a aparecer automaticamente.
+        </p>
+        <p class="text-xs text-forest-400">
+          Los fletes ya creados no se ven afectados.
+        </p>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 border-t border-forest-100 px-6 py-4 bg-forest-50/50">
+        <button
+          type="button"
+          (click)="cerrarConfirmarVaciar()"
+          [disabled]="vaciandoBandeja()"
+          class="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          (click)="ejecutarVaciarBandeja()"
+          [disabledIfNoPermission]="'fletes.sap.descartar'"
+          [disabled]="vaciandoBandeja()"
+          class="inline-flex items-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          @if (vaciandoBandeja()) {
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          }
+          Vaciar bandeja
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!--
      MODAL EDICI�N DE FLETE
       -->
 <app-edit-flete-modal

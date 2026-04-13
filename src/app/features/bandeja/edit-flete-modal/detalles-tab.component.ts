@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 
 import { SearchableComboboxComponent, SearchableOption } from '../searchable-combobox.component';
-import { DetalleDraft, DetalleGrupo } from './edit-flete-modal.types';
+import { DetalleDraft, DetalleGrupo, groupDetailRows } from './edit-flete-modal.types';
 
 @Component({
   selector: 'app-detalles-tab',
@@ -29,6 +29,7 @@ export class DetallesTabComponent {
   @Input() set rows(value: DetalleDraft[]) { this._rows.set(value); }
   @Input() readOnly = false;
   @Input() sapBacked = false;
+  @Input() origenDatos: 'DESPACHO' | 'RECEPCION' | null = null;
   @Input() especieOptions: SearchableOption[] = [];
   @Input() loading = false;
   @Input() error = '';
@@ -37,37 +38,44 @@ export class DetallesTabComponent {
 
   private _rows = signal<DetalleDraft[]>([]);
 
-  readonly groupedRows = computed<DetalleGrupo[]>(() => {
-    const rows = this._rows();
-    const groups = new Map<string, DetalleGrupo>();
-    for (const row of rows) {
-      const mat = row.material.trim().toUpperCase();
-      const key = mat || row.rowId;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          materialKey: key,
-          material: row.material,
-          descripcion: row.descripcion,
-          cantidad_total: Number(row.cantidad) || 0,
-          peso_total: Number(row.peso) || 0,
-          unidad: row.unidad || 'UN',
-          id_especie: row.id_especie,
-          rowIds: [row.rowId],
-          lotes: row.sap_lote ? [row.sap_lote] : [],
-          posicion_count: 1,
-        });
-      } else {
-        const g = groups.get(key)!;
-        g.cantidad_total += Number(row.cantidad) || 0;
-        g.peso_total += Number(row.peso) || 0;
-        g.rowIds.push(row.rowId);
-        g.posicion_count++;
-        if (row.sap_lote && !g.lotes.includes(row.sap_lote)) g.lotes.push(row.sap_lote);
-        if (!g.id_especie && row.id_especie) g.id_especie = row.id_especie;
-      }
+  readonly groupedRows = computed<DetalleGrupo[]>(() => groupDetailRows(this._rows()));
+
+  readonly totalCantidad = computed(() =>
+    this.groupedRows().reduce((sum, g) => sum + g.cantidad_total, 0)
+  );
+
+  readonly totalPeso = computed(() =>
+    this.groupedRows().reduce((sum, g) => sum + g.peso_total, 0)
+  );
+
+  readonly totalPosiciones = computed(() =>
+    this.groupedRows().reduce((sum, g) => sum + g.posicion_count, 0)
+  );
+
+  readonly dominantUnit = computed(() => {
+    const freq = new Map<string, number>();
+    for (const g of this.groupedRows()) {
+      const u = g.unidad || 'UN';
+      freq.set(u, (freq.get(u) || 0) + g.posicion_count);
     }
-    return Array.from(groups.values());
+    let best = 'UN', max = 0;
+    for (const [unit, count] of freq) {
+      if (count > max) { max = count; best = unit; }
+    }
+    return best;
   });
+
+  get headerTitle(): string {
+    if (!this.sapBacked) return 'Detalle de flete';
+    return this.origenDatos === 'RECEPCION' ? 'Posiciones obtenidas desde Romana' : 'Posiciones obtenidas desde SAP (LIPS)';
+  }
+
+  get headerDescription(): string {
+    if (!this.sapBacked) return 'Agrega una o mas lineas para construir el detalle manual.';
+    return this.origenDatos === 'RECEPCION'
+      ? 'Las posiciones se cargan desde Romana y se enviaran junto con la cabecera.'
+      : 'Las posiciones se cargan desde SAP y se enviaran junto con la cabecera.';
+  }
 
   get canManage(): boolean {
     return !this.readOnly && !this.sapBacked;
@@ -112,21 +120,21 @@ export class DetallesTabComponent {
     if (this.readOnly || this.sapBacked) return;
     const rows = this._rows();
     const groupIds = rows
-      .filter(r => (r.material.trim().toUpperCase() || r.rowId) === materialKey)
+      .filter(r => ((r.material || '').trim().toUpperCase() || r.rowId) === materialKey)
       .map(r => r.rowId);
 
-    let updated: DetalleDraft[];
-    if (groupIds.length <= 1) {
-      updated = rows.map(row => {
-        const k = row.material.trim().toUpperCase() || row.rowId;
-        return k === materialKey ? { ...row, [field]: value } : row;
-      });
-    } else {
-      const firstId = groupIds[0];
-      updated = rows
-        .filter(r => r.rowId === firstId || (r.material.trim().toUpperCase() || r.rowId) !== materialKey)
-        .map(row => row.rowId === firstId ? { ...row, [field]: value } : row);
-    }
+    const updated = rows.map(row => {
+      const k = (row.material || '').trim().toUpperCase() || row.rowId;
+      if (k !== materialKey) return row;
+
+      // Campos numéricos en grupo multi-fila: valor en la primera, cero en el resto
+      if ((field === 'cantidad' || field === 'peso') && groupIds.length > 1) {
+        return row.rowId === groupIds[0]
+          ? { ...row, [field]: value }
+          : { ...row, [field]: '0' };
+      }
+      return { ...row, [field]: value };
+    });
     this._rows.set(updated);
     this.rowsChange.emit(updated);
   }

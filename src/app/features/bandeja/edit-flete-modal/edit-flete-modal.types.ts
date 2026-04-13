@@ -32,6 +32,38 @@ export interface DetalleGrupo {
   posicion_count: number;
 }
 
+/** Agrupa filas DetalleDraft por material (uppercase, trimmed). */
+export function groupDetailRows(rows: DetalleDraft[]): DetalleGrupo[] {
+  const groups = new Map<string, DetalleGrupo>();
+  for (const row of rows) {
+    const mat = (row.material || '').trim().toUpperCase();
+    const key = mat || row.rowId;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        materialKey: key,
+        material: row.material,
+        descripcion: row.descripcion,
+        cantidad_total: Number(row.cantidad) || 0,
+        peso_total: Number(row.peso) || 0,
+        unidad: row.unidad || 'UN',
+        id_especie: row.id_especie,
+        rowIds: [row.rowId],
+        lotes: row.sap_lote ? [row.sap_lote] : [],
+        posicion_count: 1,
+      });
+    } else {
+      const g = groups.get(key)!;
+      g.cantidad_total += Number(row.cantidad) || 0;
+      g.peso_total += Number(row.peso) || 0;
+      g.rowIds.push(row.rowId);
+      g.posicion_count++;
+      if (row.sap_lote && !g.lotes.includes(row.sap_lote)) g.lotes.push(row.sap_lote);
+      if (!g.id_especie && row.id_especie) g.id_especie = row.id_especie;
+    }
+  }
+  return Array.from(groups.values());
+}
+
 export interface DashboardDetalleResponse {
   data?: {
     cabecera?: Record<string, unknown>;

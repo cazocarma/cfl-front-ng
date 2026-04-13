@@ -46,7 +46,7 @@ const MONEDAS = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-xl bg-white shadow-xl"
              (scroll)="onModalScroll()"
              (click)="$event.stopPropagation()">

@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { PlanillaSapListItem } from '../../core/models/planilla-sap.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 import { GenerarPlanillaModalComponent } from './generar-planilla-modal.component';
 
@@ -26,7 +27,7 @@ interface FacturaDisponible {
 @Component({
     selector: 'app-planillas-sap',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [RouterLink, WorkspaceShellComponent, GenerarPlanillaModalComponent, TitleCasePipe],
+    imports: [RouterLink, WorkspaceShellComponent, GenerarPlanillaModalComponent, TitleCasePipe, DisabledIfNoPermissionDirective],
     template: `
     <app-workspace-shell
       title="Planillas SAP"
@@ -65,6 +66,7 @@ interface FacturaDisponible {
                 <button type="button"
                         (click)="abrirModalGenerar()"
                         [disabled]="selectedCount() === 0"
+                        [disabledIfNoPermission]="'planillas.generar'"
                         class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 transition disabled:opacity-50">
                   Generar Planilla SAP ({{ selectedCount() }})
                 </button>

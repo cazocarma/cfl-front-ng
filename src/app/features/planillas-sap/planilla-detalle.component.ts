@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { PlanillaSapDetalle, PlanillaSapFacturaVinculada } from '../../core/models/planilla-sap.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
@@ -30,7 +31,7 @@ interface FacturaElegible {
 @Component({
   selector: 'app-planilla-detalle',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, WorkspaceShellComponent],
+  imports: [RouterLink, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
   template: `
     <app-workspace-shell
       [title]="planilla() ? 'Planilla SAP — ' + planilla()!.periodo_label : 'Detalle Planilla SAP'"
@@ -109,10 +110,12 @@ interface FacturaElegible {
             </button>
             @if (planilla()!.estado === 'generada') {
               <button type="button" (click)="confirmarEnvio()"
+                      [disabledIfNoPermission]="'planillas.generar'"
                       class="rounded-xl border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-50">
                 Marcar como enviada
               </button>
               <button type="button" (click)="confirmarAnulacion()"
+                      [disabledIfNoPermission]="'planillas.generar'"
                       class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
                 Anular planilla
               </button>
@@ -131,6 +134,7 @@ interface FacturaElegible {
             <h2 class="text-sm font-semibold text-forest-900">Pre Facturas incluidas</h2>
             @if (planilla()!.estado === 'generada') {
               <button type="button" (click)="toggleAgregarPanel()"
+                      [disabledIfNoPermission]="'planillas.generar'"
                       class="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition">
                 + Agregar pre facturas
               </button>
@@ -170,6 +174,7 @@ interface FacturaElegible {
                           <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(fac.monto_total) }}</td>
                           <td class="px-3 py-2">
                             <button type="button" (click)="agregarFactura(fac.id_factura)" [disabled]="actionBusy()"
+                                    [disabledIfNoPermission]="'planillas.generar'"
                                     class="rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
                               Agregar
                             </button>
@@ -203,6 +208,7 @@ interface FacturaElegible {
                     @if (planilla()!.estado === 'generada') {
                       <td class="px-4 py-3">
                         <button type="button" (click)="quitarFactura(fac)" [disabled]="actionBusy()"
+                                [disabledIfNoPermission]="'planillas.generar'"
                                 class="text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-50">
                           Quitar
                         </button>
@@ -290,7 +296,7 @@ interface FacturaElegible {
 
       <!-- Modal confirmación envío -->
       @if (showConfirmEnvio()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Marcar como enviada</h3>
             <p class="mt-2 text-sm text-forest-600">
@@ -302,6 +308,7 @@ interface FacturaElegible {
                 Cancelar
               </button>
               <button type="button" (click)="marcarEnviada()" [disabled]="actionBusy()"
+                      [disabledIfNoPermission]="'planillas.generar'"
                       class="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
                 {{ actionBusy() ? 'Procesando...' : 'Confirmar envío' }}
               </button>
@@ -312,7 +319,7 @@ interface FacturaElegible {
 
       <!-- Modal confirmación anulación -->
       @if (showConfirmAnular()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-red-800">Anular planilla</h3>
             <p class="mt-2 text-sm text-forest-600">
@@ -324,6 +331,7 @@ interface FacturaElegible {
                 Cancelar
               </button>
               <button type="button" (click)="anularPlanilla()" [disabled]="actionBusy()"
+                      [disabledIfNoPermission]="'planillas.generar'"
                       class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
                 {{ actionBusy() ? 'Anulando...' : 'Anular planilla' }}
               </button>

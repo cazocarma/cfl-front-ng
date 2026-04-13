@@ -65,7 +65,7 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
     <!-- Modal genérico para todas las demás entidades -->
     @if (config.tipoEspecial !== 'usuarios' && config.tipoEspecial !== 'rutas' && config.tipoEspecial !== 'tarifas' && visible) {
       <div
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       >
         <div
           class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"

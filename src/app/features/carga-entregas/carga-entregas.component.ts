@@ -10,13 +10,16 @@ import {
   isControlFleteCargaJobTerminal,
   normalizeControlFleteCargaJobEstado,
 } from '../../core/models/control-flete-carga-job.model';
-import { AuthnService } from '../../core/services/authn.service';
+import { Perms } from '../../core/config/permissions';
+import { AuthzService } from '../../core/services/authz.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { ToastService } from '../../core/services/toast.service';
 import { formatDateTime as formatDateTimeFn } from '../../core/utils/format.utils';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
-type SolicitudMode = 'guia_despacho' | 'numero_entrega' | 'rango_fechas';
+type SolicitudMode = 'guia_despacho' | 'numero_entrega' | 'rango_fechas' | 'romana_fechas' | 'romana_npartida';
+type CargaTab = 'despachos' | 'recepciones';
 
 const STATUS_LABELS: Record<ControlFleteCargaJobEstado, string> = {
   PENDING: 'Pendiente',
@@ -63,25 +66,32 @@ const DEFAULT_POLL_INTERVAL_MS = 5000;
 
 @Component({
   selector: 'app-carga-entregas',
-  imports: [FormsModule, WorkspaceShellComponent],
+  imports: [FormsModule, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
   templateUrl: './carga-entregas.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CargaEntregasComponent implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
+  private authz = inject(AuthzService);
 
-  /* ── Auth context ───────────────────────────────────────────── */
-  private authContextLoaded = signal(false);
-  private authContextLoading = signal(false);
-  private authPermissions = signal<Set<string>>(new Set());
-  private authRoles = signal<string[]>([]);
+  /* ── Tab activo ──────────────────────────────────────────────── */
+  activeTab = signal<CargaTab>('despachos');
 
-  /* ── Solicitud de carga ─────────────────────────────────────── */
+  /* ── Solicitud de carga (Despachos) ────────────────────────── */
   guiasDespachoInput = signal('');
   numerosEntregaInput = signal('');
   fechaDesde = signal('');
   fechaHasta = signal('');
   submitting = signal<SolicitudMode | null>(null);
+
+  /* ── Solicitud de carga (Recepciones / Romana) ─────────────── */
+  romanaCentro = signal('');
+  romanaFechaDesde = signal('');
+  romanaFechaHasta = signal('');
+  romanaNPartida = signal('');
+  romanaGuia = signal('');
+  romanaSubmitting = signal(false);
+  romanaResult = signal<{ message: string; totals?: Record<string, number> } | null>(null);
 
   /* ── Estado de ejecución ────────────────────────────────────── */
   solicitudId = signal('');
@@ -123,13 +133,12 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   );
 
   constructor(
-    private auth: AuthnService,
     private cflApi: CflApiService,
   ) {}
 
   ngOnInit(): void {
     this._setDefaultDateRange();
-    this._loadAuthContext();
+    this._setDefaultRomanaDateRange();
     this._loadRecentJobs();
     this._autoResumeLatestJob();
   }
@@ -143,7 +152,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   solicitarPorGuiaDespacho(): void {
     const guias = this.parsedGuiasDespacho();
     if (guias.length === 0) {
-      this.toast.show('Ingresa al menos una guía de despacho para iniciar la carga.', true);
+      this.toast.show('Ingresa al menos una guia de despacho.', true);
       return;
     }
 
@@ -158,7 +167,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           this.guiasDespachoInput.set('');
           const id = String(response.data?.job_id ?? '').trim();
           if (!id) {
-            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
+            this.toast.show('No se recibio una respuesta valida del servidor.', true);
             return;
           }
 
@@ -170,7 +179,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             this._loadSolicitud(id, false, false);
           }
 
-          this.toast.show('Solicitud por guía de despacho enviada. Se está procesando la carga.');
+          this.toast.show('Carga por guia de despacho iniciada. Procesando...');
           this._refreshRecentJobs();
         },
         error: (err) => {
@@ -187,7 +196,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             );
             return;
           }
-          this.toast.show(err?.error?.error ?? 'No fue posible enviar la solicitud de carga.', true);
+          this.toast.show(err?.error?.error ?? 'No se pudo iniciar la carga. Intenta nuevamente.', true);
         },
       });
   }
@@ -195,7 +204,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   solicitarPorNumeroEntrega(): void {
     const numeros = this.parsedNumerosEntrega();
     if (numeros.length === 0) {
-      this.toast.show('Ingresa al menos un número de entrega para iniciar la carga.', true);
+      this.toast.show('Ingresa al menos un numero de entrega.', true);
       return;
     }
 
@@ -210,7 +219,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           this.numerosEntregaInput.set('');
           const id = String(response.data?.job_id ?? '').trim();
           if (!id) {
-            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
+            this.toast.show('No se recibio una respuesta valida del servidor.', true);
             return;
           }
 
@@ -222,7 +231,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             this._loadSolicitud(id, false, false);
           }
 
-          this.toast.show('Solicitud enviada correctamente. Se está procesando la carga.');
+          this.toast.show('Carga por numero de entrega iniciada. Procesando...');
           this._refreshRecentJobs();
         },
         error: (err) => {
@@ -239,7 +248,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             );
             return;
           }
-          this.toast.show(err?.error?.error ?? 'No fue posible enviar la solicitud de carga.', true);
+          this.toast.show(err?.error?.error ?? 'No se pudo iniciar la carga. Intenta nuevamente.', true);
         },
       });
   }
@@ -249,12 +258,12 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
     const hasta = this.fechaHasta();
 
     if (!desde || !hasta) {
-      this.toast.show('Debes indicar una fecha de inicio y una fecha de término.', true);
+      this.toast.show('Selecciona una fecha de inicio y una de termino.', true);
       return;
     }
 
     if (desde > hasta) {
-      this.toast.show('La fecha de inicio no puede ser posterior a la fecha de término.', true);
+      this.toast.show('La fecha de inicio debe ser anterior o igual a la de termino.', true);
       return;
     }
 
@@ -268,7 +277,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           this.submitting.set(null);
           const id = String(response.data?.job_id ?? '').trim();
           if (!id) {
-            this.toast.show('No se recibió un identificador válido para la solicitud.', true);
+            this.toast.show('No se recibio una respuesta valida del servidor.', true);
             return;
           }
 
@@ -280,7 +289,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
             this._loadSolicitud(id, false, false);
           }
 
-          this.toast.show('Solicitud por rango de fechas enviada. Se está procesando la carga.');
+          this.toast.show('Carga por rango de fechas iniciada. Procesando...');
           this._refreshRecentJobs();
         },
         error: (err) => {
@@ -303,6 +312,51 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
           );
         },
       });
+  }
+
+  /* ── Solicitud Romana ────────────────────────────────────────── */
+
+  solicitarRomanaFechas(): void {
+    const centro = this.romanaCentro().trim();
+    if (!centro) { this.toast.show('Ingresa el centro (Werks) antes de continuar.', true); return; }
+    const desde = this.romanaFechaDesde();
+    const hasta = this.romanaFechaHasta();
+    if (!desde || !hasta) { this.toast.show('Selecciona las fechas de inicio y termino.', true); return; }
+    if (desde > hasta) { this.toast.show('La fecha de inicio debe ser anterior o igual a la de termino.', true); return; }
+
+    this._submitRomana(this.cflApi.cargarRomanaRangoFechas({ centro, fecha_desde: desde, fecha_hasta: hasta }));
+  }
+
+  solicitarRomanaNPartida(): void {
+    const centro = this.romanaCentro().trim();
+    if (!centro) { this.toast.show('Ingresa el centro (Werks) antes de continuar.', true); return; }
+    const nPartida = this.romanaNPartida().trim();
+    if (!nPartida) { this.toast.show('Ingresa el numero de partida.', true); return; }
+    this._submitRomana(this.cflApi.cargarRomanaNPartida({ centro, n_partida: nPartida }));
+  }
+
+  solicitarRomanaGuia(): void {
+    const centro = this.romanaCentro().trim();
+    if (!centro) { this.toast.show('Ingresa el centro (Werks) antes de continuar.', true); return; }
+    const guia = this.romanaGuia().trim();
+    if (!guia) { this.toast.show('Ingresa la guia de despacho.', true); return; }
+    this._submitRomana(this.cflApi.cargarRomanaGuia({ centro, guia }));
+  }
+
+  private _submitRomana(obs$: import('rxjs').Observable<unknown>): void {
+    this.romanaSubmitting.set(true);
+    this.romanaResult.set(null);
+    obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (res: any) => {
+        this.romanaSubmitting.set(false);
+        this.romanaResult.set(res.data);
+        this.toast.show(res.data?.message || 'Carga de recepciones completada.');
+      },
+      error: (err) => {
+        this.romanaSubmitting.set(false);
+        this.toast.show(err?.error?.error || 'No se pudieron cargar las recepciones. Verifica los parametros.', true);
+      },
+    });
   }
 
   /* ── Consulta de estado ─────────────────────────────────────── */
@@ -427,15 +481,15 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   /* ── Permisos ───────────────────────────────────────────────── */
 
   canExecuteLoad(): boolean {
-    return this._canUse(['fletes.sap.etl.ejecutar']);
+    return this.authz.hasPermission(Perms.FLETES_SAP_ETL_EJECUTAR);
   }
 
   canViewLoadStatus(): boolean {
-    return this._canUse(['fletes.sap.etl.ver']);
+    return this.authz.hasAnyPermission(Perms.FLETES_SAP_ETL_VER, Perms.FLETES_SAP_ETL_EJECUTAR);
   }
 
   actionsBlocked(): boolean {
-    return !this._hasValidAuth();
+    return !this.authz.loaded();
   }
 
   /* ── Private: Polling & solicitud state ─────────────────────── */
@@ -505,60 +559,20 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
 
     switch (normalized) {
       case 'COMPLETED':
-        this.toast.show('La carga de entregas finalizó correctamente.');
+        this.toast.show('Carga completada exitosamente.');
         break;
       case 'PARTIAL_SUCCESS':
-        this.toast.show('La carga finalizó con algunas observaciones. Revisa el detalle.', true);
+        this.toast.show('Carga completada con observaciones. Revisa el detalle.', true);
         break;
       case 'FAILED':
-        this.toast.show('La carga falló. Revisa los errores en el detalle.', true);
+        this.toast.show('La carga no pudo completarse. Revisa los errores.', true);
         break;
       case 'CANCELLED':
-        this.toast.show('La solicitud fue cancelada.', true);
+        this.toast.show('Carga cancelada.', true);
         break;
     }
 
     this._refreshRecentJobs();
-  }
-
-  /* ── Private: Auth ──────────────────────────────────────────── */
-
-  private _loadAuthContext(): void {
-    this.authContextLoading.set(true);
-
-    this.cflApi.getAuthzContext().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (ctx) => {
-        const roles = [ctx.data.role, ...(ctx.data.roles ?? [])]
-          .map((r) => String(r ?? '').trim().toLowerCase())
-          .filter(Boolean);
-        const perms = (ctx.data.permissions ?? [])
-          .map((p) => String(p ?? '').trim().toLowerCase())
-          .filter(Boolean);
-
-        this.authRoles.set(Array.from(new Set(roles)));
-        this.authPermissions.set(new Set(perms));
-        this.authContextLoaded.set(true);
-        this.authContextLoading.set(false);
-      },
-      error: () => {
-        this.authRoles.set([]);
-        this.authPermissions.set(new Set());
-        this.authContextLoaded.set(false);
-        this.authContextLoading.set(false);
-        // 401/403 ya los maneja el interceptor global
-      },
-    });
-  }
-
-  private _hasValidAuth(): boolean {
-    return this.auth.isLoggedIn() && this.authContextLoaded() && !this.authContextLoading();
-  }
-
-  private _canUse(keys: string[]): boolean {
-    if (!this._hasValidAuth()) return false;
-    const roles = this.authRoles();
-    if (roles.includes('administrador') || roles.includes('autorizador')) return true;
-    return keys.some((k) => this.authPermissions().has(k.toLowerCase()));
   }
 
   private _handleAuthError(err: { status?: number; error?: { error?: string } }): boolean {
@@ -652,6 +666,14 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
     from.setDate(today.getDate() - 10);
     this.fechaHasta.set(this._fmtDate(today));
     this.fechaDesde.set(this._fmtDate(from));
+  }
+
+  private _setDefaultRomanaDateRange(): void {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - 7);
+    this.romanaFechaHasta.set(this._fmtDate(today));
+    this.romanaFechaDesde.set(this._fmtDate(from));
   }
 
   private _fmtDate(d: Date): string {

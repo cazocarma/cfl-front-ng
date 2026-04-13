@@ -6,7 +6,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   standalone: true,
   template: `
     @if (open()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           <h3 class="text-base font-semibold" [class]="titleClass()">{{ title() }}</h3>
           <p class="mt-2 text-sm text-forest-600">

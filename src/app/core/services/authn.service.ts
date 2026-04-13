@@ -1,8 +1,9 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
 import { API_BASE } from '../config/api-base';
+import { AuthzService } from './authz.service';
 
 export interface JwtUser {
   id_usuario: number;
@@ -28,9 +29,14 @@ const TOKEN_KEY = 'cfl_authn_token';
 
 @Injectable({ providedIn: 'root' })
 export class AuthnService {
+  private readonly authz = inject(AuthzService);
   readonly currentUser = signal<JwtUser | null>(this._parseToken());
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {
+    if (this.isLoggedIn()) {
+      this.authz.loadContext().subscribe();
+    }
+  }
 
   login(email: string, password: string): Observable<LoginResponse> {
     return this.http
@@ -39,6 +45,7 @@ export class AuthnService {
         tap((res) => {
           localStorage.setItem(TOKEN_KEY, res.token);
           this.currentUser.set(res.user);
+          this.authz.loadContext().subscribe();
         })
       );
   }
@@ -52,6 +59,7 @@ export class AuthnService {
     }
     localStorage.removeItem(TOKEN_KEY);
     this.currentUser.set(null);
+    this.authz.clear();
     this.router.navigate(['/login']);
   }
 

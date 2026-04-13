@@ -48,6 +48,13 @@ export function parseLocalDate(value: unknown): Date | null {
     );
   }
 
+  // "YYYY-MM-DDT00:00:00.000Z" (DATE column serializada como UTC midnight)
+  // → interpretar como fecha local, no UTC, para evitar desplazamiento de 1 día
+  const midnightZ = s.match(/^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.0+)?Z$/);
+  if (midnightZ) {
+    return new Date(Number(midnightZ[1]), Number(midnightZ[2]) - 1, Number(midnightZ[3]));
+  }
+
   // Cualquier otro formato (con Z, offset, etc.) — dejar que Date lo interprete
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;

@@ -7,15 +7,9 @@
       </svg>
       <div>
         <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">
-          {{ sapBacked ? 'Posiciones obtenidas desde LIPS' : 'Detalle de flete' }}
+          {{ headerTitle }}
         </h3>
-        <p class="mt-1 text-xs text-forest-500">
-          @if (sapBacked) {
-            Las posiciones se cargan desde SAP y se enviaran junto con la cabecera.
-          } @else {
-            Agrega una o mas lineas para construir el detalle manual.
-          }
-        </p>
+        <p class="mt-1 text-xs text-forest-500">{{ headerDescription }}</p>
       </div>
     </div>
     @if (canManage) {
@@ -50,7 +44,7 @@
             @if (canManage) {
               Usa "Agregar detalle" para ingresar lineas manuales.
             } @else {
-              No se encontraron posiciones SAP para esta entrega.
+              No se encontraron posiciones {{ origenDatos === 'RECEPCION' ? 'Romana' : 'SAP' }} para esta entrega.
             }
           </p>
         </div>
@@ -87,10 +81,18 @@
 
                 <!-- Totales + Quitar -->
                 <div class="flex items-start gap-4 shrink-0">
-                  @if ((group.posicion_count > 1 || sapBacked) && group.cantidad_total > 0) {
+                  @if (group.peso_total > 0) {
+                    <div class="text-right">
+                      <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Peso</p>
+                      <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(group.peso_total, 2) }}</p>
+                      <p class="text-[10px] text-forest-400">{{ group.unidad }}</p>
+                    </div>
+                  }
+                  @if ((group.posicion_count > 1 || sapBacked) && group.cantidad_total > 0 && group.cantidad_total !== group.peso_total) {
                     <div class="text-right">
                       <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Cantidad</p>
-                      <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(group.cantidad_total, 2) }}</p>
+                      <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(group.cantidad_total, 0) }}</p>
+                      <p class="text-[10px] text-forest-400">{{ group.unidad }}</p>
                     </div>
                   }
                   @if (canManage) {
@@ -105,7 +107,7 @@
 
               <!-- Campos editables (solo fletes manuales) -->
               @if (!sapBacked) {
-                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
                   <div>
                     <label class="field-label">Material</label>
                     <input type="text" class="cfl-input"
@@ -114,7 +116,7 @@
                            (change)="updateGroupField(group.materialKey, 'material', $any($event.target).value)"
                            placeholder="Código material" />
                   </div>
-                  <div class="sm:col-span-2">
+                  <div class="sm:col-span-3">
                     <label class="field-label">Descripción</label>
                     <input type="text" class="cfl-input"
                            [readOnly]="readOnly"
@@ -147,6 +149,14 @@
                       <option value="PL">PL — Pallets</option>
                     </select>
                   </div>
+                  <div>
+                    <label class="field-label">Peso (KG)</label>
+                    <input type="number" class="cfl-input"
+                           [readOnly]="readOnly"
+                           [value]="group.peso_total || ''"
+                           (change)="updateGroupField(group.materialKey, 'peso', $any($event.target).value)"
+                           min="0" step="0.001" />
+                  </div>
                 </div>
               }
             </div>
@@ -155,7 +165,7 @@
             @if (group.posicion_count > 1 || group.lotes.length > 0) {
               <div class="border-t border-forest-100 bg-forest-50/70 px-4 py-2 flex flex-wrap items-center gap-2">
                 @if (group.posicion_count > 1) {
-                  <span class="text-[11px] text-forest-400 font-medium">{{ group.posicion_count }} posiciones SAP agrupadas</span>
+                  <span class="text-[11px] text-forest-400 font-medium">{{ group.posicion_count }} posiciones agrupadas</span>
                 }
                 @if (group.posicion_count > 1 && group.lotes.length > 0) {
                   <span class="text-forest-300 select-none">·</span>
@@ -166,6 +176,37 @@
               </div>
             }
 
+          </div>
+        }
+
+        <!-- Resumen de totales -->
+        @if (groupedRows().length > 0) {
+          <div class="mt-4 rounded-2xl border border-forest-200 bg-forest-50/70 px-5 py-4">
+            <h4 class="text-[10px] font-bold uppercase tracking-widest text-forest-500 mb-3">Resumen</h4>
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div>
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Posiciones</p>
+                <p class="text-lg font-bold text-forest-900 tabular-nums">{{ totalPosiciones() }}</p>
+              </div>
+              @if (groupedRows().length !== totalPosiciones()) {
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Materiales</p>
+                  <p class="text-lg font-bold text-forest-900 tabular-nums">{{ groupedRows().length }}</p>
+                </div>
+              }
+              @if (totalPeso() > 0) {
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Total peso</p>
+                  <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(totalPeso(), 2) }} {{ dominantUnit() }}</p>
+                </div>
+              }
+              @if (totalCantidad() > 0 && totalCantidad() !== totalPeso()) {
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-forest-400">Total cantidad</p>
+                  <p class="text-lg font-bold text-forest-900 tabular-nums">{{ formatNum(totalCantidad(), 0) }} {{ dominantUnit() }}</p>
+                </div>
+              }
+            </div>
           </div>
         }
       }

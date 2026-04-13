@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { FacturaDetalle } from '../../core/models/factura.model';
+import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { estadoChipClass, estadoLabel } from '../../core/utils/factura.utils';
 import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
@@ -13,7 +14,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 @Component({
     selector: 'app-factura-detalle',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [FormsModule, RouterLink, WorkspaceShellComponent],
+    imports: [FormsModule, RouterLink, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
     template: `
     <app-workspace-shell [title]="factura() ? 'Pre Factura ' + factura()!.numero_factura : 'Detalle de Pre Factura'"
                          subtitle="Cabecera y movimientos de la pre factura."
@@ -104,6 +105,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             @if (factura()!.estado === 'borrador') {
               <button type="button" aria-label="Marcar pre factura como recibida"
                       (click)="confirmarRecibir()"
+                      [disabledIfNoPermission]="'facturas.editar'"
                       class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
                 Marcar como recibida
               </button>
@@ -123,6 +125,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
             @if (factura()!.estado === 'borrador') {
               <button type="button" aria-label="Anular pre factura"
                       (click)="confirmarAnular()"
+                      [disabledIfNoPermission]="'facturas.editar'"
                       class="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">
                 Anular
               </button>
@@ -196,6 +199,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
                         <button type="button" title="Quitar movimiento"
                                 (click)="quitarMovimiento(m.id_cabecera_flete)"
                                 [disabled]="removingMovimiento() === m.id_cabecera_flete"
+                                [disabledIfNoPermission]="'facturas.editar'"
                                 class="inline-flex items-center justify-center rounded-lg p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
                           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -218,7 +222,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 
       <!-- Modal: Confirmar anular -->
       @if (showConfirmAnular()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Anular pre factura</h3>
             <p class="mt-2 text-sm text-forest-600">
@@ -241,7 +245,7 @@ import { WorkspaceShellComponent } from '../workspace/workspace-shell.component'
 
       <!-- Modal: Confirmar recibida -->
       @if (showConfirmRecibir()) {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 class="text-base font-semibold text-forest-900">Marcar como recibida</h3>
             <p class="mt-2 text-sm text-forest-600">

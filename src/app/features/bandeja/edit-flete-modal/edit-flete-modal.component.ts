@@ -41,11 +41,11 @@ import {
   ModalTab,
   ModalMode,
   DetalleDraft,
-  DetalleGrupo,
   DashboardDetalleResponse,
   FleteDetalleResponse,
   TarifaListResponse,
   CatalogCacheSnapshot,
+  groupDetailRows,
 } from './edit-flete-modal.types';
 
 export { ModalMode } from './edit-flete-modal.types';
@@ -172,6 +172,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_chofer: [''],
       id_camion: [''],
       id_productor: [''],
+      id_especie: [''],
       monto_aplicado: [null],
       monto_extra: [0],
       sentido_flete: [''],
@@ -232,7 +233,10 @@ export class EditFleteModalComponent implements OnChanges {
     }
 
     if (!this.flete) return 'Ingreso manual de flete';
-    if (this.flete.kind === 'candidato') return `Crear flete desde SAP #${this.flete.numeroGuia}`;
+    if (this.flete.kind === 'candidato') {
+      const origen = this.flete.origenDatos === 'RECEPCION' ? 'Romana' : 'SAP';
+      return `Crear flete desde ${origen} #${this.flete.numeroGuia}`;
+    }
     return `Editar flete #${this.flete.numeroGuia}`;
   }
 
@@ -266,13 +270,29 @@ export class EditFleteModalComponent implements OnChanges {
     return fleteToString(this.sapSnapshot?.['sap_numero_entrega']) || fleteToString(this.flete?.sapNumeroEntrega) || '';
   }
 
+  /** Identificador SAP genérico: N° Entrega (LIKP) o N° Partida (Romana). */
+  getSapIdentificador(): string {
+    if (this.mode === 'clonar') return '';
+    // Romana: NumeroPartida
+    const romanaPartida = fleteToString(this.sapSnapshot?.['NumeroPartida']) || fleteToString(this.sapSnapshot?.['numero_partida']);
+    if (romanaPartida) return romanaPartida;
+    // LIKP: SapNumeroEntrega
+    return this.getSapNumeroEntrega();
+  }
+
   getSapGuiaRemision(): string {
     if (this.mode === 'clonar') return '';
+    // Romana: GuiaDespacho
+    const romanaGuia = fleteToString(this.sapSnapshot?.['GuiaDespacho']) || fleteToString(this.sapSnapshot?.['guia_despacho']);
+    if (romanaGuia) return romanaGuia;
     return fleteToString(this.sapSnapshot?.['sap_guia_remision']) || fleteToString(this.flete?.sapGuiaRemision) || '';
   }
 
   getSapDestinatario(): string {
     if (this.mode === 'clonar') return '';
+    // Romana: CodigoProductor (código) / ProductorDescripcion (fallback)
+    const romanaProd = fleteToString(this.sapSnapshot?.['CodigoProductor']) || fleteToString(this.sapSnapshot?.['ProductorDescripcion']);
+    if (romanaProd) return romanaProd;
     return fleteToString(this.sapSnapshot?.['sap_destinatario']) || fleteToString(this.flete?.sapDestinatario) || '';
   }
 
@@ -553,6 +573,10 @@ export class EditFleteModalComponent implements OnChanges {
     return this.productorOptions();
   }
 
+  getEspecieOptions(): SearchableOption[] {
+    return this.especieOptions;
+  }
+
   getSelectedProductor(): Record<string, unknown> | null {
     const idProductor = this.getControlValue('id_productor');
     if (!idProductor) return null;
@@ -588,7 +612,10 @@ export class EditFleteModalComponent implements OnChanges {
     if (this.mode === 'clonar') {
       obs$ = this.cflApi.crearFleteManual(payload);
     } else if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
-      obs$ = this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
+      const isRomana = this.flete.idSapEntrega < 0;
+      obs$ = isRomana
+        ? this.cflApi.crearCabeceraDesdeRomana(Math.abs(this.flete.idSapEntrega), payload)
+        : this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
     } else if (this.flete?.kind === 'en_curso' && this.flete.idCabeceraFlete) {
       obs$ = this.cflApi.updateFleteById(this.flete.idCabeceraFlete, payload);
     } else {
@@ -649,7 +676,7 @@ export class EditFleteModalComponent implements OnChanges {
     this.form.reset({
       numero_entrega: isClonar ? '' : (this.flete?.numeroEntrega ?? ''),
       guia_remision: isClonar ? '' : (this.flete?.guiaRemision ?? ''),
-      tipo_movimiento: 'PUSH',
+      tipo_movimiento: this.flete?.origenDatos === 'RECEPCION' ? 'PULL' : 'PUSH',
       id_tipo_flete: toControlValue(this.flete?.idTipoFlete),
       id_tipo_camion: '',
       id_imputacion_flete: toControlValue(this.flete?.idImputacionFlete),
@@ -665,6 +692,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_chofer: '',
       id_camion: '',
       id_productor: toControlValue(this.flete?.idProductor),
+      id_especie: toControlValue(this.flete?.idEspecie),
       monto_aplicado: isClonar ? null : (this.flete?.monto ?? null),
       monto_extra: isClonar ? 0 : (this.flete?.montoExtra ?? 0),
       sentido_flete: '',
@@ -696,15 +724,26 @@ export class EditFleteModalComponent implements OnChanges {
 
     if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
       this.detailLoading.set(true);
-      this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+
+      // Romana uses negative IDs
+      const isRomana = this.flete.idSapEntrega < 0;
+      const detailObs$ = isRomana
+        ? this.cflApi.getRomanaEntregaDetalle(Math.abs(this.flete.idSapEntrega))
+        : this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega);
+
+      detailObs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           if (!this._isCurrentContext(contextVersion)) return;
-          this._hydrateCandidate(res as DashboardDetalleResponse);
+          if (isRomana) {
+            this._hydrateRomanaCandidate(res as any);
+          } else {
+            this._hydrateCandidate(res as DashboardDetalleResponse);
+          }
           this.detailLoading.set(false);
         },
         error: (err) => {
           if (!this._isCurrentContext(contextVersion)) return;
-          this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones SAP.');
+          this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones.');
           this.detailLoading.set(false);
         },
       });
@@ -787,10 +826,42 @@ export class EditFleteModalComponent implements OnChanges {
       numero_entrega: fleteToString(cabecera['sap_numero_entrega']) || this.getControlValue('numero_entrega'),
       guia_remision: fleteToString(cabecera['sap_guia_remision']) || this.getControlValue('guia_remision'),
       id_productor: toControlValue(cabecera['id_productor']),
-      fecha_salida: formatDateValue(cabecera['sap_fecha_salida']) || this.getControlValue('fecha_salida'),
+      fecha_salida: formatDateValue(cabecera['fecha_referencia']) || formatDateValue(cabecera['sap_fecha_salida']) || this.getControlValue('fecha_salida'),
       hora_salida: formatTimeValue(cabecera['sap_hora_salida']) || this.getControlValue('hora_salida'),
     });
     this.detailRows.set(posiciones.map((row) => this._fromSapRow(row)));
+    this._applyFallbacks(true);
+  }
+
+  private _hydrateRomanaCandidate(response: any): void {
+    const cabecera = response.data?.cabecera ?? {};
+    const detalles = response.data?.detalles ?? [];
+
+    this.sapSnapshot = cabecera;
+
+    // Resolver especie desde EspecieDescripcion o CodigoEspecie del primer detalle
+    const firstDetWithEspecie = detalles.find((d: Record<string, unknown>) =>
+      fleteToString(d['EspecieDescripcion'] || d['especie_descripcion'] || d['CodigoEspecie'] || d['codigo_especie'])
+    );
+    let resolvedEspecieId = '';
+    if (firstDetWithEspecie) {
+      const especieDesc = fleteToString(firstDetWithEspecie['EspecieDescripcion'] || firstDetWithEspecie['especie_descripcion']);
+      const especieCodigo = fleteToString(firstDetWithEspecie['CodigoEspecie'] || firstDetWithEspecie['codigo_especie']);
+      const especieMatch = this.especies.find(
+        (e) => (especieDesc && fleteNormalized(e['glosa']) === fleteNormalized(especieDesc))
+          || (especieCodigo && fleteNormalized(e['glosa']) === fleteNormalized(especieCodigo))
+      );
+      if (especieMatch) resolvedEspecieId = String(especieMatch['id_especie']);
+    }
+
+    this.form.patchValue({
+      numero_entrega: fleteToString(cabecera['NumeroPartida'] || cabecera['numero_partida']) || this.getControlValue('numero_entrega'),
+      guia_remision: fleteToString(cabecera['GuiaDespacho'] || cabecera['guia_despacho']) || this.getControlValue('guia_remision'),
+      fecha_salida: formatDateValue(cabecera['FechaCreacionSap'] || cabecera['fecha_creacion_sap']) || this.getControlValue('fecha_salida'),
+      id_especie: resolvedEspecieId || this.getControlValue('id_especie'),
+    });
+
+    this.detailRows.set(detalles.map((row: Record<string, unknown>) => this._fromRomanaRow(row)));
     this._applyFallbacks(true);
   }
 
@@ -936,6 +1007,8 @@ export class EditFleteModalComponent implements OnChanges {
       fleteToString(this.sapSnapshot?.['sap_destinatario']),
       fleteToString(this.sapSnapshot?.['productor_codigo_proveedor']),
       fleteToString(this.sapSnapshot?.['productor_rut']),
+      fleteToString(this.sapSnapshot?.['CodigoProductor']),
+      fleteToString(this.sapSnapshot?.['codigo_productor']),
       this.flete?.sapDestinatario ?? null,
       this.flete?.productorCodigoProveedor ?? null,
       this.flete?.productorRut ?? null,
@@ -1084,9 +1157,9 @@ export class EditFleteModalComponent implements OnChanges {
 
   private _applyTransportFallbacks(): void {
     const empresaHint = fleteToString(this.sapSnapshot?.['sap_empresa_transporte']) || this.flete?.sapEmpresaTransporte || '';
-    const choferHint = fleteToString(this.sapSnapshot?.['sap_nombre_chofer']) || this.flete?.sapNombreChofer || '';
-    const patenteHint = fleteToString(this.sapSnapshot?.['sap_patente']) || this.flete?.sapPatente || '';
-    const carroHint = fleteToString(this.sapSnapshot?.['sap_carro']) || this.flete?.sapCarro || '';
+    const choferHint = fleteToString(this.sapSnapshot?.['sap_nombre_chofer']) || fleteToString(this.sapSnapshot?.['Conductor']) || this.flete?.sapNombreChofer || '';
+    const patenteHint = fleteToString(this.sapSnapshot?.['sap_patente']) || fleteToString(this.sapSnapshot?.['Patente']) || this.flete?.sapPatente || '';
+    const carroHint = fleteToString(this.sapSnapshot?.['sap_carro']) || fleteToString(this.sapSnapshot?.['Carro']) || this.flete?.sapCarro || '';
 
     if (!this.getControlValue('id_empresa_transporte') && empresaHint) {
       const empresa = this.empresas.find((row) =>
@@ -1258,22 +1331,23 @@ export class EditFleteModalComponent implements OnChanges {
     delete cabecera['id_destino_nodo'];
     delete cabecera['id_ruta'];
 
-    const detalles = this.detailRows()
-      .map((row) => {
-        const material = trimOrNull(row.material);
-        const descripcion = trimOrNull(row.descripcion);
-        const cantidad = row.cantidad === '' ? null : Number(row.cantidad);
-        const unidad = trimOrNull(row.unidad);
-        const peso = row.peso === '' ? null : Number(row.peso);
-        const idEspecie = row.id_especie || null;
+    const grouped = groupDetailRows(this.detailRows());
+    const detalles = grouped
+      .map((group) => {
+        const material = trimOrNull(group.material);
+        const descripcion = trimOrNull(group.descripcion);
+        const cantidad = group.cantidad_total;
+        const unidad = trimOrNull(group.unidad);
+        const peso = group.peso_total;
+        const idEspecie = group.id_especie || null;
 
         const hasContent = Boolean(
           idEspecie ||
           material ||
           descripcion ||
           unidad ||
-          (cantidad !== null && Number.isFinite(cantidad)) ||
-          (peso !== null && Number.isFinite(peso))
+          (Number.isFinite(cantidad) && cantidad !== 0) ||
+          (Number.isFinite(peso) && peso !== 0)
         );
 
         if (!hasContent) return null;
@@ -1314,18 +1388,48 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _fromSapRow(row: Record<string, unknown>): DetalleDraft {
-    const unidad = fleteToString(row['sap_unidad_peso']) || '';
+    const unidad = (fleteToString(row['sap_unidad_peso']) || '').trim();
     const cantidad = toControlValue(row['sap_cantidad_entregada']);
+
+    // En entregas LIPS la cantidad es unidades de envase (bins, totes, etc.),
+    // no peso. El peso real solo viene como total en la cabecera (SapPesoTotal).
+    // No derivamos peso desde cantidad para evitar mostrar conteos como kilos.
     return {
       ...this._createEmptyDetailRow(),
       material: toControlValue(row['sap_material']),
       descripcion: toControlValue(row['sap_denominacion_material']),
       cantidad,
-      unidad: unidad.slice(0, 3),
-      peso: unidad.toUpperCase().startsWith('KG') ? cantidad : '',
+      unidad: unidad.slice(0, 3) || 'UN',
+      peso: '',
       sap_posicion: toControlValue(row['sap_posicion']),
       sap_posicion_superior: toControlValue(row['sap_posicion_superior']),
       sap_lote: toControlValue(row['sap_lote']),
+    };
+  }
+
+  private _fromRomanaRow(row: Record<string, unknown>): DetalleDraft {
+    // Romana: cantidad = envases (CantidadSubEnvaseL), peso = PesoReal
+    const especieDesc = fleteToString(row['EspecieDescripcion'] || row['especie_descripcion']);
+    const especieCod = fleteToString(row['CodigoEspecie'] || row['codigo_especie']);
+    let especieId = '';
+    if (especieDesc || especieCod) {
+      const match = this.especies.find(
+        (e) => (especieDesc && fleteNormalized(e['glosa']) === fleteNormalized(especieDesc))
+          || (especieCod && fleteNormalized(e['glosa']) === fleteNormalized(especieCod))
+      );
+      if (match) especieId = String(match['id_especie']);
+    }
+
+    return {
+      ...this._createEmptyDetailRow(),
+      id_especie: especieId,
+      material: fleteToString(row['Material'] || row['material']) ?? '',
+      descripcion: fleteToString(row['EspecieDescripcion'] || row['especie_descripcion'] || row['MaterialDescripcion'] || row['material_descripcion']) ?? '',
+      cantidad: toControlValue(row['CantidadSubEnvaseL'] ?? row['cantidad_sub_envase_l']),
+      unidad: fleteToString(row['UnidadMedida'] || row['unidad_medida']) || 'KG',
+      peso: toControlValue(row['PesoReal'] ?? row['peso_real']),
+      sap_posicion: fleteToString(row['Posicion'] || row['posicion']) ?? '',
+      sap_lote: fleteToString(row['Lote'] || row['lote']) ?? '',
     };
   }
 

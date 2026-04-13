@@ -1,6 +1,8 @@
 import { Routes } from '@angular/router';
 import { authnGuard } from './core/guards/authn.guard';
 import { roleGuard } from './core/guards/role.guard';
+import { permissionGuard } from './core/guards/permission.guard';
+import { Perms, Roles } from './core/config/permissions';
 
 export const routes: Routes = [
   {
@@ -23,7 +25,7 @@ export const routes: Routes = [
   },
   {
     path: 'carga-entregas',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.FLETES_SAP_ETL_EJECUTAR, Perms.FLETES_SAP_ETL_VER)],
     loadComponent: () =>
       import('./features/carga-entregas/carga-entregas.component').then(
         (m) => m.CargaEntregasComponent
@@ -31,7 +33,7 @@ export const routes: Routes = [
   },
   {
     path: 'facturas',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.FACTURAS_VER, Perms.FACTURAS_EDITAR, Perms.FACTURAS_CONCILIAR)],
     loadComponent: () =>
       import('./features/facturas/facturas.component').then(
         (m) => m.FacturasComponent
@@ -41,7 +43,7 @@ export const routes: Routes = [
   // y antes de la ruta genérica /:id para que 'nueva' no se interprete como id
   {
     path: 'facturas/nueva',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.FACTURAS_EDITAR)],
     loadComponent: () =>
       import('./features/facturas/nueva-factura-wizard.component').then(
         (m) => m.NuevaFacturaWizardComponent
@@ -49,7 +51,7 @@ export const routes: Routes = [
   },
   {
     path: 'facturas/:id',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.FACTURAS_VER, Perms.FACTURAS_EDITAR, Perms.FACTURAS_CONCILIAR)],
     loadComponent: () =>
       import('./features/facturas/factura-detalle.component').then(
         (m) => m.FacturaDetalleComponent
@@ -57,7 +59,7 @@ export const routes: Routes = [
   },
   {
     path: 'planillas-sap',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.PLANILLAS_VER, Perms.PLANILLAS_GENERAR)],
     loadComponent: () =>
       import('./features/planillas-sap/planillas-sap.component').then(
         (m) => m.PlanillasSapComponent
@@ -65,7 +67,7 @@ export const routes: Routes = [
   },
   {
     path: 'planillas-sap/:id',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.PLANILLAS_VER, Perms.PLANILLAS_GENERAR)],
     loadComponent: () =>
       import('./features/planillas-sap/planilla-detalle.component').then(
         (m) => m.PlanillaDetalleComponent
@@ -73,7 +75,7 @@ export const routes: Routes = [
   },
   {
     path: 'estadisticas',
-    canActivate: [authnGuard],
+    canActivate: [authnGuard, permissionGuard(Perms.REPORTES_VIEW)],
     loadComponent: () =>
       import('./features/estadisticas/estadisticas.component').then(
         (m) => m.EstadisticasComponent
@@ -81,7 +83,7 @@ export const routes: Routes = [
   },
   {
     path: 'auditoria',
-    canActivate: [authnGuard, roleGuard('administrador')],
+    canActivate: [authnGuard, roleGuard(Roles.ADMINISTRADOR)],
     loadComponent: () =>
       import('./features/auditoria/auditoria.component').then(
         (m) => m.AuditoriaComponent
@@ -89,7 +91,7 @@ export const routes: Routes = [
   },
   {
     path: 'mantenedores',
-    canActivate: [authnGuard, roleGuard('administrador')],
+    canActivate: [authnGuard, permissionGuard(Perms.MANTENEDORES_VIEW, Perms.MANTENEDORES_ADMIN)],
     loadComponent: () =>
       import('./features/mantenedores/mantenedores-layout.component').then(
         (m) => m.MantenedoresLayoutComponent
