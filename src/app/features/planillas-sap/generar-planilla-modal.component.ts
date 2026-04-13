@@ -238,6 +238,7 @@ import { formatCLP } from '../../core/utils/format.utils';
                               <app-searchable-combobox
                                 placeholder="Buscar OC..."
                                 nullLabel="Sin OC"
+                                [allowFreeText]="true"
                                 [options]="getOcSearchableOptions(prod.id_productor)"
                                 [value]="prod.orden_compra"
                                 (valueChange)="onOrdenCompraChange(prod, $event)"
@@ -252,6 +253,7 @@ import { formatCLP } from '../../core/utils/format.utils';
                               <app-searchable-combobox
                                 placeholder="Posicion..."
                                 nullLabel="Sin posicion"
+                                [allowFreeText]="true"
                                 [options]="getPosSearchableOptions(prod)"
                                 [value]="prod.posicion_oc"
                                 (valueChange)="prod.posicion_oc = $event"
@@ -487,13 +489,18 @@ export class GenerarPlanillaModalComponent implements OnChanges {
   formatOcLabel(oc: OrdenCompraOption): string {
     const fecha = this.formatSapDate(oc.aedat);
     const especies = oc.posiciones.map(p => p.txz01).filter(Boolean);
-    const especieHint = especies.length > 0 ? ` [${[...new Set(especies)].join(', ')}]` : '';
+    let especieHint = '';
+    if (especies.length > 0) {
+      const joined = [...new Set(especies)].join(', ');
+      especieHint = joined.length > 30 ? ` [${joined.slice(0, 30)}…]` : ` [${joined}]`;
+    }
     return `${oc.ebeln} — ${fecha}${especieHint}`;
   }
 
   formatPosLabel(pos: { ebelp: string; matnr: string; txz01: string }): string {
     const posNum = this.trimLeadingZeros(pos.ebelp);
-    const desc = pos.txz01 || pos.matnr || '';
+    let desc = pos.txz01 || pos.matnr || '';
+    if (desc.length > 30) desc = desc.slice(0, 30) + '…';
     return desc ? `${posNum} — ${desc}` : posNum;
   }
 

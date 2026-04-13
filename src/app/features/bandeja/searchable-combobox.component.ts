@@ -111,6 +111,7 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   @Input() invalid = false;
   @Input() disabled = false;
   @Input() hint = '';
+  @Input() allowFreeText = false;
   @Input() options: SearchableOption[] = [];
   @Input() value: string | null = '';
   @Output() valueChange = new EventEmitter<string>();
@@ -158,7 +159,9 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   onInput(value: string): void {
     this.searchText.set(value);
     this.displayText = value;
-    if (!value) {
+    if (this.allowFreeText) {
+      this.valueChange.emit(value);
+    } else if (!value) {
       this.valueChange.emit('');
     }
     if (!this.isOpen) {
@@ -249,8 +252,15 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
 
   private _syncDisplayText(): void {
     const selected = this.options.find((opt) => opt.value === String(this.value ?? ''));
-    const label = selected?.label ?? '';
-    this.searchText.set(label);
-    this.displayText = label;
+    if (selected) {
+      this.searchText.set(selected.label);
+      this.displayText = selected.label;
+    } else if (this.allowFreeText && this.value) {
+      this.displayText = String(this.value);
+      this.searchText.set(this.displayText);
+    } else {
+      this.searchText.set('');
+      this.displayText = '';
+    }
   }
 }

@@ -2,10 +2,12 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { FormsModule } from '@angular/forms';
 import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
-import { PlanillaSapDetalle, PlanillaSapFacturaVinculada } from '../../core/models/planilla-sap.model';
+import { MovimientoPlanillaRow, OrdenCompraOption, PlanillaSapDetalle, PlanillaSapFacturaVinculada } from '../../core/models/planilla-sap.model';
 import { CflApiService } from '../../core/services/cfl-api.service';
 import { formatCLP, formatDate, triggerDownload } from '../../core/utils/format.utils';
+import { SearchableComboboxComponent, SearchableOption } from '../bandeja/searchable-combobox.component';
 import { WorkspaceShellComponent } from '../workspace/workspace-shell.component';
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -28,10 +30,20 @@ interface FacturaElegible {
   monto_total: number;
 }
 
+interface AgregarProductorOc {
+  id_productor: number;
+  codigo_proveedor: string;
+  nombre: string;
+  monto: number;
+  especie: string;
+  orden_compra: string;
+  posicion_oc: string;
+}
+
 @Component({
   selector: 'app-planilla-detalle',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, WorkspaceShellComponent, DisabledIfNoPermissionDirective],
+  imports: [RouterLink, FormsModule, WorkspaceShellComponent, DisabledIfNoPermissionDirective, SearchableComboboxComponent],
   template: `
     <app-workspace-shell
       [title]="planilla() ? 'Planilla SAP — ' + planilla()!.periodo_label : 'Detalle Planilla SAP'"
@@ -173,7 +185,7 @@ interface FacturaElegible {
                           <td class="px-3 py-2 text-forest-600">{{ formatDate(fac.fecha_emision) }}</td>
                           <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(fac.monto_total) }}</td>
                           <td class="px-3 py-2">
-                            <button type="button" (click)="agregarFactura(fac.id_factura)" [disabled]="actionBusy()"
+                            <button type="button" (click)="agregarFactura(fac)" [disabled]="actionBusy()"
                                     [disabledIfNoPermission]="'planillas.generar'"
                                     class="rounded-lg bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
                               Agregar
@@ -275,7 +287,17 @@ interface FacturaElegible {
                       </td>
                       <td class="px-3 py-2 text-forest-600">{{ linea.centro_costo || '' }}</td>
                       <td class="px-3 py-2 text-forest-600">
-                        @if (linea.orden_compra) {
+                        @if (planilla()!.estado === 'generada' && linea.clave_contabilizacion === '29') {
+                          <div class="flex items-center gap-1">
+                            <input type="text" [(ngModel)]="linea.orden_compra"
+                              (ngModelChange)="ocDirty.set(true)"
+                              placeholder="OC" class="w-24 rounded border border-forest-200 px-1.5 py-0.5 text-xs" />
+                            <span class="text-forest-400">/</span>
+                            <input type="text" [(ngModel)]="linea.posicion_oc"
+                              (ngModelChange)="ocDirty.set(true)"
+                              placeholder="10" class="w-14 rounded border border-forest-200 px-1.5 py-0.5 text-xs" />
+                          </div>
+                        } @else if (linea.orden_compra) {
                           {{ linea.orden_compra }}/{{ linea.posicion_oc }}
                         }
                       </td>
@@ -292,6 +314,136 @@ interface FacturaElegible {
             </div>
           </div>
         }
+      }
+
+      <!-- Guardar OC -->
+      @if (planilla()?.estado === 'generada' && ocDirty()) {
+        <div class="mt-4 flex items-center justify-end gap-3">
+          @if (ocSaveMsg()) {
+            <span class="text-xs text-green-700">{{ ocSaveMsg() }}</span>
+          }
+          <button type="button" (click)="guardarOrdenesCompra()" [disabled]="actionBusy()"
+                  [disabledIfNoPermission]="'planillas.generar'"
+                  class="rounded-xl bg-forest-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50 transition">
+            {{ actionBusy() ? 'Guardando...' : 'Guardar Órdenes de Compra' }}
+          </button>
+        </div>
+      }
+
+      <!-- Modal asignar OC al agregar prefacturas -->
+      @if (showAgregarOcModal()) {
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div class="relative w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div class="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-forest-100"
+                 style="background: linear-gradient(160deg, #1e4424 0%, #348040 100%);">
+              <div>
+                <h2 class="text-lg font-bold text-white">Asignar Órdenes de Compra</h2>
+                <p class="text-xs text-green-200 mt-0.5">Pre factura {{ agregarFacturaNumero() }}</p>
+              </div>
+              <button type="button" (click)="cancelarAgregarOc()" class="text-white/70 hover:text-white transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="px-6 py-6 space-y-5">
+              @if (agregarOcLoading()) {
+                <div class="flex items-center justify-center py-8">
+                  <svg class="animate-spin w-6 h-6 text-forest-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                </div>
+              } @else if (agregarOcProductores().length === 0) {
+                <p class="text-sm text-forest-500 text-center py-4">No se encontraron movimientos.</p>
+              } @else {
+                <div class="rounded-xl border border-forest-100 overflow-hidden">
+                  <table class="min-w-full table-fixed">
+                    <colgroup>
+                      <col class="w-[100px]" />
+                      <col class="w-auto" />
+                      <col class="w-[90px]" />
+                      <col class="w-[110px]" />
+                      <col class="w-[220px]" />
+                      <col class="w-[90px]" />
+                    </colgroup>
+                    <thead>
+                      <tr class="bg-forest-50 border-b border-forest-100">
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Código</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Nombre</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-forest-600">Monto</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Especie</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Orden de Compra</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-forest-600">Pos OC</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-forest-50">
+                      @for (prod of agregarOcProductores(); track prod.id_productor + '|' + prod.especie) {
+                        <tr class="hover:bg-forest-50/50 transition-colors">
+                          <td class="px-3 py-2 text-sm font-mono text-forest-700">{{ prod.codigo_proveedor || 'SIN CÓDIGO' }}</td>
+                          <td class="px-3 py-2 text-sm text-forest-900">{{ prod.nombre }}</td>
+                          <td class="px-3 py-2 text-sm text-forest-900 text-right font-semibold">{{ formatCLP(prod.monto) }}</td>
+                          <td class="px-3 py-2 text-sm text-forest-700">{{ prod.especie || '-' }}</td>
+                          <td class="px-3 py-2">
+                            @if (isLoadingAgregarOrdenes(prod.id_productor)) {
+                              <span class="text-xs text-forest-400">Cargando OC...</span>
+                            } @else if (getAgregarOcOptions(prod.id_productor).length > 0) {
+                              <app-searchable-combobox
+                                placeholder="Buscar OC..."
+                                nullLabel="Sin OC"
+                                [allowFreeText]="true"
+                                [options]="getAgregarOcOptions(prod.id_productor)"
+                                [value]="prod.orden_compra"
+                                (valueChange)="onAgregarOcChange(prod, $event)"
+                              />
+                            } @else {
+                              <input type="text" [(ngModel)]="prod.orden_compra" placeholder="OC"
+                                class="cfl-input text-sm" />
+                            }
+                          </td>
+                          <td class="px-3 py-2">
+                            @if (getAgregarPosOptions(prod).length > 0) {
+                              <app-searchable-combobox
+                                placeholder="Pos..."
+                                nullLabel="Sin pos"
+                                [allowFreeText]="true"
+                                [options]="getAgregarPosOptions(prod)"
+                                [value]="prod.posicion_oc"
+                                (valueChange)="prod.posicion_oc = $event"
+                              />
+                            } @else {
+                              <input type="text" [(ngModel)]="prod.posicion_oc" placeholder="10"
+                                class="cfl-input text-sm w-20" />
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
+              @if (agregarOcError()) {
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <p class="text-sm text-red-700">{{ agregarOcError() }}</p>
+                </div>
+              }
+            </div>
+
+            <div class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-forest-100 bg-white px-6 py-4">
+              <button type="button" (click)="cancelarAgregarOc()" [disabled]="agregarOcSubmitting()"
+                class="rounded-lg border border-forest-200 bg-white px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50 transition">
+                Cancelar
+              </button>
+              <button type="button" (click)="confirmarAgregarConOc()" [disabled]="agregarOcSubmitting() || agregarOcLoading()"
+                [disabledIfNoPermission]="'planillas.generar'"
+                class="rounded-lg bg-forest-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50 transition">
+                {{ agregarOcSubmitting() ? 'Agregando...' : 'Agregar Pre Factura' }}
+              </button>
+            </div>
+          </div>
+        </div>
       }
 
       <!-- Modal confirmación envío -->
@@ -340,6 +492,29 @@ interface FacturaElegible {
         </div>
       }
 
+      <!-- Modal confirmación quitar pre factura -->
+      @if (showConfirmQuitar()) {
+        <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="text-base font-semibold text-red-800">Quitar pre factura</h3>
+            <p class="mt-2 text-sm text-forest-600">
+              ¿Quitar la pre factura <span class="font-semibold text-forest-900">{{ quitarFacturaTarget()?.numero_factura }}</span> de esta planilla?
+            </p>
+            <div class="mt-4 flex justify-end gap-3">
+              <button type="button" (click)="showConfirmQuitar.set(false)"
+                      class="rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50">
+                Cancelar
+              </button>
+              <button type="button" (click)="confirmarQuitar()" [disabled]="actionBusy()"
+                      [disabledIfNoPermission]="'planillas.generar'"
+                      class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                {{ actionBusy() ? 'Quitando...' : 'Quitar' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
     </app-workspace-shell>
   `
 })
@@ -357,9 +532,26 @@ export class PlanillaDetalleComponent implements OnInit {
   readonly loadingElegibles  = signal(false);
   readonly facturasElegibles = signal<FacturaElegible[]>([]);
 
+  // OC editing
+  readonly ocDirty   = signal(false);
+  readonly ocSaveMsg = signal('');
+
+  // Agregar con OC modal
+  readonly showAgregarOcModal    = signal(false);
+  readonly agregarOcLoading      = signal(false);
+  readonly agregarOcSubmitting   = signal(false);
+  readonly agregarOcError        = signal('');
+  readonly agregarOcProductores  = signal<AgregarProductorOc[]>([]);
+  readonly agregarFacturaId      = signal(0);
+  readonly agregarFacturaNumero  = signal('');
+  readonly agregarOrdenesPorProd = signal<Map<number, OrdenCompraOption[]>>(new Map());
+  readonly agregarLoadingOrdenes = signal<Set<number>>(new Set());
+
   // Modals
-  readonly showConfirmEnvio  = signal(false);
-  readonly showConfirmAnular = signal(false);
+  readonly showConfirmEnvio   = signal(false);
+  readonly showConfirmAnular  = signal(false);
+  readonly showConfirmQuitar  = signal(false);
+  readonly quitarFacturaTarget = signal<PlanillaSapFacturaVinculada | null>(null);
 
   private idPlanilla = 0;
 
@@ -422,30 +614,192 @@ export class PlanillaDetalleComponent implements OnInit {
       });
   }
 
-  agregarFactura(idFactura: number): void {
-    this.actionBusy.set(true);
-    this.actionError.set('');
-    this.cflApi.agregarFacturasPlanilla(this.idPlanilla, [idFactura])
+  agregarFactura(fac: FacturaElegible): void {
+    this.agregarFacturaId.set(fac.id_factura);
+    this.agregarFacturaNumero.set(fac.numero_factura);
+    this.agregarOcProductores.set([]);
+    this.agregarOrdenesPorProd.set(new Map());
+    this.agregarLoadingOrdenes.set(new Set());
+    this.agregarOcError.set('');
+    this.agregarOcSubmitting.set(false);
+    this.showAgregarOcModal.set(true);
+    this.loadAgregarMovimientos(fac.id_factura);
+  }
+
+  cancelarAgregarOc(): void {
+    this.showAgregarOcModal.set(false);
+  }
+
+  confirmarAgregarConOc(): void {
+    this.agregarOcSubmitting.set(true);
+    this.agregarOcError.set('');
+
+    const productoresOc = this.agregarOcProductores()
+      .filter(p => p.orden_compra)
+      .map(p => ({
+        id_productor: p.id_productor,
+        especie: p.especie || undefined,
+        orden_compra: p.orden_compra,
+        posicion_oc: p.posicion_oc || undefined,
+      }));
+
+    this.cflApi.agregarFacturasPlanilla(this.idPlanilla, [this.agregarFacturaId()], productoresOc)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.actionBusy.set(false);
+          this.agregarOcSubmitting.set(false);
+          this.showAgregarOcModal.set(false);
           this.loadData();
           this.loadElegibles();
         },
         error: (err) => {
-          this.actionBusy.set(false);
-          this.actionError.set(err?.error?.error ?? 'Error al agregar pre factura.');
+          this.agregarOcSubmitting.set(false);
+          this.agregarOcError.set(err?.error?.error ?? 'Error al agregar pre factura.');
         },
       });
+  }
+
+  onAgregarOcChange(prod: AgregarProductorOc, ebeln: string): void {
+    prod.orden_compra = ebeln;
+    const ordenes = this.agregarOrdenesPorProd().get(prod.id_productor) || [];
+    const selected = ordenes.find(o => o.ebeln === ebeln);
+    if (selected?.posiciones?.length) {
+      prod.posicion_oc = this._trimLeadingZeros(selected.posiciones[0].ebelp);
+    }
+  }
+
+  isLoadingAgregarOrdenes(idProductor: number): boolean {
+    return this.agregarLoadingOrdenes().has(idProductor);
+  }
+
+  getAgregarOcOptions(idProductor: number): SearchableOption[] {
+    return (this.agregarOrdenesPorProd().get(idProductor) || []).map(oc => ({
+      value: oc.ebeln,
+      label: this._formatOcLabel(oc),
+    }));
+  }
+
+  getAgregarPosOptions(prod: AgregarProductorOc): SearchableOption[] {
+    const ordenes = this.agregarOrdenesPorProd().get(prod.id_productor) || [];
+    const selected = ordenes.find(o => o.ebeln === prod.orden_compra);
+    return (selected?.posiciones || []).map(pos => ({
+      value: this._trimLeadingZeros(pos.ebelp),
+      label: this._formatPosLabel(pos),
+    }));
+  }
+
+  private loadAgregarMovimientos(idFactura: number): void {
+    this.agregarOcLoading.set(true);
+    this.cflApi.getPlanillaMovimientos([idFactura])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          const rows: MovimientoPlanillaRow[] = res.data || [];
+          const grouped = new Map<string, AgregarProductorOc>();
+          for (const m of rows) {
+            if (!m.id_productor) continue;
+            const especie = m.especie_nombre || '';
+            const key = `${m.id_productor}|${especie}`;
+            const existing = grouped.get(key);
+            if (existing) {
+              existing.monto += m.monto_aplicado || 0;
+            } else {
+              grouped.set(key, {
+                id_productor: m.id_productor,
+                codigo_proveedor: m.codigo_proveedor || '',
+                nombre: m.productor_nombre || '',
+                monto: m.monto_aplicado || 0,
+                especie,
+                orden_compra: '',
+                posicion_oc: '10',
+              });
+            }
+          }
+          const prods = Array.from(grouped.values()).sort((a, b) =>
+            a.codigo_proveedor.localeCompare(b.codigo_proveedor)
+          );
+          this.agregarOcProductores.set(prods);
+          this.agregarOcLoading.set(false);
+          this._loadAgregarOcForAll(prods);
+        },
+        error: () => {
+          this.agregarOcLoading.set(false);
+          this.agregarOcError.set('No se pudieron cargar los movimientos.');
+        },
+      });
+  }
+
+  private _loadAgregarOcForAll(prods: AgregarProductorOc[]): void {
+    for (const prod of prods) {
+      if (!prod.codigo_proveedor || this.agregarOrdenesPorProd().has(prod.id_productor)) continue;
+      const loading = new Set(this.agregarLoadingOrdenes());
+      loading.add(prod.id_productor);
+      this.agregarLoadingOrdenes.set(loading);
+
+      this.cflApi.getOrdenesCompraProveedor(prod.codigo_proveedor)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            const map = new Map(this.agregarOrdenesPorProd());
+            map.set(prod.id_productor, res.data.ordenes || []);
+            this.agregarOrdenesPorProd.set(map);
+            const l = new Set(this.agregarLoadingOrdenes());
+            l.delete(prod.id_productor);
+            this.agregarLoadingOrdenes.set(l);
+          },
+          error: () => {
+            const map = new Map(this.agregarOrdenesPorProd());
+            map.set(prod.id_productor, []);
+            this.agregarOrdenesPorProd.set(map);
+            const l = new Set(this.agregarLoadingOrdenes());
+            l.delete(prod.id_productor);
+            this.agregarLoadingOrdenes.set(l);
+          },
+        });
+    }
+  }
+
+  private _formatOcLabel(oc: OrdenCompraOption): string {
+    const fecha = this._formatSapDate(oc.aedat);
+    const especies = oc.posiciones.map(p => p.txz01).filter(Boolean);
+    let hint = '';
+    if (especies.length > 0) {
+      const joined = [...new Set(especies)].join(', ');
+      hint = joined.length > 30 ? ` [${joined.slice(0, 30)}…]` : ` [${joined}]`;
+    }
+    return `${oc.ebeln} — ${fecha}${hint}`;
+  }
+
+  private _formatPosLabel(pos: { ebelp: string; matnr: string; txz01: string }): string {
+    const posNum = this._trimLeadingZeros(pos.ebelp);
+    let desc = pos.txz01 || pos.matnr || '';
+    if (desc.length > 30) desc = desc.slice(0, 30) + '…';
+    return desc ? `${posNum} — ${desc}` : posNum;
+  }
+
+  private _trimLeadingZeros(value: string): string {
+    const trimmed = value.replace(/^0+/, '');
+    return trimmed || '0';
+  }
+
+  private _formatSapDate(sapDate: string): string {
+    if (!sapDate || sapDate.length !== 8) return sapDate;
+    return `${sapDate.slice(6, 8)}/${sapDate.slice(4, 6)}/${sapDate.slice(0, 4)}`;
   }
 
   // --- Quitar pre factura ---
 
   quitarFactura(fac: PlanillaSapFacturaVinculada): void {
-    if (!confirm(`¿Quitar la pre factura ${fac.numero_factura} de esta planilla?`)) return;
+    this.quitarFacturaTarget.set(fac);
+    this.showConfirmQuitar.set(true);
+  }
+
+  confirmarQuitar(): void {
+    const fac = this.quitarFacturaTarget();
+    if (!fac) return;
     this.actionBusy.set(true);
     this.actionError.set('');
+    this.showConfirmQuitar.set(false);
     this.cflApi.quitarFacturaPlanilla(this.idPlanilla, fac.id_factura)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -501,6 +855,47 @@ export class PlanillaDetalleComponent implements OnInit {
         error: (err) => {
           this.actionBusy.set(false);
           this.actionError.set(err?.error?.error ?? 'Error al anular la planilla.');
+        },
+      });
+  }
+
+  // --- Guardar OC ---
+
+  guardarOrdenesCompra(): void {
+    const p = this.planilla();
+    if (!p) return;
+
+    const lineas: { id_linea: number; orden_compra: string; posicion_oc: string }[] = [];
+    for (const doc of p.documentos) {
+      for (const linea of doc.lineas) {
+        if (linea.clave_contabilizacion === '29') {
+          lineas.push({
+            id_linea: linea.id_planilla_sap_linea,
+            orden_compra: linea.orden_compra || '',
+            posicion_oc: linea.posicion_oc || '10',
+          });
+        }
+      }
+    }
+
+    if (lineas.length === 0) return;
+
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.ocSaveMsg.set('');
+
+    this.cflApi.actualizarOrdenesCompraPlanilla(p.id_planilla_sap, lineas)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.actionBusy.set(false);
+          this.ocDirty.set(false);
+          this.ocSaveMsg.set('Guardado correctamente');
+          setTimeout(() => this.ocSaveMsg.set(''), 3000);
+        },
+        error: (err) => {
+          this.actionBusy.set(false);
+          this.actionError.set(err?.error?.error ?? 'Error al guardar órdenes de compra.');
         },
       });
   }

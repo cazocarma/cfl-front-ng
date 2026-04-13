@@ -333,12 +333,18 @@ export class CflApiService {
     return this.http.get<{ data: Array<Record<string, unknown>> }>(`${API_BASE}/api/planillas-sap/${id}/facturas-elegibles`);
   }
 
-  agregarFacturasPlanilla(id: number, facturasIds: number[]): Observable<{ message: string }> {
-    return this.http.post<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/facturas`, { facturas_ids: facturasIds });
+  agregarFacturasPlanilla(id: number, facturasIds: number[], productoresOc?: { id_productor: number; especie?: string; orden_compra: string; posicion_oc?: string }[]): Observable<{ message: string }> {
+    const body: Record<string, unknown> = { facturas_ids: facturasIds };
+    if (productoresOc && productoresOc.length > 0) body['productores_oc'] = productoresOc;
+    return this.http.post<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/facturas`, body);
   }
 
   quitarFacturaPlanilla(id: number, idFactura: number): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/facturas/${idFactura}`);
+  }
+
+  actualizarOrdenesCompraPlanilla(id: number, lineas: { id_linea: number; orden_compra: string; posicion_oc: string }[]): Observable<{ message: string }> {
+    return this.http.patch<{ message: string }>(`${API_BASE}/api/planillas-sap/${id}/ordenes-compra`, { lineas });
   }
 
   getEstadisticasOverview(): Observable<{ data: unknown }> {
