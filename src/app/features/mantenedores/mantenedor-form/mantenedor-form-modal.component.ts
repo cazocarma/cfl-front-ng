@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
@@ -101,6 +101,33 @@ type EntityOptions = Record<string, Record<string, unknown>[]>;
                 </svg>
               </div>
             } @else {
+
+              <!--
+                Identificador:
+                  - En crear: input editable. Vacío → la BD autoasigna (IDENTITY).
+                               Con valor → se persiste ese ID (via IDENTITY_INSERT).
+                  - En editar: readonly (SQL Server no permite modificar columnas IDENTITY).
+              -->
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5">ID</label>
+                @if (row) {
+                  <input
+                    type="text"
+                    class="cfl-input font-mono bg-forest-50 cursor-not-allowed"
+                    [value]="$any(row)[config.idField] ?? ''"
+                    readonly
+                    title="El ID no se puede modificar en registros existentes"
+                  />
+                } @else {
+                  <input
+                    type="number"
+                    class="cfl-input font-mono"
+                    [formControl]="idInputControl"
+                    placeholder="Se asignará al guardar si lo dejas vacío"
+                    min="1"
+                  />
+                }
+              </div>
 
               <!-- Campos del formulario en grid de 2 columnas -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -303,6 +330,9 @@ export class MantenedorFormModalComponent implements OnChanges {
   // Campos activos (crear vs editar)
   camposActivos = signal<CampoDef[]>([]);
 
+  /** ID explícito opcional al crear (vacío → autoasignar en BD). */
+  idInputControl = new FormControl<number | null>(null);
+
   constructor(private fb: FormBuilder, private api: CflApiService) {}
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -348,6 +378,7 @@ export class MantenedorFormModalComponent implements OnChanges {
     }
 
     this.form = this.fb.group(controls);
+    this.idInputControl.reset(null);
     this.errorMsg.set('');
   }
 
@@ -488,6 +519,14 @@ export class MantenedorFormModalComponent implements OnChanges {
     const payload: Record<string, unknown> = { ...this.form.value };
     for (const key of Object.keys(payload)) {
       if (payload[key] === '' || payload[key] === undefined) payload[key] = null;
+    }
+    // Al crear: si el usuario ingresó un ID explícito, pásalo a la clave del PK.
+    // Si quedó vacío, la BD auto-asigna vía IDENTITY (no enviamos la key).
+    if (!this.row) {
+      const explicitId = this.idInputControl.value;
+      if (explicitId !== null && explicitId !== undefined && `${explicitId}`.trim() !== '') {
+        payload[this.config.idField] = Number(explicitId);
+      }
     }
     return payload;
   }

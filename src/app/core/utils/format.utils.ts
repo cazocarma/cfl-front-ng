@@ -25,37 +25,51 @@ export function formatCLP(value: unknown): string {
 }
 
 /**
- * Parsea un valor a Date en hora local.
- * Maneja "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss" y variantes con Z/offset.
+ * Parsea un valor a Date en hora local (calendario).
+ *
+ * Regla única: si el string empieza con `YYYY-MM-DD`, esos dígitos SON la
+ * fecha calendario que queremos mostrar — ignoramos la parte horaria/zona.
+ * Esto evita el clásico bug de SQL Server serializando `DATE` como
+ * `YYYY-MM-DDT00:00:00Z` y luego JS restándole 3h en Chile (UTC-3), con lo
+ * que una fecha guardada como "9 de febrero" termina exhibida como "8 de
+ * febrero" y similares desfases ambiguos entre día y mes.
+ *
+ * Si el string NO tiene prefijo `YYYY-MM-DD` (formato desconocido), se deja
+ * al constructor `Date(string)` — pero el backend NO debería enviar fechas
+ * en otro formato.
  */
 export function parseLocalDate(value: unknown): Date | null {
-  if (!value) return null;
+  if (value === null || value === undefined || value === '') return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
   const s = String(value).trim();
+  if (!s) return null;
 
-  // "YYYY-MM-DD" (solo fecha) — parsear como local, no UTC
+  // Fecha calendario pura "YYYY-MM-DD" → construir como local (sin pasar por
+  // UTC, que produciría desfase de 1 día en Chile UTC-3).
   const dateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (dateOnly) {
     return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
   }
 
-  // "YYYY-MM-DDTHH:mm:ss" (sin Z ni offset) — parsear como local
-  const localDT = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  // "YYYY-MM-DDTHH:mm:ss" (sin Z ni offset) → tratar como hora local emitida.
+  const localDT = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/);
   if (localDT) {
     return new Date(
       Number(localDT[1]), Number(localDT[2]) - 1, Number(localDT[3]),
-      Number(localDT[4]), Number(localDT[5]), Number(localDT[6] || 0)
+      Number(localDT[4]), Number(localDT[5]),
+      localDT[6] ? Number(localDT[6]) : 0,
     );
   }
 
-  // "YYYY-MM-DDT00:00:00.000Z" (DATE column serializada como UTC midnight)
-  // → interpretar como fecha local, no UTC, para evitar desplazamiento de 1 día
+  // "YYYY-MM-DDT00:00:00(.000)?Z" → DATE column que mssql serializa como UTC
+  // midnight. Es una fecha calendario disfrazada; la tratamos como tal.
   const midnightZ = s.match(/^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.0+)?Z$/);
   if (midnightZ) {
     return new Date(Number(midnightZ[1]), Number(midnightZ[2]) - 1, Number(midnightZ[3]));
   }
 
-  // Cualquier otro formato (con Z, offset, etc.) — dejar que Date lo interprete
+  // Timestamp real con Z/offset → instante UTC, dejamos que JS lo convierta
+  // a local correctamente.
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }

@@ -1,9 +1,7 @@
-import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime } from 'rxjs';
-import { RouterLink } from '@angular/router';
 
 import {
   adaptCandidato,
@@ -20,17 +18,18 @@ import {
 import { AuthnService } from '../../core/services/authn.service';
 import { AuthzService } from '../../core/services/authz.service';
 import { CflApiService } from '../../core/services/cfl-api.service';
-import { Perms, ROLE_LABELS, Roles } from '../../core/config/permissions';
-import type { RoleName } from '../../core/config/permissions';
+import { Perms } from '../../core/config/permissions';
 import { ToastService } from '../../core/services/toast.service';
 import { EditFleteModalComponent, ModalMode } from './edit-flete-modal/edit-flete-modal.component';
 import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
+import { AppSidebarComponent } from '../../core/components/app-sidebar/app-sidebar.component';
 
 type ConfirmActionType = 'descartar' | 'anular';
 
 @Component({
     selector: 'app-bandeja',
-    imports: [NgClass, FormsModule, RouterLink, EditFleteModalComponent, DisabledIfNoPermissionDirective],
+    standalone: true,
+    imports: [FormsModule, EditFleteModalComponent, DisabledIfNoPermissionDirective, AppSidebarComponent],
     templateUrl: './bandeja.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -38,47 +37,12 @@ export class BandejaComponent implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
   private authz = inject(AuthzService);
 
-  /*  User session  */
-  get userName(): string {
-    const u = this.auth.getCurrentUser();
-    return u ? (u.nombre ? `${u.nombre} ${u.apellido ?? ''}`.trim() : u.username) : 'Usuario';
-  }
-
-  get roleLabel(): string {
-    const role = this.authz.primaryRole() ?? this.auth.getCurrentUser()?.role ?? '';
-    return ROLE_LABELS[role as RoleName] ?? role;
-  }
-
-  get userInitials(): string {
-    return this.userName.split(' ').map(w => w[0]?.toUpperCase() ?? '').slice(0, 2).join('');
-  }
-
-  /*  Sidebar — computed signals (reactivos con OnPush)  */
-  readonly canSeeFacturas = computed(() =>
-    this.authz.hasAnyPermission(Perms.FACTURAS_VER, Perms.FACTURAS_EDITAR, Perms.FACTURAS_CONCILIAR)
-  );
-  readonly canSeePlanillas = computed(() =>
-    this.authz.hasAnyPermission(Perms.PLANILLAS_VER, Perms.PLANILLAS_GENERAR)
-  );
-  readonly canSeeCargaEntregas = computed(() =>
-    this.authz.hasAnyPermission(Perms.FLETES_SAP_ETL_EJECUTAR, Perms.FLETES_SAP_ETL_VER)
-  );
-  readonly canSeeEstadisticas = computed(() => this.authz.hasPermission(Perms.REPORTES_VIEW));
-  readonly canSeeAuditoria = computed(() => this.authz.primaryRole() === Roles.ADMINISTRADOR);
-  readonly canSeeMantenedores = computed(() =>
-    this.authz.hasAnyPermission(Perms.MANTENEDORES_VIEW, Perms.MANTENEDORES_ADMIN)
-  );
-  readonly canSeeAdminSection = computed(() =>
-    this.canSeeCargaEntregas() || this.canSeeEstadisticas() || this.canSeeAuditoria() || this.canSeeMantenedores()
-  );
-
   /*  Tabs  */
   activeTab = signal<'candidatos' | 'en_curso'>('en_curso');
 
   /*  Data  */
   allFletes = signal<FleteTabla[]>([]);
   loading = signal(false);
-  showUserMenu = signal(false);
   mobileSidebarOpen = signal(false);
 
   private toast = inject(ToastService);
@@ -520,11 +484,6 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.editModalVisible.set(false);
   }
 
-  /*  Auth  */
-  logout(): void {
-    this.auth.logout();
-  }
-
   toggleMobileSidebar(): void {
     this.mobileSidebarOpen.update(v => !v);
   }
@@ -596,6 +555,22 @@ export class BandejaComponent implements OnInit, OnDestroy {
 
   areActionsBlocked(): boolean {
     return !this.auth.isLoggedIn() || !this.authz.loaded();
+  }
+
+  /**
+   * Sentido del movimiento del flete, normalizado a DESPACHO | RETORNO.
+   *  - Candidatos: usan `origenDatos` (DESPACHO | RECEPCION desde SAP/Romana).
+   *  - Fletes en curso: usan `sentidoFlete` (IDA | VUELTA | DESPACHO | RETORNO).
+   * Devuelve null si no se puede determinar (se omite el badge).
+   */
+  sentidoMovimiento(flete: FleteTabla): 'DESPACHO' | 'RETORNO' | null {
+    if (flete.kind === 'candidato') {
+      return flete.origenDatos === 'RECEPCION' ? 'RETORNO' : 'DESPACHO';
+    }
+    const s = (flete.sentidoFlete ?? '').toUpperCase();
+    if (s === 'VUELTA' || s === 'RETORNO') return 'RETORNO';
+    if (s === 'IDA' || s === 'DESPACHO') return 'DESPACHO';
+    return null;
   }
 
   /*  Formatting  */

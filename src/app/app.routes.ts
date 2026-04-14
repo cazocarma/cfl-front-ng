@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authnGuard } from './core/guards/authn.guard';
+import { guestGuard } from './core/guards/guest.guard';
 import { roleGuard } from './core/guards/role.guard';
 import { permissionGuard } from './core/guards/permission.guard';
 import { Perms, Roles } from './core/config/permissions';
@@ -7,11 +8,12 @@ import { Perms, Roles } from './core/config/permissions';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'login',
+    redirectTo: 'bandeja',
     pathMatch: 'full',
   },
   {
     path: 'login',
+    canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/login/login.component').then((m) => m.LoginComponent),
   },
@@ -115,6 +117,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'login',
+    redirectTo: 'bandeja',
   },
 ];

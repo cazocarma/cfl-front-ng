@@ -42,6 +42,10 @@ export class MantenedorTablaComponent implements OnInit {
   itemsPerPage  = signal(25);
   readonly itemsPerPageOptions = [10, 25, 50];
 
+  /* ── Ordenamiento (client-side) ────────────────────────────── */
+  sortKey = signal<string | null>(null);   // null → ordena por idField asc
+  sortDir = signal<'asc' | 'desc'>('asc');
+
   /* ── Tarifas: filtro por temporada ─────────────────────────── */
   temporadas         = signal<Record<string, unknown>[]>([]);
   selectedTemporadaId = signal<number | null>(null);
@@ -49,10 +53,24 @@ export class MantenedorTablaComponent implements OnInit {
   /* ── Computed ──────────────────────────────────────────────── */
   filteredRows = computed(() => {
     const q = this.searchText().toLowerCase().trim();
-    if (!q) return this.allRows();
-    return this.allRows().filter(row =>
-      Object.values(row).some(v => String(v ?? '').toLowerCase().includes(q))
-    );
+    const base = !q
+      ? this.allRows()
+      : this.allRows().filter(row =>
+          Object.values(row).some(v => String(v ?? '').toLowerCase().includes(q))
+        );
+
+    const cfg = this.config();
+    const key = this.sortKey() ?? cfg?.idField ?? null;
+    if (!key) return base;
+
+    const dir = this.sortDir() === 'asc' ? 1 : -1;
+    const snakeKey = this._toSnakeKey(key);
+    const sorted = [...base].sort((a, b) => {
+      const va = a[key] ?? a[snakeKey];
+      const vb = b[key] ?? b[snakeKey];
+      return this._compareValues(va, vb) * dir;
+    });
+    return sorted;
   });
 
   totalPages = computed(() => Math.max(1, Math.ceil(this.filteredRows().length / this.itemsPerPage())));
@@ -61,6 +79,32 @@ export class MantenedorTablaComponent implements OnInit {
     const start = (this.currentPage() - 1) * this.itemsPerPage();
     return this.filteredRows().slice(start, start + this.itemsPerPage());
   });
+
+  private _compareValues(a: unknown, b: unknown): number {
+    if (a === null || a === undefined || a === '') return b === null || b === undefined || b === '' ? 0 : 1;
+    if (b === null || b === undefined || b === '') return -1;
+    const na = Number(a), nb = Number(b);
+    if (!Number.isNaN(na) && !Number.isNaN(nb) && String(a).trim() !== '' && String(b).trim() !== '') {
+      return na - nb;
+    }
+    return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
+  }
+
+  sortBy(key: string): void {
+    if (this.sortKey() === key) {
+      this.sortDir.update(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      this.sortKey.set(key);
+      this.sortDir.set('asc');
+    }
+    this.currentPage.set(1);
+  }
+
+  sortIndicator(key: string): string {
+    const effective = this.sortKey() ?? this.config()?.idField ?? null;
+    if (effective !== key) return '';
+    return this.sortDir() === 'asc' ? '▲' : '▼';
+  }
 
   pageNumbers = computed(() => {
     const total   = this.totalPages();
@@ -212,6 +256,12 @@ export class MantenedorTablaComponent implements OnInit {
     const current = Boolean(row[cfg.softDeleteField]);
     const nuevoValor = !current;
 
+    // Regla: en el mantenedor de usuarios, nadie puede desactivarse a sí mismo
+    if (cfg.key === 'usuarios' && !nuevoValor && id === this.auth.getCurrentUser()?.id_usuario) {
+      this.toast.show('No puedes desactivar tu propio usuario.', true);
+      return;
+    }
+
     this.api.toggleMaintainerActivo(cfg.key, id, nuevoValor, cfg.softDeleteField).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toast.show(`${cfg.title} ${nuevoValor ? 'activado' : 'desactivado'} correctamente.`);
@@ -310,6 +360,21 @@ export class MantenedorTablaComponent implements OnInit {
   }
 
   trackByIndex(i: number): number { return i; }
+
+  getRowId(row: Record<string, unknown>): unknown {
+    const cfg = this.config();
+    if (!cfg) return null;
+    // Intentar con idField directo y su variante snake_case (Normalización ya agrega ambas)
+    const snake = this._toSnakeKey(cfg.idField);
+    return row[cfg.idField] ?? row[snake] ?? null;
+  }
+
+  isOwnUserRow(row: Record<string, unknown>): boolean {
+    const cfg = this.config();
+    if (!cfg || cfg.key !== 'usuarios') return false;
+    const rowId = Number(this.getRowId(row));
+    return !!rowId && rowId === this.auth.getCurrentUser()?.id_usuario;
+  }
 
   isRowInactive(row: Record<string, unknown>): boolean {
     const cfg = this.config();

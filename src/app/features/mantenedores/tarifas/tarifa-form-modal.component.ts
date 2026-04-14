@@ -14,7 +14,7 @@ import {
 import { NgStyle } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
@@ -59,6 +59,21 @@ const MONEDAS = [
             @if (loading()) {
               <p class="text-sm text-forest-600">Cargando catalogos...</p>
             } @else {
+              <!-- ID Tarifa: editable al crear (vacío → autoasignar IDENTITY), readonly al editar -->
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5">ID Tarifa</label>
+                @if (row) {
+                  <input type="text" class="cfl-input font-mono bg-forest-50 cursor-not-allowed"
+                         [value]="$any(row)['id_tarifa'] ?? $any(row)['IdTarifa'] ?? ''" readonly
+                         title="El ID no se puede modificar en registros existentes" />
+                } @else {
+                  <input type="number" class="cfl-input font-mono"
+                         [formControl]="idInputControl"
+                         placeholder="Se asignará al guardar si lo dejas vacío"
+                         min="1" />
+                }
+              </div>
+
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 <div>
                   <label class="block text-xs font-semibold mb-1.5">Temporada *</label>
@@ -276,6 +291,9 @@ export class TarifaFormModalComponent implements OnChanges {
   });
 
   form!: FormGroup;
+
+  /** ID explícito opcional al crear (vacío → autoasignar IDENTITY). */
+  idInputControl = new FormControl<number | null>(null);
   private mouseOnDropdown = false;
   private readonly dropdownMinSpacePx = 220;
   private readonly dropdownStyles: Record<DropdownKey, DropdownStyle> = {
@@ -377,6 +395,14 @@ export class TarifaFormModalComponent implements OnChanges {
       activo: true,
     };
 
+    // ID explícito opcional al crear (vacío → autoasignar IDENTITY)
+    if (!this.row) {
+      const explicitId = this.idInputControl.value;
+      if (explicitId !== null && explicitId !== undefined && `${explicitId}`.trim() !== '') {
+        payload['id_tarifa'] = Number(explicitId);
+      }
+    }
+
     this.saving.set(true);
     this.errorMsg.set('');
 
@@ -398,6 +424,7 @@ export class TarifaFormModalComponent implements OnChanges {
       moneda: ['CLP', Validators.required],
       monto_fijo: ['', Validators.required],
     });
+    this.idInputControl.reset(null);
     this.errorMsg.set('');
     this._closeCombos();
     if (!this.row) {

@@ -17,6 +17,7 @@ import { FormsModule } from '@angular/forms';
 
 import { DisabledIfNoPermissionDirective } from '../../core/directives/disabled-if-no-permission.directive';
 import { CflApiService } from '../../core/services/cfl-api.service';
+import { ToastService } from '../../core/services/toast.service';
 import { SearchableComboboxComponent, SearchableOption } from '../bandeja/searchable-combobox.component';
 import {
   GenerarPlanillaRequest,
@@ -291,7 +292,7 @@ import { formatCLP } from '../../core/utils/format.utils';
               class="rounded-lg border border-forest-200 bg-white px-4 py-2 text-sm font-semibold text-forest-700 hover:bg-forest-50 transition">
               Cancelar
             </button>
-            <button type="button" (click)="onGenerar()" [disabled]="submitting() || !isFormValid()"
+            <button type="button" (click)="onGenerar()" [disabled]="submitting()"
               [disabledIfNoPermission]="'planillas.generar'"
               class="rounded-lg bg-forest-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-forest-700 disabled:opacity-50 transition">
               @if (submitting()) {
@@ -314,6 +315,7 @@ import { formatCLP } from '../../core/utils/format.utils';
 })
 export class GenerarPlanillaModalComponent implements OnChanges {
   private api = inject(CflApiService);
+  private toast = inject(ToastService);
   private destroyRef = inject(DestroyRef);
 
   @Input() open = false;
@@ -401,13 +403,22 @@ export class GenerarPlanillaModalComponent implements OnChanges {
   }
 
   isFormValid(): boolean {
-    return !!(
-      this.formData.fecha_documento &&
-      this.formData.fecha_contabilizacion &&
-      this.formData.glosa_cabecera.trim() &&
-      this.selectedCount() > 0 &&
-      !this.hasProductorSinCodigo()
-    );
+    return this.missingFields().length === 0;
+  }
+
+  /**
+   * Lista los errores de validación en un orden estable. Usada tanto por
+   * `isFormValid()` como por `onGenerar()` para construir un toast con
+   * detalle específico (no un genérico "completa los campos").
+   */
+  private missingFields(): string[] {
+    const errors: string[] = [];
+    if (!this.formData.fecha_documento) errors.push('Fecha de documento');
+    if (!this.formData.fecha_contabilizacion) errors.push('Fecha de contabilización');
+    if (!this.formData.glosa_cabecera.trim()) errors.push('Glosa de cabecera');
+    if (this.selectedCount() <= 0) errors.push('Selecciona al menos un movimiento');
+    if (this.hasProductorSinCodigo()) errors.push('Hay productores sin código SAP');
+    return errors;
   }
 
   onSelectionChange(): void {
@@ -423,7 +434,17 @@ export class GenerarPlanillaModalComponent implements OnChanges {
   }
 
   onGenerar(): void {
-    if (!this.isFormValid() || this.submitting()) return;
+    if (this.submitting()) return;
+
+    const faltantes = this.missingFields();
+    if (faltantes.length > 0) {
+      this.toast.show(
+        `No se puede generar la planilla. Revisa: ${faltantes.join(' · ')}.`,
+        true,
+        6000,
+      );
+      return;
+    }
 
     this.submitting.set(true);
     this.errorMsg.set('');

@@ -21,6 +21,22 @@ export interface SearchableOption {
   label: string;
 }
 
+/**
+ * Combobox con búsqueda + soporte opcional de texto libre.
+ *
+ * Invariantes (sin parches):
+ *   1. `displayText` siempre refleja el `value` actual (el dato que se persiste).
+ *      No el label — mezclar value/label llevaba a que al escribir encima se
+ *      perdiera el contexto y el padre terminara con texto ambiguo.
+ *   2. Al seleccionar una opción → `value` pasa a `option.value`. El dropdown
+ *      muestra labels para ayudar a buscar, pero el input siempre muestra el
+ *      identificador/valor.
+ *   3. Con `allowFreeText=true`, cualquier texto que el usuario escriba se
+ *      emite como `value` en cada pulsación. El padre decide cómo validarlo.
+ *   4. `_syncDisplayText` nunca borra texto que el usuario acaba de escribir:
+ *      sólo pisa `displayText` con `value` cuando llegan cambios desde el
+ *      padre.
+ */
 @Component({
     selector: 'app-searchable-combobox',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,7 +56,8 @@ export interface SearchableOption {
           [readOnly]="disabled"
           [value]="displayText"
           (input)="onInput($any($event.target).value)"
-          (click)="toggleDropdown()"
+          (focus)="openDropdown()"
+          (click)="openDropdown()"
           (keydown.escape)="close()"
           autocomplete="off"
         />
@@ -122,11 +139,21 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   isOpen = false;
   dropdownStyle: Record<string, string> = {};
 
+  /**
+   * Marcador de que el usuario está editando el input ahora mismo. Mientras
+   * esté true, `_syncDisplayText` no pisa `displayText` (eso preservaría el
+   * texto tipeado aunque un ngOnChanges dispare un re-sync).
+   */
+  private _userIsTyping = false;
+
   readonly filteredOptions = computed(() => {
     const query = this.searchText().trim().toLowerCase();
     const opts = this._options();
     if (!query) return opts;
-    return opts.filter(opt => opt.label.toLowerCase().includes(query));
+    return opts.filter(opt =>
+      opt.label.toLowerCase().includes(query) ||
+      opt.value.toLowerCase().includes(query),
+    );
   });
 
   private _scrollHandler = (event: Event) => {
@@ -156,39 +183,41 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
     }
   }
 
-  onInput(value: string): void {
-    this.searchText.set(value);
-    this.displayText = value;
+  onInput(rawValue: string): void {
+    this._userIsTyping = true;
+    this.searchText.set(rawValue);
+    this.displayText = rawValue;
+
     if (this.allowFreeText) {
-      this.valueChange.emit(value);
-    } else if (!value) {
+      // Cualquier texto se emite literal. Si el usuario selecciona luego una
+      // opción, la reemplaza; mientras no lo haga, el padre persiste el texto.
+      this.valueChange.emit(rawValue);
+    } else if (!rawValue) {
       this.valueChange.emit('');
     }
-    if (!this.isOpen) {
-      this._open();
-    }
+
+    if (!this.isOpen) this.openDropdown();
   }
 
   selectOption(option: SearchableOption | null): void {
+    this._userIsTyping = false;
     if (!option) {
       this.searchText.set('');
       this.displayText = '';
       this.valueChange.emit('');
     } else {
-      this.searchText.set(option.label);
-      this.displayText = option.label;
+      // El input refleja el VALUE (no el label) para que editar encima sea
+      // intuitivo y no arrastre prefijos del label.
+      this.displayText = option.value;
+      this.searchText.set(option.value);
       this.valueChange.emit(option.value);
     }
     this._close();
   }
 
-  toggleDropdown(): void {
-    if (this.disabled) return;
-    if (this.isOpen) {
-      this._close();
-    } else {
-      this._open();
-    }
+  openDropdown(): void {
+    if (this.disabled || this.isOpen) return;
+    this._open();
   }
 
   close(): void {
@@ -196,6 +225,9 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   }
 
   private _open(): void {
+    // Al abrir, resetea el filtro para mostrar todas las opciones. El
+    // `displayText` NO se toca — así el usuario ve su valor actual mientras
+    // elige otra opción.
     this.searchText.set('');
     this._calcPosition();
     this.isOpen = true;
@@ -206,6 +238,7 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   private _close(): void {
     if (!this.isOpen) return;
     this.isOpen = false;
+    this._userIsTyping = false;
     this._syncDisplayText();
     this._removeGlobalListeners();
     this._cdr.markForCheck();
@@ -250,17 +283,16 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
     document.removeEventListener('mousedown', this._clickOutsideHandler, { capture: true });
   }
 
+  /**
+   * Alinea `displayText`/`searchText` al `value` actual. Regla única:
+   *   displayText = value (string). Nunca el label.
+   * Si `_userIsTyping` es true, no pisa — preserva lo que el usuario tipea.
+   */
   private _syncDisplayText(): void {
-    const selected = this.options.find((opt) => opt.value === String(this.value ?? ''));
-    if (selected) {
-      this.searchText.set(selected.label);
-      this.displayText = selected.label;
-    } else if (this.allowFreeText && this.value) {
-      this.displayText = String(this.value);
-      this.searchText.set(this.displayText);
-    } else {
-      this.searchText.set('');
-      this.displayText = '';
-    }
+    if (this._userIsTyping) return;
+
+    const current = String(this.value ?? '');
+    this.displayText = current;
+    this.searchText.set(current);
   }
 }

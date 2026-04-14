@@ -1,7 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
+import { Observable, from, switchMap } from 'rxjs';
+
 import { API_BASE } from '../config/api-base';
 import { AuthzService } from './authz.service';
 
@@ -27,26 +28,48 @@ export interface LoginResponse {
 
 const TOKEN_KEY = 'cfl_authn_token';
 
+/**
+ * Servicio de autenticación.
+ *
+ * Responsabilidades:
+ *  - Login: POST /api/authn/login → guarda token + carga contexto de autz
+ *    (espera a que el contexto esté ready antes de completar el observable).
+ *  - Logout: limpia token, resetea authz y redirige a /login.
+ *  - `isLoggedIn()`: validación local barata (firma + exp). No sustituye la
+ *    validación del backend; los guards además deben esperar `authz.ensureLoaded`
+ *    para confirmar que el token es válido server-side.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthnService {
   private readonly authz = inject(AuthzService);
   readonly currentUser = signal<JwtUser | null>(this._parseToken());
 
-  constructor(private http: HttpClient, private router: Router) {
-    if (this.isLoggedIn()) {
-      this.authz.loadContext().subscribe();
-    }
-  }
+  constructor(private http: HttpClient, private router: Router) {}
 
+  /**
+   * Login: persiste el token, carga el contexto de autz y completa.
+   * Si el contexto no carga (usuario desactivado, sin rol, etc.), el login
+   * se considera fallido: se limpia el token y se rechaza con el error.
+   */
   login(email: string, password: string): Observable<LoginResponse> {
     return this.http
       .post<LoginResponse>(`${API_BASE}/api/authn/login`, { email, password })
       .pipe(
-        tap((res) => {
+        switchMap((res) => {
           localStorage.setItem(TOKEN_KEY, res.token);
           this.currentUser.set(res.user);
-          this.authz.loadContext().subscribe();
-        })
+          return from(
+            this.authz.reload().then(
+              () => res,
+              (err) => {
+                // Rollback: el token es inútil sin contexto.
+                localStorage.removeItem(TOKEN_KEY);
+                this.currentUser.set(null);
+                throw err;
+              },
+            ),
+          );
+        }),
       );
   }
 
@@ -59,7 +82,7 @@ export class AuthnService {
     }
     localStorage.removeItem(TOKEN_KEY);
     this.currentUser.set(null);
-    this.authz.clear();
+    this.authz.reset();
     this.router.navigate(['/login']);
   }
 
@@ -67,12 +90,17 @@ export class AuthnService {
     return localStorage.getItem(TOKEN_KEY);
   }
 
+  /**
+   * Validación local del JWT: firma-format + expiración. No garantiza que el
+   * backend acepte el token (pudo haber sido revocado); para eso, los guards
+   * esperan `authz.ensureLoaded()`.
+   */
   isLoggedIn(): boolean {
     const token = this.getToken();
     if (!token) return false;
     try {
       const payload = this._decodePayload(token);
-      if (!payload?.exp) return false; // sin expiración = token inválido
+      if (!payload?.exp) return false;
       return payload.exp * 1000 > Date.now();
     } catch {
       return false;

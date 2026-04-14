@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { CflApiService } from '../../../core/services/cfl-api.service';
 import { FormsModule } from '@angular/forms';
@@ -70,7 +70,7 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
           </div>
 
           <!-- Body -->
-          <form [formGroup]="form" (ngSubmit)="onGuardar()" class="px-6 py-6 space-y-5" formGroupName="">
+          <form [formGroup]="form" (ngSubmit)="onGuardar()" class="px-6 py-6 space-y-5">
 
             @if (loadingCatalogos()) {
               <div class="flex justify-center py-12">
@@ -80,6 +80,21 @@ function passwordMatchValidator(group: AbstractControl): ValidationErrors | null
                 </svg>
               </div>
             } @else {
+
+              <!-- ID Usuario: editable al crear (vacío → autoasignar), readonly al editar -->
+              <div>
+                <label class="field-label">ID Usuario</label>
+                @if (row) {
+                  <input type="text" class="cfl-input font-mono bg-forest-50 cursor-not-allowed"
+                         [value]="$any(row)['id_usuario'] ?? ''" readonly
+                         title="El ID no se puede modificar en registros existentes" />
+                } @else {
+                  <input type="number" class="cfl-input font-mono"
+                         [formControl]="idInputControl"
+                         placeholder="Se asignará al guardar si lo dejas vacío"
+                         min="1" />
+                }
+              </div>
 
               <!-- Datos básicos -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -252,6 +267,9 @@ export class UsuarioFormModalComponent implements OnChanges {
   form!: FormGroup;
   get passwordGroup(): FormGroup { return this.form.get('pw') as FormGroup; }
 
+  /** ID explícito opcional al crear (vacío → autoasignar IDENTITY). */
+  idInputControl = new FormControl<number | null>(null);
+
   loadingCatalogos = signal(false);
   saving           = signal(false);
   errorMsg         = signal('');
@@ -325,6 +343,7 @@ export class UsuarioFormModalComponent implements OnChanges {
       }, { validators: passwordMatchValidator }),
     });
 
+    this.idInputControl.reset(null);
     this.errorMsg.set('');
   }
 
@@ -389,6 +408,14 @@ export class UsuarioFormModalComponent implements OnChanges {
     };
 
     if (pwVal) body['password'] = pwVal;
+
+    // ID explícito opcional al crear (vacío → autoasignar IDENTITY)
+    if (!this.row) {
+      const explicitId = this.idInputControl.value;
+      if (explicitId !== null && explicitId !== undefined && `${explicitId}`.trim() !== '') {
+        body['id_usuario'] = Number(explicitId);
+      }
+    }
 
     const obs$ = this.row?.['id_usuario']
       ? this.api.updateMaintainerRow('usuarios', Number(this.row['id_usuario']), body)

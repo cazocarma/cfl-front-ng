@@ -12,7 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
 import { CflApiService } from '../../../core/services/cfl-api.service';
@@ -46,6 +46,21 @@ interface RutaOpt {
             @if (loading()) {
               <p class="text-sm text-forest-600">Cargando catalogos...</p>
             } @else {
+              <!-- ID Ruta: editable al crear (vacío → autoasignar IDENTITY), readonly al editar -->
+              <div class="mb-4">
+                <label class="block text-xs font-semibold text-forest-700 uppercase tracking-wider mb-1.5">ID Ruta</label>
+                @if (row) {
+                  <input type="text" class="cfl-input font-mono bg-forest-50 cursor-not-allowed"
+                         [value]="$any(row)['id_ruta'] ?? $any(row)['IdRuta'] ?? ''" readonly
+                         title="El ID no se puede modificar en registros existentes" />
+                } @else {
+                  <input type="number" class="cfl-input font-mono"
+                         [formControl]="idInputControl"
+                         placeholder="Se asignará al guardar si lo dejas vacío"
+                         min="1" />
+                }
+              </div>
+
               @if (rutaExistente()) {
                 <div class="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                   Ya existe una ruta para ese origen y destino: <strong>{{ rutaExistente()!.nombre_ruta }}</strong>
@@ -159,6 +174,9 @@ export class RutaFormModalComponent implements OnChanges {
   });
 
   form!: FormGroup;
+
+  /** ID explícito opcional al crear (vacío → autoasignar IDENTITY). */
+  idInputControl = new FormControl<number | null>(null);
   private lastSuggestion = '';
   private mouseOnDropdown = false;
 
@@ -217,6 +235,14 @@ export class RutaFormModalComponent implements OnChanges {
       activo: true,
     };
 
+    // ID explícito opcional al crear (vacío → autoasignar IDENTITY)
+    if (!this.row) {
+      const explicitId = this.idInputControl.value;
+      if (explicitId !== null && explicitId !== undefined && `${explicitId}`.trim() !== '') {
+        payload['id_ruta'] = Number(explicitId);
+      }
+    }
+
     const editId = this.row ? this._num(this._pick(this.row, 'id_ruta', 'IdRuta')) : null;
     const obs$ = this.row
       ? this.api.updateMaintainerRow('rutas', Number(editId), payload)
@@ -233,6 +259,7 @@ export class RutaFormModalComponent implements OnChanges {
       nombre_ruta: ['', Validators.required],
       distancia_km: [''],
     });
+    this.idInputControl.reset(null);
     this.errorMsg.set('');
     this._closeCombos();
     if (!this.row) {

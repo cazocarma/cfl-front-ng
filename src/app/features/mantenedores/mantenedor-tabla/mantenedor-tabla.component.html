@@ -115,9 +115,16 @@
           <table class="min-w-full">
             <thead>
               <tr style="background: linear-gradient(90deg, #1e4424 0%, #2b6734 100%);">
+                <th class="table-header-cell whitespace-nowrap cursor-pointer select-none hover:bg-white/10 transition"
+                    (click)="sortBy(config()!.idField)">
+                  ID <span class="ml-1 text-xs">{{ sortIndicator(config()!.idField) }}</span>
+                </th>
                 @for (col of config()!.columnas; track col.key) {
                   @if (config()!.softDeleteField !== col.key) {
-                    <th class="table-header-cell whitespace-nowrap">{{ col.label }}</th>
+                    <th class="table-header-cell whitespace-nowrap cursor-pointer select-none hover:bg-white/10 transition"
+                        (click)="sortBy(col.key)">
+                      {{ col.label }} <span class="ml-1 text-xs">{{ sortIndicator(col.key) }}</span>
+                    </th>
                   }
                 }
                 <th class="table-header-cell text-center sticky right-0" style="background: #2b6734; min-width: 100px;">Acciones</th>
@@ -126,6 +133,9 @@
             <tbody class="divide-y divide-forest-50">
               @for (row of paginatedRows(); track trackByIndex($index)) {
                 <tr class="table-row transition-opacity" [class.opacity-50]="isRowInactive(row)">
+                  <td class="table-cell">
+                    <span class="font-mono text-xs font-semibold text-forest-800">{{ getRowId(row) ?? '—' }}</span>
+                  </td>
                   @for (col of config()!.columnas; track col.key) {
                     @if (config()!.softDeleteField !== col.key) {
                       <td class="table-cell">
@@ -156,9 +166,10 @@
                     <div class="flex items-center justify-center gap-1.5">
                       @if (config()!.softDeleteField && (isAdminOrAutorizador || canEdit())) {
                         <button type="button" (click)="toggleActivo(row)"
-                          [title]="isRowInactive(row) ? 'Activar' : 'Desactivar'"
+                          [disabled]="isOwnUserRow(row)"
+                          [title]="isOwnUserRow(row) ? 'No puedes desactivar tu propio usuario' : (isRowInactive(row) ? 'Activar' : 'Desactivar')"
                           [disabledIfNoPermission]="'mantenedores.admin'"
-                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
+                          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
                           [class]="isRowInactive(row) ? 'bg-slate-200' : 'bg-forest-500'">
                           <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
                                 [class]="isRowInactive(row) ? 'translate-x-0.5' : 'translate-x-4'"></span>
