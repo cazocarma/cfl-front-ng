@@ -670,7 +670,6 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _seedBaseForm(): void {
-    const now = new Date();
     const isClonar = this.mode === 'clonar';
 
     this.form.reset({
@@ -686,8 +685,8 @@ export class EditFleteModalComponent implements OnChanges {
       id_destino_nodo: '',
       id_ruta: toControlValue(this.flete?.idRuta),
       id_tarifa: toControlValue(this.flete?.idTarifa),
-      fecha_salida: formatDateValue(now),
-      hora_salida: formatTimeValue(now),
+      fecha_salida: '',
+      hora_salida: '',
       id_empresa_transporte: '',
       id_chofer: '',
       id_camion: '',
@@ -826,8 +825,8 @@ export class EditFleteModalComponent implements OnChanges {
       numero_entrega: fleteToString(cabecera['sap_numero_entrega']) || this.getControlValue('numero_entrega'),
       guia_remision: fleteToString(cabecera['sap_guia_remision']) || this.getControlValue('guia_remision'),
       id_productor: toControlValue(cabecera['id_productor']),
-      fecha_salida: formatDateValue(cabecera['fecha_referencia']) || formatDateValue(cabecera['sap_fecha_salida']) || this.getControlValue('fecha_salida'),
-      hora_salida: formatTimeValue(cabecera['sap_hora_salida']) || this.getControlValue('hora_salida'),
+      fecha_salida: formatDateValue(cabecera['sap_fecha_creacion']) || '',
+      hora_salida: formatTimeValue(cabecera['sap_hora_salida']) || '',
     });
     this.detailRows.set(posiciones.map((row) => this._fromSapRow(row)));
     this._applyFallbacks(true);
@@ -935,7 +934,6 @@ export class EditFleteModalComponent implements OnChanges {
 
   private _hydrateClonar(response: FleteDetalleResponse): void {
     const cabecera = response.data?.cabecera ?? {};
-    const now = new Date();
 
     // Snapshot mínimo para que _applyProductorFallback pueda resolver por hints
     this.sapSnapshot = {
@@ -965,8 +963,8 @@ export class EditFleteModalComponent implements OnChanges {
       // Campos limpios para el clon
       numero_entrega: '',
       guia_remision: '',
-      fecha_salida: formatDateValue(now),
-      hora_salida: formatTimeValue(now),
+      fecha_salida: formatDateValue(cabecera['fecha_salida']) || '',
+      hora_salida: formatTimeValue(cabecera['hora_salida']) || '',
       monto_aplicado: null,
       monto_extra: 0,
       observaciones: '',
