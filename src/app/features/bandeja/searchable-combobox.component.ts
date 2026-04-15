@@ -24,18 +24,19 @@ export interface SearchableOption {
 /**
  * Combobox con búsqueda + soporte opcional de texto libre.
  *
- * Invariantes (sin parches):
- *   1. `displayText` siempre refleja el `value` actual (el dato que se persiste).
- *      No el label — mezclar value/label llevaba a que al escribir encima se
- *      perdiera el contexto y el padre terminara con texto ambiguo.
- *   2. Al seleccionar una opción → `value` pasa a `option.value`. El dropdown
- *      muestra labels para ayudar a buscar, pero el input siempre muestra el
- *      identificador/valor.
- *   3. Con `allowFreeText=true`, cualquier texto que el usuario escriba se
- *      emite como `value` en cada pulsación. El padre decide cómo validarlo.
- *   4. `_syncDisplayText` nunca borra texto que el usuario acaba de escribir:
- *      sólo pisa `displayText` con `value` cuando llegan cambios desde el
- *      padre.
+ * Invariantes:
+ *   1. Con `allowFreeText=true` el `value` ES lo que el usuario tipea: no hay
+ *      distinción label/value, y `displayText === value`. Lo emitido en cada
+ *      pulsación es literal — el padre decide cómo validarlo.
+ *   2. Con `allowFreeText=false` (caso por defecto) el `value` es un ID opaco
+ *      y `displayText` muestra el `label` de la opción cuyo `value` coincide.
+ *      Si no hay match (opciones aún no hidratadas o value huérfano), fallback
+ *      a `String(value)` para no ocultar información al usuario.
+ *   3. El `value` emitido nunca es el label: siempre es `option.value` (ID) o
+ *      el texto libre. La persistencia del padre no cambia entre modos.
+ *   4. `_syncDisplayText` nunca pisa texto que el usuario está tipeando ahora
+ *      mismo: sólo resincroniza cuando llegan cambios desde el padre
+ *      (value/options) y el foco no está en edición activa.
  */
 @Component({
     selector: 'app-searchable-combobox',
@@ -206,9 +207,7 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
       this.displayText = '';
       this.valueChange.emit('');
     } else {
-      // El input refleja el VALUE (no el label) para que editar encima sea
-      // intuitivo y no arrastre prefijos del label.
-      this.displayText = option.value;
+      this.displayText = this.allowFreeText ? option.value : option.label;
       this.searchText.set(option.value);
       this.valueChange.emit(option.value);
     }
@@ -284,15 +283,22 @@ export class SearchableComboboxComponent implements OnChanges, OnDestroy {
   }
 
   /**
-   * Alinea `displayText`/`searchText` al `value` actual. Regla única:
-   *   displayText = value (string). Nunca el label.
+   * Alinea `displayText`/`searchText` al `value` actual.
+   *   - allowFreeText: displayText = value.
+   *   - modo catálogo: displayText = label de la opción con ese value; si no
+   *     hay match, fallback a value (opciones no hidratadas o huérfano).
    * Si `_userIsTyping` es true, no pisa — preserva lo que el usuario tipea.
    */
   private _syncDisplayText(): void {
     if (this._userIsTyping) return;
 
     const current = String(this.value ?? '');
-    this.displayText = current;
+    if (this.allowFreeText || !current) {
+      this.displayText = current;
+    } else {
+      const match = this._options().find(opt => opt.value === current);
+      this.displayText = match ? match.label : current;
+    }
     this.searchText.set(current);
   }
 }

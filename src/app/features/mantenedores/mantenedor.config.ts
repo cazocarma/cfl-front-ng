@@ -134,6 +134,7 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     idField: 'id_chofer',
     softDeleteField: 'activo',
     permiso: 'choferes',
+    syncSap: true,
     columnas: [
       { key: 'sap_id_fiscal',label: 'ID Fiscal SAP', tipo: 'mono' },
       { key: 'sap_nombre',   label: 'Nombre',        tipo: 'text' },
@@ -156,6 +157,7 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     idField: 'id_camion',
     softDeleteField: 'activo',
     permiso: 'camiones',
+    syncSap: true,
     columnas: [
       { key: 'sap_patente',      label: 'Patente',      tipo: 'mono' },
       { key: 'sap_carro',        label: 'Carro SAP',    tipo: 'mono' },
