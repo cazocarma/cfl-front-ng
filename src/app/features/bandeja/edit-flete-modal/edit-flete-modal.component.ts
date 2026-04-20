@@ -779,8 +779,17 @@ export class EditFleteModalComponent implements OnChanges {
   private _loadProductoresDeferred(): void {
     this.catalogService.loadProductoresDeferred().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((productores) => {
       this.productores = productores;
-      this.productorOptions.set(this.catalogService.mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']));
+      this.productorOptions.set(
+        this.catalogService.mapOptions(this._activeProductores(), 'id_productor', ['codigo_proveedor', 'nombre', 'rut'])
+      );
       this._applyProductorFallback();
+    });
+  }
+
+  private _activeProductores(): Record<string, unknown>[] {
+    return this.productores.filter((row) => {
+      const activo = row['activo'];
+      return activo === undefined || activo === null || activo === true || activo === 1 || activo === '1';
     });
   }
 
@@ -810,7 +819,9 @@ export class EditFleteModalComponent implements OnChanges {
     this.empresaOptions = this.catalogService.mapOptions(this.empresas, 'id_empresa', ['sap_codigo', 'razon_social']);
     this.choferOptions = this.catalogService.mapOptions(this.choferes, 'id_chofer', ['sap_nombre', 'sap_id_fiscal']);
     this.camionOptions = this.catalogService.mapOptions(this.camiones, 'id_camion', ['sap_patente', 'sap_carro']);
-    this.productorOptions.set(this.catalogService.mapOptions(this.productores, 'id_productor', ['codigo_proveedor', 'nombre', 'rut']));
+    this.productorOptions.set(
+      this.catalogService.mapOptions(this._activeProductores(), 'id_productor', ['codigo_proveedor', 'nombre', 'rut'])
+    );
     this.cuentaMayorOptions = this.catalogService.mapOptions(this.cuentasMayor, 'id_cuenta_mayor', ['codigo', 'glosa']);
     this._rebuildImputacionIndexes();
     this.especieOptions = this.catalogService.mapOptions(this.especies, 'id_especie', ['glosa']);
@@ -824,7 +835,6 @@ export class EditFleteModalComponent implements OnChanges {
     this.form.patchValue({
       numero_entrega: fleteToString(cabecera['sap_numero_entrega']) || this.getControlValue('numero_entrega'),
       guia_remision: fleteToString(cabecera['sap_guia_remision']) || this.getControlValue('guia_remision'),
-      id_productor: toControlValue(cabecera['id_productor']),
       fecha_salida: formatDateValue(cabecera['sap_fecha_creacion']) || '',
       hora_salida: formatTimeValue(cabecera['sap_hora_salida']) || '',
     });
