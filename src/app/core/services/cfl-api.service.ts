@@ -127,11 +127,11 @@ export class CflApiService {
     return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/rango-fechas`, body);
   }
 
-  cargarRomanaNPartida(body: { centro: string; n_partida: string }): Observable<unknown> {
+  cargarRomanaNPartida(body: { centro: string; n_partida: string; fecha_referencia: string }): Observable<unknown> {
     return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/npartida`, body);
   }
 
-  cargarRomanaGuia(body: { centro: string; guia: string }): Observable<unknown> {
+  cargarRomanaGuia(body: { centro: string; guia: string; fecha_referencia: string }): Observable<unknown> {
     return this.http.post<unknown>(`${API_BASE}/api/fletes/cargas-romana/guia`, body);
   }
 

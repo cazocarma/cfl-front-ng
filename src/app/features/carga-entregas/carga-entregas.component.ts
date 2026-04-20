@@ -90,8 +90,11 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   romanaFechaHasta = signal('');
   romanaNPartida = signal('');
   romanaGuia = signal('');
+  romanaFechaReferencia = signal('');
   romanaSubmitting = signal(false);
   romanaResult = signal<{ message: string; totals?: Record<string, number> } | null>(null);
+
+  readonly ROMANA_FECHA_REF_MAX_LOOKBACK_DAYS = 730;
 
   /* ── Estado de ejecución ────────────────────────────────────── */
   solicitudId = signal('');
@@ -139,6 +142,7 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this._setDefaultDateRange();
     this._setDefaultRomanaDateRange();
+    this.romanaFechaReferencia.set(this._fmtDate(new Date()));
     this._loadRecentJobs();
     this._autoResumeLatestJob();
   }
@@ -332,7 +336,9 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
     if (!centro) { this.toast.show('Ingresa el centro (Werks) antes de continuar.', true); return; }
     const nPartida = this.romanaNPartida().trim();
     if (!nPartida) { this.toast.show('Ingresa el numero de partida.', true); return; }
-    this._submitRomana(this.cflApi.cargarRomanaNPartida({ centro, n_partida: nPartida }));
+    const fechaRef = this._validateRomanaFechaReferencia();
+    if (!fechaRef) return;
+    this._submitRomana(this.cflApi.cargarRomanaNPartida({ centro, n_partida: nPartida, fecha_referencia: fechaRef }));
   }
 
   solicitarRomanaGuia(): void {
@@ -340,7 +346,45 @@ export class CargaEntregasComponent implements OnInit, OnDestroy {
     if (!centro) { this.toast.show('Ingresa el centro (Werks) antes de continuar.', true); return; }
     const guia = this.romanaGuia().trim();
     if (!guia) { this.toast.show('Ingresa la guia de despacho.', true); return; }
-    this._submitRomana(this.cflApi.cargarRomanaGuia({ centro, guia }));
+    const fechaRef = this._validateRomanaFechaReferencia();
+    if (!fechaRef) return;
+    this._submitRomana(this.cflApi.cargarRomanaGuia({ centro, guia, fecha_referencia: fechaRef }));
+  }
+
+  romanaFechaReferenciaMax(): string {
+    return this._fmtDate(new Date());
+  }
+
+  romanaFechaReferenciaMin(): string {
+    const min = new Date();
+    min.setDate(min.getDate() - this.ROMANA_FECHA_REF_MAX_LOOKBACK_DAYS);
+    return this._fmtDate(min);
+  }
+
+  private _validateRomanaFechaReferencia(): string | null {
+    const raw = this.romanaFechaReferencia();
+    if (!raw) {
+      this.toast.show('Selecciona la fecha de referencia (±1 día).', true);
+      return null;
+    }
+    const ref = new Date(`${raw}T00:00:00`);
+    if (isNaN(ref.getTime())) {
+      this.toast.show('La fecha de referencia no es válida.', true);
+      return null;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (ref.getTime() > today.getTime()) {
+      this.toast.show('La fecha de referencia no puede ser futura.', true);
+      return null;
+    }
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() - this.ROMANA_FECHA_REF_MAX_LOOKBACK_DAYS);
+    if (ref.getTime() < minDate.getTime()) {
+      this.toast.show('La fecha de referencia es demasiado antigua (máx. 2 años).', true);
+      return null;
+    }
+    return raw;
   }
 
   private _submitRomana(obs$: import('rxjs').Observable<unknown>): void {
