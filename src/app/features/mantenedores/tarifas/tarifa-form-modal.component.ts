@@ -47,12 +47,25 @@ const MONEDAS = [
   template: `
     @if (visible) {
       <div class="modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-        <div class="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-xl bg-white shadow-xl"
+        <div class="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
              (scroll)="onModalScroll()"
              (click)="$event.stopPropagation()">
-          <div class="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-forest-100 bg-forest-700 text-white">
-            <h2 class="font-semibold">{{ row ? 'Editar Tarifa' : 'Nueva Tarifa' }}</h2>
-            <button type="button" (click)="cerrado.emit()">X</button>
+          <!-- Header estándar (consistente con usuario-form-modal y genérico) -->
+          <div class="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-forest-100"
+               style="background: linear-gradient(160deg, #1e4424 0%, #348040 100%);">
+            <div>
+              <h2 class="text-lg font-bold text-white">
+                {{ row ? 'Editar' : 'Nueva' }} Tarifa
+              </h2>
+              <p class="text-xs text-green-200 mt-0.5">
+                {{ row ? 'Modifica los campos necesarios' : 'Completa los campos requeridos (*)' }}
+              </p>
+            </div>
+            <button type="button" (click)="cerrado.emit()" class="text-white/70 hover:text-white transition">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
 
           <div class="px-6 py-5">
@@ -481,10 +494,10 @@ export class TarifaFormModalComponent implements OnChanges {
     const tipoId = this._num(this._pick(this.row, 'id_tipo_camion', 'IdTipoCamion'));
     this.selectedTemporadaId.set(temporadaId);
     this.selectedTipoCamionId.set(tipoId);
-    if (temporadaId) {
-      const t = this.temporadas().find((x) => x.id_temporada === temporadaId);
-      if (t) this.searchTemporada.set(`${t.codigo} - ${t.nombre}`);
-      this._loadTarifasTemporada(temporadaId);
+    const temporada = temporadaId ? this.temporadas().find((x) => x.id_temporada === temporadaId) : null;
+    if (temporada) {
+      this.searchTemporada.set(`${temporada.codigo} - ${temporada.nombre}`);
+      this._loadTarifasTemporada(temporadaId!);
     }
     if (tipoId) {
       const tc = this.tiposCamion().find((x) => x.id_tipo_camion === tipoId);
@@ -502,9 +515,15 @@ export class TarifaFormModalComponent implements OnChanges {
         if (d) this.searchDestino.set(d.nombre);
       }
     }
+    // Vigencias: si la tarifa no tiene valores guardados (p.ej. se guardó sin
+    // VigenciaHasta), usamos las fechas de la temporada como sugerencia para
+    // que el usuario parta desde un estado útil. Coherente con `_prefillVigenciaFromTemporada`
+    // del flujo de creación.
+    const savedDesde = this._toDateInput(this._pick(this.row, 'vigencia_desde', 'VigenciaDesde'));
+    const savedHasta = this._toDateInput(this._pick(this.row, 'vigencia_hasta', 'VigenciaHasta'));
     this.form.patchValue({
-      vigencia_desde: this._toDateInput(this._pick(this.row, 'vigencia_desde', 'VigenciaDesde')),
-      vigencia_hasta: this._toDateInput(this._pick(this.row, 'vigencia_hasta', 'VigenciaHasta')),
+      vigencia_desde: savedDesde || temporada?.fecha_inicio || '',
+      vigencia_hasta: savedHasta || temporada?.fecha_fin || '',
       moneda: this._pick(this.row, 'moneda', 'Moneda') ?? 'CLP',
       monto_fijo: this._pick(this.row, 'monto_fijo', 'MontoFijo') ?? '',
     });

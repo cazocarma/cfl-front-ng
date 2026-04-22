@@ -124,7 +124,12 @@ export class AuthnService {
   private _decodePayload(token: string): JwtPayload {
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Invalid token');
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64)) as JwtPayload;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = base64.length % 4;
+    if (pad) base64 += '='.repeat(4 - pad);
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const json = new TextDecoder('utf-8').decode(bytes);
+    return JSON.parse(json) as JwtPayload;
   }
 }

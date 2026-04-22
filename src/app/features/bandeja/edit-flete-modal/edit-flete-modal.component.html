@@ -133,7 +133,7 @@
                   </div>
 
                   <div class="xl:col-span-2">
-                    <label class="field-label">Numero Guia *</label>
+                    <label class="field-label">Numero Guia<span class="required-mark">*</span></label>
                     <input
                       type="text"
                       formControlName="guia_remision"
@@ -170,7 +170,7 @@
                   />
 
                   <div>
-                    <label class="field-label">Fecha salida *</label>
+                    <label class="field-label">Fecha salida<span class="required-mark">*</span></label>
                     <input
                       type="date"
                       formControlName="fecha_salida"
@@ -185,7 +185,7 @@
                   </div>
 
                   <div>
-                    <label class="field-label">Hora salida *</label>
+                    <label class="field-label">Hora salida<span class="required-mark">*</span></label>
                     <input
                       type="time"
                       formControlName="hora_salida"
@@ -281,43 +281,51 @@
                           d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                   </svg>
                   <h3 class="text-sm font-semibold uppercase tracking-wider text-forest-800">Transporte</h3>
+                  @if (transportPendingSummary().creates > 0 || transportPendingSummary().updates > 0 || transportPendingSummary().tipoCamion) {
+                    <span class="ml-auto inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900">
+                      ✦ Al guardar:
+                      @if (transportPendingSummary().creates > 0) { <span>{{ transportPendingSummary().creates }} creación(es)</span> }
+                      @if (transportPendingSummary().updates > 0) { <span>· {{ transportPendingSummary().updates }} actualización(es)</span> }
+                      @if (transportPendingSummary().tipoCamion) { <span>· tipo camión</span> }
+                    </span>
+                  }
                 </div>
-                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4">
-                  <app-searchable-combobox
+                <div class="grid grid-cols-1 gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3">
+                  <app-transport-entity-panel
+                    entityKey="empresa"
                     label="Empresa transporte"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
                     [options]="getEmpresaOptions()"
-                    [value]="getControlValue('id_empresa_transporte')"
-                    (valueChange)="setControlValue('id_empresa_transporte', $event)"
+                    [resolution]="transportIntent().empresa"
+                    [disabled]="isReadOnly()"
+                    [canEditMantenedor]="true"
+                    (selectExisting)="onTransportPanelSelectExisting('empresa', $event)"
+                    (draftFieldChange)="onTransportPanelDraftField('empresa', $event)"
                   />
 
-                  <app-searchable-combobox
+                  <app-transport-entity-panel
+                    entityKey="chofer"
                     label="Chofer"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
                     [options]="getChoferOptions()"
-                    [value]="getControlValue('id_chofer')"
-                    (valueChange)="setControlValue('id_chofer', $event)"
+                    [resolution]="transportIntent().chofer"
+                    [disabled]="isReadOnly()"
+                    [canEditMantenedor]="true"
+                    (selectExisting)="onTransportPanelSelectExisting('chofer', $event)"
+                    (draftFieldChange)="onTransportPanelDraftField('chofer', $event)"
                   />
 
-                  <app-searchable-combobox
-                    label="Tipo de camion"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
-                    [options]="getTipoCamionOptions()"
-                    [value]="getControlValue('id_tipo_camion')"
-                    (valueChange)="setControlValue('id_tipo_camion', $event)"
-                  />
-
-                  <app-searchable-combobox
-                    label="Camion"
-                    nullLabel="Sin especificar"
-                    [disabled]="isReadOnly()"
-                    [hint]="getCamionHint()"
+                  <app-transport-entity-panel
+                    entityKey="camion"
+                    label="Camión"
                     [options]="getCamionOptions()"
-                    [value]="getControlValue('id_camion')"
-                    (valueChange)="setControlValue('id_camion', $event)"
+                    [tipoCamionOptions]="getTipoCamionOptions()"
+                    [resolution]="transportIntent().camion"
+                    [camionTipoChange]="transportIntent().camionTipoChange"
+                    [disabled]="isReadOnly()"
+                    [canEditMantenedor]="true"
+                    (selectExisting)="onTransportPanelSelectExisting('camion', $event)"
+                    (draftFieldChange)="onTransportPanelDraftField('camion', $event)"
+                    (tipoCamionValueChange)="onCamionPanelTipoChange($event)"
+                    (tipoCamionConfirmChange)="onCamionTipoConfirmChange($event)"
                   />
                 </div>
               </section>
@@ -473,6 +481,12 @@
                   <textarea formControlName="observaciones" class="cfl-input min-h-[96px] resize-y" [readOnly]="isReadOnly()" placeholder="Notas adicionales..."></textarea>
                 </div>
               </section>
+
+              @if (createdByLabel()) {
+                <p class="text-right text-[11px] text-forest-400 italic">
+                  Creado por: <span class="font-medium text-forest-600 not-italic">{{ createdByLabel() }}</span>
+                </p>
+              }
             </div>
           } @else {
             <app-detalles-tab
@@ -497,6 +511,13 @@
             </div>
           }
 
+          @if (!isReadOnly()) {
+            <app-save-requirements-summary
+              [items]="saveRequirements()"
+              (itemAction)="onSaveSummaryAction($event)"
+            />
+          }
+
           <div class="flex items-center justify-end gap-3 border-t border-forest-100 pt-4 pb-1">
             @if (isReadOnly()) {
               <button type="button" (click)="cerrado.emit()" class="btn-secondary">
@@ -509,7 +530,8 @@
               <button type="button" (click)="cerrado.emit()" class="btn-secondary">Cancelar</button>
               <button
                 type="submit"
-                [disabled]="form.invalid || saving() || loadingCatalogos() || detailLoading()"
+                [disabled]="saving() || loadingCatalogos() || detailLoading() || firstBlockingReason() !== null"
+                [title]="firstBlockingReason() ? 'Falta: ' + firstBlockingReason() : ''"
                 class="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 @if (saving()) {

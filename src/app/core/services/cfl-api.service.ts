@@ -112,8 +112,11 @@ export class CflApiService {
     return this.http.get<unknown>(`${API_BASE}/api/dashboard/fletes/no-ingresados/${id}/detalle`);
   }
 
-  getRomanaEntregaDetalle(id: number): Observable<unknown> {
-    return this.http.get<unknown>(`${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${id}/detalle`);
+  getRomanaGrupoDetalle(idRomanaEntregas: number[]): Observable<unknown> {
+    return this.http.post<unknown>(
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/detalle`,
+      { id_romana_entregas: idRomanaEntregas },
+    );
   }
 
   ingresarFletePendiente(id: number): Observable<unknown> {
@@ -149,10 +152,10 @@ export class CflApiService {
     );
   }
 
-  descartarRomanaPendiente(idRomanaEntrega: number, body: { motivo?: string | null } = {}): Observable<unknown> {
+  descartarRomanaGrupo(idRomanaEntregas: number[], body: { motivo?: string | null } = {}): Observable<unknown> {
     return this.http.post<unknown>(
-      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${idRomanaEntrega}/descartar`,
-      { motivo: body.motivo ?? null }
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/descartar`,
+      { id_romana_entregas: idRomanaEntregas, motivo: body.motivo ?? null }
     );
   }
 
@@ -170,10 +173,13 @@ export class CflApiService {
     );
   }
 
-  crearCabeceraDesdeRomana(idRomanaEntrega: number, body: unknown): Observable<unknown> {
+  crearCabeceraDesdeRomana(
+    idRomanaEntregas: number[],
+    body: Record<string, unknown>,
+  ): Observable<unknown> {
     return this.http.post<unknown>(
-      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/${idRomanaEntrega}/crear`,
-      body
+      `${API_BASE}/api/dashboard/fletes/no-ingresados/romana/crear`,
+      { id_romana_entregas: idRomanaEntregas, ...body },
     );
   }
 

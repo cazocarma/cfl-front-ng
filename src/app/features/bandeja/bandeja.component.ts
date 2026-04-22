@@ -401,6 +401,13 @@ export class BandejaComponent implements OnInit, OnDestroy {
     if (this.confirmActionType() === 'anular') {
       return `Se anulará el flete ${guia}. Ingresa un motivo para continuar.`;
     }
+    if (flete?.origenDatos === 'RECEPCION') {
+      const count = flete.partidaCount ?? flete.idsRomanaEntrega?.length ?? 1;
+      if (count > 1) {
+        return `Se descartarán ${count} partidas de la guía ${guia} (camión ${flete.camion}, chofer ${flete.chofer}). Ingresa un motivo para continuar.`;
+      }
+      return `Se descartará la entrega Romana de la guía ${guia}. Ingresa un motivo para continuar.`;
+    }
     return `Se descartará la entrega SAP ${guia}. Ingresa un motivo para continuar.`;
   }
 
@@ -428,15 +435,21 @@ export class BandejaComponent implements OnInit, OnDestroy {
     this.confirmActionSaving.set(true);
 
     if (action === 'descartar') {
-      if (!flete.idSapEntrega) {
+      const isRomana = flete.origenDatos === 'RECEPCION';
+      if (isRomana) {
+        const ids = flete.idsRomanaEntrega ?? [];
+        if (ids.length === 0) {
+          this.confirmActionSaving.set(false);
+          return;
+        }
+      } else if (!flete.idSapEntrega) {
         this.confirmActionSaving.set(false);
         return;
       }
 
-      const isRomana = flete.idSapEntrega < 0;
       const descartarObs$ = isRomana
-        ? this.cflApi.descartarRomanaPendiente(Math.abs(flete.idSapEntrega), { motivo })
-        : this.cflApi.descartarFletePendiente(flete.idSapEntrega, { motivo });
+        ? this.cflApi.descartarRomanaGrupo(flete.idsRomanaEntrega ?? [], { motivo })
+        : this.cflApi.descartarFletePendiente(flete.idSapEntrega!, { motivo });
       descartarObs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => {
           this.confirmActionSaving.set(false);

@@ -70,7 +70,9 @@ export const MANTENEDORES_CONFIG: MantenedorConfig[] = [
     idField: 'id_empresa',
     softDeleteField: 'activo',
     permiso: 'empresas-transporte',
+    syncSap: true,
     columnas: [
+      { key: 'sap_codigo',  label: 'Cód. SAP',      tipo: 'mono' },
       { key: 'rut',         label: 'RUT',          tipo: 'mono' },
       { key: 'razon_social',label: 'Razón Social',  tipo: 'text' },
       { key: 'correo',      label: 'Correo',        tipo: 'text' },
