@@ -16,6 +16,10 @@ export interface DetalleDraft {
   sap_posicion: string;
   sap_posicion_superior: string;
   sap_lote: string;
+  /** Trazabilidad Romana: id de la RomanaEntrega origen (vacío si el detalle es SAP o manual). */
+  id_romana_entrega: string;
+  /** Trazabilidad Romana: número de partida del detalle (vacío si no aplica). */
+  romana_numero_partida: string;
 }
 
 export interface DetalleGrupo {
@@ -29,6 +33,8 @@ export interface DetalleGrupo {
   id_especie: string;
   rowIds: string[];
   lotes: string[];
+  /** Números de partida distintos presentes en el grupo (para candidatos Romana multi-partida). */
+  partidas: string[];
   posicion_count: number;
 }
 
@@ -49,6 +55,7 @@ export function groupDetailRows(rows: DetalleDraft[]): DetalleGrupo[] {
         id_especie: row.id_especie,
         rowIds: [row.rowId],
         lotes: row.sap_lote ? [row.sap_lote] : [],
+        partidas: row.romana_numero_partida ? [row.romana_numero_partida] : [],
         posicion_count: 1,
       });
     } else {
@@ -58,6 +65,9 @@ export function groupDetailRows(rows: DetalleDraft[]): DetalleGrupo[] {
       g.rowIds.push(row.rowId);
       g.posicion_count++;
       if (row.sap_lote && !g.lotes.includes(row.sap_lote)) g.lotes.push(row.sap_lote);
+      if (row.romana_numero_partida && !g.partidas.includes(row.romana_numero_partida)) {
+        g.partidas.push(row.romana_numero_partida);
+      }
       if (!g.id_especie && row.id_especie) g.id_especie = row.id_especie;
     }
   }

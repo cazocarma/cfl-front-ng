@@ -86,6 +86,12 @@ body:has(.modal-overlay) {
     @apply bg-forest-700 text-white shadow-sm;
   }
 
+  /* Marcador de campo obligatorio (asterisco rojo). Usar como
+     <label>Nombre<span class="required-mark">*</span></label> */
+  .required-mark {
+    @apply text-red-500 font-bold ml-0.5;
+  }
+
   /* Input */
   .cfl-input {
     @apply block w-full rounded-lg border border-forest-200 bg-white px-3 py-2 text-sm text-forest-900 placeholder-forest-400 shadow-sm transition focus:border-forest-500 focus:outline-none focus:ring-2 focus:ring-forest-200;

@@ -45,7 +45,9 @@ export interface SearchableOption {
     template: `
     <div class="grid gap-2">
       @if (label) {
-        <label class="field-label">{{ label }}{{ required ? ' *' : '' }}</label>
+        <label class="field-label">
+          {{ label }}@if (required) {<span class="required-mark">*</span>}
+        </label>
       }
 
       <div class="relative">

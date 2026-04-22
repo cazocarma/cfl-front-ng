@@ -161,17 +161,25 @@
               }
             </div>
 
-            <!-- Bloque secundario: lotes y posiciones agrupadas -->
-            @if (group.posicion_count > 1 || group.lotes.length > 0) {
+            <!-- Bloque secundario: lotes, posiciones y partidas (Romana) -->
+            @if (group.posicion_count > 1 || group.lotes.length > 0 || group.partidas.length > 0) {
               <div class="border-t border-forest-100 bg-forest-50/70 px-4 py-2 flex flex-wrap items-center gap-2">
                 @if (group.posicion_count > 1) {
                   <span class="text-[11px] text-forest-400 font-medium">{{ group.posicion_count }} posiciones agrupadas</span>
                 }
-                @if (group.posicion_count > 1 && group.lotes.length > 0) {
+                @if (group.posicion_count > 1 && (group.lotes.length > 0 || group.partidas.length > 0)) {
                   <span class="text-forest-300 select-none">·</span>
                 }
                 @for (lote of group.lotes; track lote) {
                   <span class="detail-chip">Lote {{ lote }}</span>
+                }
+                @if (origenDatos === 'RECEPCION' && group.partidas.length > 0 && group.lotes.length > 0) {
+                  <span class="text-forest-300 select-none">·</span>
+                }
+                @if (origenDatos === 'RECEPCION') {
+                  @for (partida of group.partidas; track partida) {
+                    <span class="detail-chip">Partida {{ partida }}</span>
+                  }
                 }
               </div>
             }

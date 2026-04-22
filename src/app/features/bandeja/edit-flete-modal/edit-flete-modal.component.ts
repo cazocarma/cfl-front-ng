@@ -37,6 +37,11 @@ import {
 import { DetallesTabComponent } from './detalles-tab.component';
 import { SapSnapshotCardComponent } from './sap-snapshot-card.component';
 import { RouteSummaryCardComponent } from './route-summary-card.component';
+import { TransportEntityPanelComponent } from './transport-entity-panel.component';
+import {
+  RequirementItem,
+  SaveRequirementsSummaryComponent,
+} from './save-requirements-summary.component';
 import {
   ModalTab,
   ModalMode,
@@ -47,13 +52,28 @@ import {
   CatalogCacheSnapshot,
   groupDetailRows,
 } from './edit-flete-modal.types';
+import {
+  CamionDraft,
+  ChoferDraft,
+  EmpresaTransporteDraft,
+  EntityResolution,
+  EntityResolutionMode,
+  TransportIntent,
+  computeDraftDiff,
+  emptyCamionDraft,
+  emptyChoferDraft,
+  emptyEmpresaDraft,
+  initialTransportIntent,
+  isDraftDirty,
+} from './transport-entity-state';
+import { isValidChileanRut } from '../../../core/validators/rut.validator';
 
 export { ModalMode } from './edit-flete-modal.types';
 
 @Component({
     selector: 'app-edit-flete-modal',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [ReactiveFormsModule, SearchableComboboxComponent, DetallesTabComponent, SapSnapshotCardComponent, RouteSummaryCardComponent],
+    imports: [ReactiveFormsModule, SearchableComboboxComponent, DetallesTabComponent, SapSnapshotCardComponent, RouteSummaryCardComponent, TransportEntityPanelComponent, SaveRequirementsSummaryComponent],
     templateUrl: './edit-flete-modal.component.html',
     styles: [`
     .field-label {
@@ -76,10 +96,16 @@ export class EditFleteModalComponent implements OnChanges {
   @Output() cerrado = new EventEmitter<void>();
 
   form: FormGroup;
+  /** Contador que bumpea en cada statusChanges del form; lo leen los computeds
+   * que dependen del estado de validación para forzar su re-evaluación. */
+  private readonly _formStatusVersion = signal(0);
   activeTab = signal<ModalTab>('cabecera');
   loadingCatalogos = signal(false);
   detailLoading = signal(false);
   saving = signal(false);
+  // Firma de auditoría: etiqueta "Creado por" lista para pintar. Se rellena al
+  // hidratar un flete existente y queda vacía para creaciones.
+  createdByLabel = signal('');
   refreshingCatalogs = signal(false);
   errorMsg = signal('');
   detailError = signal('');
@@ -132,6 +158,12 @@ export class EditFleteModalComponent implements OnChanges {
 
 
   sapSnapshot: Record<string, unknown> | null = null;
+
+  // Transporte inteligente: estado paralelo al FormGroup que describe la
+  // intencion transaccional por entidad. El FormGroup sigue siendo fuente
+  // de verdad para los ids; transportIntent decide que se crea/actualiza.
+  transportIntent = signal<TransportIntent>(initialTransportIntent());
+
   currentTemporadaId: number | null = null;
   currentTemporadaLabel = '';
   resolvedRouteName = '';
@@ -179,6 +211,13 @@ export class EditFleteModalComponent implements OnChanges {
       id_cuenta_mayor: [''],
       observaciones: [''],
     });
+
+    // Signal versionado del form. Los computeds que leen .invalid de los controls
+    // no son reactivos por sí solos; al bumpear este signal en statusChanges se
+    // garantiza que saveRequirements() y firstBlockingReason() se re-evalúen en vivo.
+    this.form.statusChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this._formStatusVersion.update((v) => v + 1));
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -611,11 +650,16 @@ export class EditFleteModalComponent implements OnChanges {
 
     if (this.mode === 'clonar') {
       obs$ = this.cflApi.crearFleteManual(payload);
+    } else if (this.flete?.kind === 'candidato' && this.flete.origenDatos === 'RECEPCION') {
+      const ids = this.flete.idsRomanaEntrega ?? [];
+      if (ids.length === 0) {
+        this.saving.set(false);
+        this.errorMsg.set('Candidato Romana sin entregas asociadas.');
+        return;
+      }
+      obs$ = this.cflApi.crearCabeceraDesdeRomana(ids, payload as Record<string, unknown>);
     } else if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
-      const isRomana = this.flete.idSapEntrega < 0;
-      obs$ = isRomana
-        ? this.cflApi.crearCabeceraDesdeRomana(Math.abs(this.flete.idSapEntrega), payload)
-        : this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
+      obs$ = this.cflApi.crearCabeceraDesdeCandidato(this.flete.idSapEntrega, payload);
     } else if (this.flete?.kind === 'en_curso' && this.flete.idCabeceraFlete) {
       obs$ = this.cflApi.updateFleteById(this.flete.idCabeceraFlete, payload);
     } else {
@@ -625,13 +669,54 @@ export class EditFleteModalComponent implements OnChanges {
     obs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving.set(false);
+        // Si la sección transporte creó/actualizó entidades, invalidar cache de
+        // catálogos para que la próxima apertura del modal vea los cambios.
+        const intent = this.transportIntent();
+        const mutatedCatalogs =
+          intent.empresa.mode === 'pending_create' || intent.empresa.mode === 'update' ||
+          intent.chofer.mode === 'pending_create' || intent.chofer.mode === 'update' ||
+          intent.camion.mode === 'pending_create' || intent.camion.mode === 'update' ||
+          (intent.camionTipoChange.changed && intent.camionTipoChange.confirmed);
+        if (mutatedCatalogs) {
+          this.catalogService.invalidateCache();
+        }
         this.guardado.emit();
       },
       error: (err) => {
-        this.errorMsg.set(err?.error?.error ?? 'Error al guardar el flete.');
+        this.errorMsg.set(this._formatBackendError(err));
         this.saving.set(false);
       },
     });
+  }
+
+  /**
+   * Extrae un mensaje humano del error HTTP. Si el backend usa el middleware `validate`
+   * (Zod), el body tendrá `{ error: "Error de validación · path: msg", details: [...] }`.
+   * En ese caso, concatena los primeros 3 issues para que el usuario vea todas las
+   * causas sin tener que abrir la consola.
+   */
+  private _formatBackendError(err: unknown): string {
+    const body = (err as { error?: { error?: unknown; details?: unknown } } | undefined)?.error;
+    const topMessage = typeof body?.error === 'string' ? body.error : '';
+    const details = Array.isArray(body?.details)
+      ? (body.details as Array<{ path?: unknown; message?: unknown }>)
+      : [];
+
+    if (details.length > 1) {
+      const extras = details
+        .slice(1, 4)
+        .map((d) => {
+          const path = typeof d.path === 'string' ? d.path : '';
+          const msg = typeof d.message === 'string' ? d.message : '';
+          return path ? `${path}: ${msg}` : msg;
+        })
+        .filter(Boolean);
+      if (extras.length > 0) {
+        const more = details.length > 4 ? ` (+${details.length - 4} más)` : '';
+        return `${topMessage || 'Error de validación'} — también: ${extras.join('; ')}${more}`;
+      }
+    }
+    return topMessage || 'Error al guardar el flete.';
   }
 
   private _resetState(): void {
@@ -640,6 +725,7 @@ export class EditFleteModalComponent implements OnChanges {
     this.detailError.set('');
     this.activeTab.set('cabecera');
     this.sapSnapshot = null;
+    this.createdByLabel.set('');
     this.detailRows.set([]);
     this.origenNodoOptions = [];
     this.destinoNodoOptions = [];
@@ -721,32 +807,50 @@ export class EditFleteModalComponent implements OnChanges {
   private _loadFleteContext(): void {
     const contextVersion = this.contextVersion;
 
-    if (this.flete?.kind === 'candidato' && this.flete.idSapEntrega) {
-      this.detailLoading.set(true);
+    if (this.flete?.kind === 'candidato') {
+      const isRomana = this.flete.origenDatos === 'RECEPCION';
+      if (isRomana) {
+        const ids = this.flete.idsRomanaEntrega ?? [];
+        if (ids.length === 0) {
+          this.detailError.set('Candidato Romana sin entregas asociadas.');
+          return;
+        }
+        this.detailLoading.set(true);
+        this.cflApi.getRomanaGrupoDetalle(ids)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (res) => {
+              if (!this._isCurrentContext(contextVersion)) return;
+              this._hydrateRomanaCandidate(res as any);
+              this.detailLoading.set(false);
+            },
+            error: (err) => {
+              if (!this._isCurrentContext(contextVersion)) return;
+              this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones.');
+              this.detailLoading.set(false);
+            },
+          });
+        return;
+      }
 
-      // Romana uses negative IDs
-      const isRomana = this.flete.idSapEntrega < 0;
-      const detailObs$ = isRomana
-        ? this.cflApi.getRomanaEntregaDetalle(Math.abs(this.flete.idSapEntrega))
-        : this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega);
-
-      detailObs$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-        next: (res) => {
-          if (!this._isCurrentContext(contextVersion)) return;
-          if (isRomana) {
-            this._hydrateRomanaCandidate(res as any);
-          } else {
-            this._hydrateCandidate(res as DashboardDetalleResponse);
-          }
-          this.detailLoading.set(false);
-        },
-        error: (err) => {
-          if (!this._isCurrentContext(contextVersion)) return;
-          this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones.');
-          this.detailLoading.set(false);
-        },
-      });
-      return;
+      if (this.flete.idSapEntrega) {
+        this.detailLoading.set(true);
+        this.cflApi.getMissingFleteDetalle(this.flete.idSapEntrega)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (res) => {
+              if (!this._isCurrentContext(contextVersion)) return;
+              this._hydrateCandidate(res as DashboardDetalleResponse);
+              this.detailLoading.set(false);
+            },
+            error: (err) => {
+              if (!this._isCurrentContext(contextVersion)) return;
+              this.detailError.set(err?.error?.error ?? 'No se pudieron cargar las posiciones.');
+              this.detailLoading.set(false);
+            },
+          });
+        return;
+      }
     }
 
     if ((this.flete?.kind === 'en_curso' || this.mode === 'clonar') && this.flete?.idCabeceraFlete) {
@@ -845,26 +949,26 @@ export class EditFleteModalComponent implements OnChanges {
   private _hydrateRomanaCandidate(response: any): void {
     const cabecera = response.data?.cabecera ?? {};
     const detalles = response.data?.detalles ?? [];
+    const grupo = response.data?.grupo ?? {};
+    const partidas: Array<{ id_romana_entrega: number; numero_partida: string }> = grupo?.partidas ?? [];
 
     this.sapSnapshot = cabecera;
 
-    // Resolver especie desde EspecieDescripcion o CodigoEspecie del primer detalle
-    const firstDetWithEspecie = detalles.find((d: Record<string, unknown>) =>
-      fleteToString(d['EspecieDescripcion'] || d['especie_descripcion'] || d['CodigoEspecie'] || d['codigo_especie'])
+    // Regla del negocio: un flete Romana tiene una sola especie. Tomamos el
+    // TOP(1) del detalle y resolvemos por CodigoEspecie → IdEspecie.
+    const resolvedEspecieId = this._resolveEspecieIdFromCodigo(
+      fleteToString((detalles[0] ?? {})['CodigoEspecie'] ?? (detalles[0] ?? {})['codigo_especie']),
     );
-    let resolvedEspecieId = '';
-    if (firstDetWithEspecie) {
-      const especieDesc = fleteToString(firstDetWithEspecie['EspecieDescripcion'] || firstDetWithEspecie['especie_descripcion']);
-      const especieCodigo = fleteToString(firstDetWithEspecie['CodigoEspecie'] || firstDetWithEspecie['codigo_especie']);
-      const especieMatch = this.especies.find(
-        (e) => (especieDesc && fleteNormalized(e['glosa']) === fleteNormalized(especieDesc))
-          || (especieCodigo && fleteNormalized(e['glosa']) === fleteNormalized(especieCodigo))
-      );
-      if (especieMatch) resolvedEspecieId = String(especieMatch['id_especie']);
-    }
+
+    // Para grupos multi-partida, numero_entrega queda vacío (ya no hay una única
+    // partida que represente al flete). Si el grupo es de una sola partida, se
+    // usa su número de partida para mantener la UX anterior.
+    const numeroEntregaHint = partidas.length === 1
+      ? (partidas[0].numero_partida || '')
+      : '';
 
     this.form.patchValue({
-      numero_entrega: fleteToString(cabecera['NumeroPartida'] || cabecera['numero_partida']) || this.getControlValue('numero_entrega'),
+      numero_entrega: numeroEntregaHint || this.getControlValue('numero_entrega'),
       guia_remision: fleteToString(cabecera['GuiaDespacho'] || cabecera['guia_despacho']) || this.getControlValue('guia_remision'),
       fecha_salida: formatDateValue(cabecera['FechaCreacionSap'] || cabecera['fecha_creacion_sap']) || this.getControlValue('fecha_salida'),
       id_especie: resolvedEspecieId || this.getControlValue('id_especie'),
@@ -874,27 +978,81 @@ export class EditFleteModalComponent implements OnChanges {
     this._applyFallbacks(true);
   }
 
+  /**
+   * Resuelve IdEspecie a partir del CodigoEspecie que viene de RomanaDetalleRaw.
+   * Invariante del dominio: cfl.Especie.IdEspecie === Number(CodigoEspecie) sin
+   * ceros a la izquierda (ej: '0011' → 11). Si el ID no existe en el mantenedor
+   * devuelve '' para que el usuario complete manualmente en el modal.
+   */
+  private _resolveEspecieIdFromCodigo(codigoEspecie: string | null | undefined): string {
+    const raw = String(codigoEspecie ?? '').trim();
+    if (!raw) return '';
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) return '';
+    const exists = this.especies.some((e) => Number(e['id_especie']) === id);
+    return exists ? String(id) : '';
+  }
+
+  /**
+   * Construye la etiqueta de auditoría "Creado por …" desde la cabecera del flete.
+   * Preferencia: "Nombre Apellido", luego Username, luego Email. Cadena vacía si
+   * el flete no tiene creador registrado (fletes anteriores al fix de auditoría).
+   */
+  private _buildCreatedByLabel(cabecera: Record<string, unknown>): string {
+    const nombre = fleteToString(cabecera['usuario_creador_nombre']) ?? '';
+    const apellido = fleteToString(cabecera['usuario_creador_apellido']) ?? '';
+    const fullName = [nombre, apellido].filter(Boolean).join(' ').trim();
+    if (fullName) return fullName;
+    return fleteToString(cabecera['usuario_creador_username'])
+      ?? fleteToString(cabecera['usuario_creador_email'])
+      ?? '';
+  }
+
   private _hydrateExisting(response: FleteDetalleResponse): void {
     const cabecera = response.data?.cabecera ?? {};
     const detalles = response.data?.detalles ?? [];
 
-    this.sapSnapshot = null;
-    if (cabecera['sap_numero_entrega']) {
-      this.sapSnapshot = {
-        sap_numero_entrega: cabecera['sap_numero_entrega'],
-        sap_guia_remision: cabecera['sap_guia_remision'],
-        sap_destinatario: cabecera['sap_destinatario'],
-        id_productor: cabecera['id_productor'],
-        productor_id_resuelto: cabecera['productor_id_resuelto'],
-        productor_codigo_proveedor: cabecera['productor_codigo_proveedor'],
-        productor_rut: cabecera['productor_rut'],
-        productor_nombre: cabecera['productor_nombre'],
-        productor_email: cabecera['productor_email'],
-        sap_codigo_tipo_flete: cabecera['sap_codigo_tipo_flete'],
-        sap_centro_costo: cabecera['sap_centro_costo'],
-        sap_cuenta_mayor: cabecera['sap_cuenta_mayor'],
-      };
+    this.createdByLabel.set(this._buildCreatedByLabel(cabecera));
+
+    // Hints SAP/Romana: se construyen siempre que la cabecera provea alguno. Incluye
+    // transporte (sap_empresa_transporte, sap_patente, romana_conductor...) para que
+    // `_applyTransportFallbacks` pueda sugerir entidades al usuario cuando el flete
+    // se guardó sin IdMovil y la edición debe completarlo.
+    const hintKeysSap = [
+      'sap_numero_entrega', 'sap_guia_remision', 'sap_destinatario',
+      'sap_codigo_tipo_flete', 'sap_centro_costo', 'sap_cuenta_mayor',
+      'sap_empresa_transporte', 'sap_nombre_chofer', 'sap_id_fiscal_chofer',
+      'sap_patente', 'sap_carro',
+    ];
+    const hintKeysRomana = ['romana_conductor', 'romana_patente', 'romana_carro'];
+    const productorKeys = [
+      'id_productor', 'productor_id_resuelto', 'productor_codigo_proveedor',
+      'productor_rut', 'productor_nombre', 'productor_email',
+    ];
+    const snapshot: Record<string, unknown> = {};
+    let hasAny = false;
+    for (const key of [...hintKeysSap, ...productorKeys]) {
+      const value = cabecera[key];
+      if (value !== undefined && value !== null && value !== '') {
+        snapshot[key] = value;
+        hasAny = true;
+      }
     }
+    // Reexportar hints Romana bajo los alias que consume _applyTransportFallbacks
+    // (Conductor, Patente, Carro) para compartir lógica con el flujo de candidato romana.
+    const aliasMap: Record<string, string> = {
+      romana_conductor: 'Conductor',
+      romana_patente: 'Patente',
+      romana_carro: 'Carro',
+    };
+    for (const key of hintKeysRomana) {
+      const value = cabecera[key];
+      if (value !== undefined && value !== null && value !== '') {
+        snapshot[aliasMap[key]] = value;
+        hasAny = true;
+      }
+    }
+    this.sapSnapshot = hasAny ? snapshot : null;
 
     // Si sentido es VUELTA, intercambiar nodos canónicos para que
     // findRouteByNodes detecte correctamente el match reverso.
@@ -906,6 +1064,14 @@ export class EditFleteModalComponent implements OnChanges {
 
     const dbMonto = cabecera['monto_aplicado'] ?? null;
     const dbMontoExtra = cabecera['monto_extra'] ?? 0;
+
+    // Especie: prioridad 1) CabeceraFlete.IdEspecie si existe,
+    // 2) TOP(1) del detalle origen (SAP/Romana current, ya resuelto por backend),
+    // 3) vacío para que el usuario complete.
+    const cabeceraEspecie = toControlValue(cabecera['id_especie']);
+    const detalleEspecie = cabeceraEspecie
+      ? cabeceraEspecie
+      : toControlValue((detalles[0] ?? {})['id_especie']);
 
     this.form.patchValue({
       numero_entrega: toControlValue(cabecera['numero_entrega']),
@@ -926,6 +1092,7 @@ export class EditFleteModalComponent implements OnChanges {
       id_chofer: toControlValue(cabecera['id_chofer']),
       id_camion: toControlValue(cabecera['id_camion']),
       id_productor: toControlValue(cabecera['id_productor']),
+      id_especie: detalleEspecie,
       monto_aplicado: dbMonto,
       sentido_flete: storedSentido,
       id_cuenta_mayor: toControlValue(cabecera['id_cuenta_mayor']),
@@ -1164,40 +1331,384 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _applyTransportFallbacks(): void {
+    // Hints vienen de dos fuentes: sapSnapshot (candidato SAP / Romana) y de las
+    // columnas expuestas por fetchCabecera en edición. Ambas se normalizan al
+    // mismo juego de campos para que el matching quede unificado.
     const empresaHint = fleteToString(this.sapSnapshot?.['sap_empresa_transporte']) || this.flete?.sapEmpresaTransporte || '';
-    const choferHint = fleteToString(this.sapSnapshot?.['sap_nombre_chofer']) || fleteToString(this.sapSnapshot?.['Conductor']) || this.flete?.sapNombreChofer || '';
+    const choferHintRaw = fleteToString(this.sapSnapshot?.['sap_nombre_chofer']) || fleteToString(this.sapSnapshot?.['Conductor']) || this.flete?.sapNombreChofer || '';
+    const choferRutHint = fleteToString(this.sapSnapshot?.['sap_id_fiscal_chofer']) || '';
     const patenteHint = fleteToString(this.sapSnapshot?.['sap_patente']) || fleteToString(this.sapSnapshot?.['Patente']) || this.flete?.sapPatente || '';
     const carroHint = fleteToString(this.sapSnapshot?.['sap_carro']) || fleteToString(this.sapSnapshot?.['Carro']) || this.flete?.sapCarro || '';
 
-    if (!this.getControlValue('id_empresa_transporte') && empresaHint) {
-      const empresa = this.empresas.find((row) =>
+    // === Empresa ===
+    // 1) Prioridad al id ya seteado en el form (viene del JOIN cfl.Movil en edición
+    //    o de una selección previa del usuario). Es la fuente autoritativa.
+    const formIdEmpresa = this.getControlValue('id_empresa_transporte');
+    let empresaRow: Record<string, unknown> | null = formIdEmpresa
+      ? this.empresas.find((row) => String(row['id_empresa']) === formIdEmpresa) || null
+      : null;
+    // 2) Fallback: match por hint SAP/Romana.
+    if (!empresaRow && empresaHint) {
+      empresaRow = this.empresas.find((row) =>
         fleteNormalized(row['sap_codigo']) === fleteNormalized(empresaHint) ||
         fleteNormalized(row['razon_social']) === fleteNormalized(empresaHint) ||
         fleteNormalized(row['rut']) === fleteNormalized(empresaHint)
-      );
-      if (empresa) {
-        this.form.get('id_empresa_transporte')?.setValue(String(empresa['id_empresa']));
-      }
+      ) || null;
+      if (empresaRow) this.form.get('id_empresa_transporte')?.setValue(String(empresaRow['id_empresa']));
     }
+    const empresaRes = this._buildEmpresaResolution(empresaRow, empresaHint);
+    this._updateIntent((intent) => ({ ...intent, empresa: empresaRes }));
 
-    if (!this.getControlValue('id_chofer') && choferHint) {
-      const chofer = this.choferes.find((row) =>
-        fleteNormalized(row['sap_nombre']) === fleteNormalized(choferHint) ||
-        fleteNormalized(row['sap_id_fiscal']) === fleteNormalized(choferHint)
-      );
-      if (chofer) {
-        this.form.get('id_chofer')?.setValue(String(chofer['id_chofer']));
-      }
+    // === Chofer ===
+    // Parsear RUT desde texto libre (conductor romana viene como "12.345.678-9 NOMBRE")
+    const rutMatch = (choferRutHint || choferHintRaw).match(/\b(\d{1,2}(?:[.\s]?\d{3}){2}-?[\dkK]|\d{7,8}-?[\dkK])\b/);
+    const choferRutCandidate = rutMatch ? rutMatch[1] : (choferRutHint || '');
+    const choferNombreCandidate = choferHintRaw.replace(choferRutCandidate || '', '').replace(/[|,;/()]+/g, ' ').replace(/\s+/g, ' ').trim() || choferHintRaw;
+    const choferHintCombined = [choferRutCandidate, choferNombreCandidate].filter(Boolean).join(' · ');
+    const formIdChofer = this.getControlValue('id_chofer');
+    let choferRow: Record<string, unknown> | null = formIdChofer
+      ? this.choferes.find((row) => String(row['id_chofer']) === formIdChofer) || null
+      : null;
+    if (!choferRow && (choferHintRaw || choferRutCandidate)) {
+      choferRow = this.choferes.find((row) =>
+        (choferRutCandidate && fleteNormalized(row['sap_id_fiscal']) === fleteNormalized(choferRutCandidate)) ||
+        (choferHintRaw && fleteNormalized(row['sap_nombre']) === fleteNormalized(choferHintRaw))
+      ) || null;
+      if (choferRow) this.form.get('id_chofer')?.setValue(String(choferRow['id_chofer']));
     }
+    const choferRes = this._buildChoferResolution(choferRow, choferHintCombined, choferRutCandidate, choferNombreCandidate);
+    this._updateIntent((intent) => ({ ...intent, chofer: choferRes }));
 
-    if (!this.getControlValue('id_camion') && (patenteHint || carroHint)) {
-      const camion = this.camiones.find((row) =>
+    // === Camion ===
+    const formIdCamion = this.getControlValue('id_camion');
+    let camionRow: Record<string, unknown> | null = formIdCamion
+      ? this.camiones.find((row) => String(row['id_camion']) === formIdCamion) || null
+      : null;
+    if (!camionRow && (patenteHint || carroHint)) {
+      camionRow = this.camiones.find((row) =>
         (patenteHint && fleteNormalized(row['sap_patente']) === fleteNormalized(patenteHint)) ||
         (carroHint && fleteNormalized(row['sap_carro']) === fleteNormalized(carroHint))
-      );
-      if (camion) {
-        this.form.get('id_camion')?.setValue(String(camion['id_camion']));
+      ) || null;
+      if (camionRow) this.form.get('id_camion')?.setValue(String(camionRow['id_camion']));
+    }
+    const hintCamion = [patenteHint, carroHint].filter(Boolean).join(' / ');
+    const camionRes = this._buildCamionResolution(camionRow, hintCamion, patenteHint, carroHint);
+    this._updateIntent((intent) => ({ ...intent, camion: camionRes }));
+  }
+
+  private _updateIntent(mutator: (intent: TransportIntent) => TransportIntent): void {
+    this.transportIntent.update(mutator);
+  }
+
+  private _buildEmpresaResolution(row: Record<string, unknown> | null, hint: string): EntityResolution<EmpresaTransporteDraft> {
+    if (row) {
+      const draft: EmpresaTransporteDraft = {
+        sap_codigo: fleteToString(row['sap_codigo']) || null,
+        rut: fleteToString(row['rut']) || null,
+        razon_social: fleteToString(row['razon_social']) || null,
+        nombre_representante: fleteToString(row['nombre_representante']) || null,
+        correo: fleteToString(row['correo']) || null,
+        telefono: fleteToString(row['telefono']) || null,
+        activo: row['activo'] !== 0 && row['activo'] !== false,
+      };
+      return {
+        mode: 'matched',
+        existingId: Number(row['id_empresa']),
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    if (hint) {
+      const draft = emptyEmpresaDraft();
+      // intentar inferir razon social del hint
+      draft.razon_social = hint;
+      return {
+        mode: 'pending_create',
+        existingId: null,
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    return { mode: 'empty', existingId: null, draft: emptyEmpresaDraft(), pristine: emptyEmpresaDraft(), hint: '' };
+  }
+
+  private _buildChoferResolution(row: Record<string, unknown> | null, hint: string, rutFromHint: string, nombreFromHint: string): EntityResolution<ChoferDraft> {
+    if (row) {
+      const draft: ChoferDraft = {
+        sap_id_fiscal: fleteToString(row['sap_id_fiscal']) || null,
+        sap_nombre: fleteToString(row['sap_nombre']) || null,
+        telefono: fleteToString(row['telefono']) || null,
+        activo: row['activo'] !== 0 && row['activo'] !== false,
+      };
+      return {
+        mode: 'matched',
+        existingId: Number(row['id_chofer']),
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    if (hint && (rutFromHint || nombreFromHint)) {
+      const draft: ChoferDraft = {
+        sap_id_fiscal: rutFromHint || null,
+        sap_nombre: nombreFromHint || null,
+        telefono: null,
+        activo: true,
+      };
+      return {
+        mode: 'pending_create',
+        existingId: null,
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    return { mode: 'empty', existingId: null, draft: emptyChoferDraft(), pristine: emptyChoferDraft(), hint: '' };
+  }
+
+  private _buildCamionResolution(row: Record<string, unknown> | null, hint: string, patenteHint: string, carroHint: string): EntityResolution<CamionDraft> {
+    if (row) {
+      const draft: CamionDraft = {
+        sap_patente: fleteToString(row['sap_patente']) || null,
+        sap_carro: fleteToString(row['sap_carro']) || null,
+        id_tipo_camion: row['id_tipo_camion'] ? Number(row['id_tipo_camion']) : null,
+        activo: row['activo'] !== 0 && row['activo'] !== false,
+      };
+      return {
+        mode: 'matched',
+        existingId: Number(row['id_camion']),
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    if (patenteHint) {
+      const draft: CamionDraft = {
+        sap_patente: patenteHint.toUpperCase(),
+        sap_carro: carroHint ? carroHint.toUpperCase() : null,
+        id_tipo_camion: null, // el usuario debe elegir
+        activo: true,
+      };
+      return {
+        mode: 'pending_create',
+        existingId: null,
+        draft,
+        pristine: { ...draft },
+        hint,
+      };
+    }
+    return { mode: 'empty', existingId: null, draft: emptyCamionDraft(), pristine: emptyCamionDraft(), hint: '' };
+  }
+
+  // ── Handlers del componente TransportEntityPanel ─────────────────────
+
+  onTransportPanelSelectExisting(entityKey: 'empresa' | 'chofer' | 'camion', id: number | null): void {
+    const formField = entityKey === 'empresa' ? 'id_empresa_transporte' : entityKey === 'chofer' ? 'id_chofer' : 'id_camion';
+    this.form.get(formField)?.setValue(id ? String(id) : '');
+
+    if (!id) {
+      // Limpiar resolution a empty
+      this._updateIntent((intent) => {
+        if (entityKey === 'empresa') return { ...intent, empresa: this._buildEmpresaResolution(null, '') };
+        if (entityKey === 'chofer') return { ...intent, chofer: this._buildChoferResolution(null, '', '', '') };
+        return { ...intent, camion: this._buildCamionResolution(null, '', '', '') };
+      });
+      if (entityKey === 'camion') {
+        // Al limpiar camión, también limpiamos tipo derivado y recalculamos
+        // tarifa (la ruta puede quedar sin tarifa por falta de tipo).
+        this.form.get('id_tipo_camion')?.setValue('');
+        this._refreshRouteNodeFilters(false);
+        this._syncRouteAndTarifa(true);
       }
+      return;
+    }
+
+    // Elegir registro del combobox
+    const listLookup = entityKey === 'empresa' ? this.empresas : entityKey === 'chofer' ? this.choferes : this.camiones;
+    const idField = entityKey === 'empresa' ? 'id_empresa' : entityKey === 'chofer' ? 'id_chofer' : 'id_camion';
+    const row = listLookup.find((r) => String(r[idField]) === String(id)) || null;
+    this._updateIntent((intent) => {
+      if (entityKey === 'empresa') return { ...intent, empresa: this._buildEmpresaResolution(row, intent.empresa.hint) };
+      if (entityKey === 'chofer') return { ...intent, chofer: this._buildChoferResolution(row, intent.chofer.hint, '', '') };
+      return { ...intent, camion: this._buildCamionResolution(row, intent.camion.hint, '', '') };
+    });
+
+    if (entityKey === 'camion') {
+      // Sincroniza id_tipo_camion desde el camión elegido y recalcula la ruta/
+      // tarifa. Equivalente a lo que hacía setControlValue('id_camion', ...)
+      // en el flujo legacy (edit-flete-modal.component.ts:456-462).
+      this._syncTipoCamionFromCamion(String(id));
+      this._refreshRouteNodeFilters(false);
+      this._syncRouteAndTarifa(true);
+    }
+  }
+
+  onTransportPanelDraftField(entityKey: 'empresa' | 'chofer' | 'camion', payload: { field: string; value: unknown }): void {
+    this._updateIntent((intent) => {
+      // Cast a unknown primero para evitar checks estrictos entre union types y Record.
+      const current = intent[entityKey] as unknown as EntityResolution<Record<string, unknown>>;
+      const currentDraftRec = current.draft;
+      const pristineRec = current.pristine;
+      const nextDraftRec: Record<string, unknown> = { ...currentDraftRec };
+      const value = payload.value === '' ? null : payload.value;
+      nextDraftRec[payload.field] = value;
+      const isDirty = isDraftDirty(nextDraftRec, pristineRec);
+      let nextMode: EntityResolutionMode = current.mode;
+      if (current.mode === 'matched' && isDirty) nextMode = 'update';
+      else if (current.mode === 'update' && !isDirty) nextMode = 'matched';
+      // pending_create mantiene su modo mientras el user edita.
+      const nextResolution: EntityResolution<Record<string, unknown>> = {
+        ...current,
+        draft: nextDraftRec,
+        mode: nextMode,
+      };
+      return { ...intent, [entityKey]: nextResolution } as unknown as TransportIntent;
+    });
+  }
+
+  onCamionPanelTipoChange(newTipoId: number | null): void {
+    // Si mode=pending_create, el id_tipo_camion es parte del draft.
+    // Si mode=matched/update sobre un camion existente, es un cambio al mantenedor.
+    this._updateIntent((intent) => {
+      const camion = intent.camion;
+      const camionDraft: CamionDraft = { ...camion.draft, id_tipo_camion: newTipoId };
+      const newCamion: EntityResolution<CamionDraft> = { ...camion, draft: camionDraft };
+      let tipoChange = intent.camionTipoChange;
+      if (camion.mode === 'matched' || camion.mode === 'update') {
+        const original = camion.pristine.id_tipo_camion || null;
+        const changed = (original || null) !== (newTipoId || null);
+        tipoChange = {
+          changed,
+          originalIdTipoCamion: original,
+          newIdTipoCamion: newTipoId,
+          confirmed: changed ? tipoChange.confirmed : false,
+        };
+      }
+      return { ...intent, camion: newCamion, camionTipoChange: tipoChange };
+    });
+    // El form.id_tipo_camion se mantiene para la UI (no se envia al backend en cabecera).
+    this.form.get('id_tipo_camion')?.setValue(newTipoId ? String(newTipoId) : '');
+    this._syncRouteAndTarifa(false);
+  }
+
+  onCamionTipoConfirmChange(confirmed: boolean): void {
+    this._updateIntent((intent) => ({
+      ...intent,
+      camionTipoChange: { ...intent.camionTipoChange, confirmed },
+    }));
+  }
+
+  /** Resume para UI: cuántas entidades se crearán/actualizarán. */
+  transportPendingSummary = computed<{ creates: number; updates: number; tipoCamion: boolean }>(() => {
+    const intent = this.transportIntent();
+    const creates = ['empresa', 'chofer', 'camion'].filter((k) => intent[k as 'empresa' | 'chofer' | 'camion'].mode === 'pending_create').length;
+    const updates = ['empresa', 'chofer', 'camion'].filter((k) => intent[k as 'empresa' | 'chofer' | 'camion'].mode === 'update').length;
+    return { creates, updates, tipoCamion: intent.camionTipoChange.changed && intent.camionTipoChange.confirmed };
+  });
+
+  /** Indica si la sección transporte está lista para guardar (tipo camion sin confirmar bloquea). */
+  canSaveTransport = computed<boolean>(() => {
+    const intent = this.transportIntent();
+    if (intent.camionTipoChange.changed && !intent.camionTipoChange.confirmed) return false;
+    return true;
+  });
+
+  /**
+   * Lista de requisitos que el usuario necesita completar antes de poder guardar.
+   * Alimenta al componente `save-requirements-summary` visible junto al botón Guardar
+   * y al tooltip del propio botón (vía `firstBlockingReason`).
+   */
+  saveRequirements = computed<RequirementItem[]>(() => {
+    // Leer el signal hace que el computed se re-evalúe en cada statusChanges.
+    this._formStatusVersion();
+
+    const items: RequirementItem[] = [];
+    // Si el flete es readonly o el form aún está hidratando, no tiene sentido mostrar
+    // faltantes (serían falsos positivos sobre datos no cargados).
+    if (this.isReadOnly() || this.loadingCatalogos() || this.detailLoading()) {
+      return items;
+    }
+
+    const required: Array<[string, string]> = [
+      ['guia_remision', 'N° de guía'],
+      ['fecha_salida', 'Fecha de salida'],
+      ['hora_salida', 'Hora de salida'],
+      ['tipo_movimiento', 'Tipo de movimiento'],
+      ['id_tipo_flete', 'Tipo de flete'],
+      ['id_centro_costo', 'Centro de costo'],
+    ];
+    for (const [key, label] of required) {
+      const ctrl = this.form.get(key);
+      items.push({
+        id: `form:${key}`,
+        label,
+        done: !ctrl || !ctrl.invalid,
+        severity: 'error',
+      });
+    }
+
+    const intent = this.transportIntent();
+    const needsRut = (mode: EntityResolutionMode): boolean => mode === 'pending_create' || mode === 'update';
+
+    // RUT empresa: solo advertencia (severity='warn'). No bloquea el guardado —
+    // el backend lo normaliza y, si no coincide con DV, queda registrado tal cual
+    // viene del hint SAP. El usuario puede corregir pero no se lo obligamos.
+    if (needsRut(intent.empresa.mode)) {
+      const rut = intent.empresa.draft.rut ?? '';
+      const valid = !rut || isValidChileanRut(rut);
+      items.push({
+        id: 'rut:empresa',
+        label: valid ? 'RUT de empresa' : 'RUT de empresa no supera validación (opcional)',
+        done: valid,
+        severity: 'warn',
+        hint: valid ? undefined : 'Revisa el dígito verificador. Puedes guardar igual.',
+      });
+    }
+    // RUT chofer: también warn — mismo criterio, es hint SAP/Romana.
+    if (needsRut(intent.chofer.mode)) {
+      const rut = intent.chofer.draft.sap_id_fiscal ?? '';
+      const valid = !rut || isValidChileanRut(rut);
+      items.push({
+        id: 'rut:chofer',
+        label: valid ? 'RUT de chofer' : 'RUT de chofer no supera validación (opcional)',
+        done: valid,
+        severity: 'warn',
+        hint: valid ? undefined : 'Revisa el dígito verificador. Puedes guardar igual.',
+      });
+    }
+
+    if (intent.camionTipoChange.changed) {
+      items.push({
+        id: 'camion:tipo_confirm',
+        label: 'Confirmar cambio de tipo de camión',
+        done: intent.camionTipoChange.confirmed,
+        severity: 'error',
+        hint: 'Esto actualizará el camión en el mantenedor y afectará futuros fletes.',
+        action: { kind: 'checkbox', checked: intent.camionTipoChange.confirmed },
+      });
+    }
+
+    return items;
+  });
+
+  /**
+   * Primera razón por la que el botón Guardar está deshabilitado. Se usa como tooltip
+   * dinámico: "Falta: <label>". Devuelve null si no hay nada bloqueando.
+   */
+  firstBlockingReason = computed<string | null>(() => {
+    const blocker = this.saveRequirements().find((i) => !i.done && i.severity === 'error');
+    return blocker ? blocker.label : null;
+  });
+
+  /**
+   * Maneja acciones inline del summary (por ahora: confirmar cambio de tipo-camión).
+   * Reutiliza `onCamionTipoConfirmChange` para mantener una sola fuente de verdad.
+   */
+  onSaveSummaryAction(event: { id: string; kind: 'checkbox'; checked: boolean }): void {
+    if (event.id === 'camion:tipo_confirm') {
+      this.onCamionTipoConfirmChange(event.checked);
     }
   }
 
@@ -1318,7 +1829,7 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
 
-  private _buildPayload(): { cabecera: Record<string, unknown>; detalles: Record<string, unknown>[] } {
+  private _buildPayload(): { cabecera: Record<string, unknown>; detalles: Record<string, unknown>[]; transport: Record<string, unknown> | null } {
     const cabeceraForm: Record<string, unknown> = { ...this.form.value };
     for (const key of Object.keys(cabeceraForm)) {
       if (cabeceraForm[key] === '' || cabeceraForm[key] === undefined) {
@@ -1333,14 +1844,33 @@ export class EditFleteModalComponent implements OnChanges {
       }
     }
 
+    const idRutaForContext = cabeceraForm['id_ruta'];
+
     const cabecera = cabeceraForm;
     delete cabecera['id_tipo_camion'];
     delete cabecera['id_origen_nodo'];
     delete cabecera['id_destino_nodo'];
     delete cabecera['id_ruta'];
 
+    // Para candidatos Romana (multi-partida) preservamos la granularidad por
+    // posición: cada fila del DetalleDraft se persiste como un DetalleFlete con
+    // sus campos de trazabilidad (IdRomanaEntrega, NumeroPartida, Posicion, Lote)
+    // — eso sobrevive a borrados/actualizaciones en las vistas Romana. Para SAP
+    // y edición post-creación se mantiene la agrupación por material.
+    const isRomanaCandidate = this.flete?.kind === 'candidato' && this.flete.origenDatos === 'RECEPCION';
+
+    const detalles: Record<string, unknown>[] = isRomanaCandidate
+      ? this._buildRomanaDetallesPayload()
+      : this._buildGroupedDetallesPayload();
+
+    const transport = this._buildTransportPayload(idRutaForContext);
+
+    return { cabecera, detalles, transport };
+  }
+
+  private _buildGroupedDetallesPayload(): Record<string, unknown>[] {
     const grouped = groupDetailRows(this.detailRows());
-    const detalles = grouped
+    return grouped
       .map((group) => {
         const material = trimOrNull(group.material);
         const descripcion = trimOrNull(group.descripcion);
@@ -1370,8 +1900,141 @@ export class EditFleteModalComponent implements OnChanges {
         };
       })
       .filter((row) => row !== null) as Record<string, unknown>[];
+  }
 
-    return { cabecera, detalles };
+  private _buildRomanaDetallesPayload(): Record<string, unknown>[] {
+    return this.detailRows()
+      .map((row) => {
+        const material = trimOrNull(row.material);
+        const descripcion = trimOrNull(row.descripcion);
+        const cantidadNum = Number(row.cantidad);
+        const pesoNum = Number(row.peso);
+        const unidad = trimOrNull(row.unidad);
+        const idEspecie = row.id_especie || null;
+        const idRomanaEntregaNum = Number(row.id_romana_entrega);
+        const numeroPartida = trimOrNull(row.romana_numero_partida);
+        const sapPosicion = trimOrNull(row.sap_posicion);
+        const sapLote = trimOrNull(row.sap_lote);
+
+        const hasContent = Boolean(
+          idEspecie ||
+          material ||
+          descripcion ||
+          unidad ||
+          (Number.isFinite(cantidadNum) && cantidadNum !== 0) ||
+          (Number.isFinite(pesoNum) && pesoNum !== 0)
+        );
+        if (!hasContent) return null;
+
+        return {
+          id_especie: idEspecie,
+          material,
+          descripcion,
+          cantidad: Number.isFinite(cantidadNum) ? cantidadNum : null,
+          unidad: unidad ? unidad.slice(0, 3) : null,
+          peso: Number.isFinite(pesoNum) ? pesoNum : null,
+          id_romana_entrega: Number.isFinite(idRomanaEntregaNum) && idRomanaEntregaNum > 0
+            ? idRomanaEntregaNum
+            : null,
+          numero_partida: numeroPartida,
+          sap_posicion: sapPosicion,
+          sap_lote: sapLote,
+        };
+      })
+      .filter((row) => row !== null) as Record<string, unknown>[];
+  }
+
+  /** Convierte el signal transportIntent al shape que espera el backend. */
+  private _buildTransportPayload(idRutaForContext: unknown): Record<string, unknown> | null {
+    const intent = this.transportIntent();
+    const empresaBlock = this._buildEmpresaIntentBlock(intent.empresa);
+    const choferBlock = this._buildChoferIntentBlock(intent.chofer);
+    const camionBlock = this._buildCamionIntentBlock(intent.camion, intent.camionTipoChange);
+
+    // Si los 3 modos son empty y no hay camionTipoChange, no mandamos la sección.
+    const hasAny = empresaBlock || choferBlock || camionBlock;
+    if (!hasAny && !intent.recalcTarifa) return null;
+
+    const payload: Record<string, unknown> = {};
+    if (empresaBlock) payload['empresa'] = empresaBlock;
+    if (choferBlock) payload['chofer'] = choferBlock;
+    if (camionBlock) payload['camion'] = camionBlock;
+    payload['recalc_tarifa'] = Boolean(intent.recalcTarifa || (intent.camionTipoChange.changed && intent.camionTipoChange.confirmed));
+    const idRutaNum = idRutaForContext ? Number(idRutaForContext) : null;
+    const fecha = this.form.get('fecha_salida')?.value || intent.routeContext.fechaSalida;
+    payload['route_context'] = {
+      id_ruta: Number.isFinite(idRutaNum) && idRutaNum ? idRutaNum : null,
+      fecha_salida: fecha || null,
+    };
+    return payload;
+  }
+
+  private _buildEmpresaIntentBlock(res: EntityResolution<EmpresaTransporteDraft>): Record<string, unknown> | null {
+    if (res.mode === 'empty') return null;
+    if (res.mode === 'pending_create') {
+      // Zod exige `rut` min(1) para crear empresa. Sin RUT, omitimos el bloque
+      // y dejamos que el flete se guarde sin empresa (IdMovil quedará null
+      // hasta que el usuario complete los datos).
+      if (!trimOrNull(res.draft.rut)) return null;
+      return { mode: 'pending_create', pending_create: { ...res.draft } };
+    }
+    if (res.mode === 'update' && res.existingId) {
+      const diff = computeDraftDiff(res.draft, res.pristine);
+      if (Object.keys(diff).length === 0) return { mode: 'matched' };
+      return { mode: 'update', update: { id_empresa_transporte: res.existingId, fields: diff } };
+    }
+    // mode === 'matched' (o update sin existingId, imposible en la práctica)
+    return { mode: 'matched' };
+  }
+
+  private _buildChoferIntentBlock(res: EntityResolution<ChoferDraft>): Record<string, unknown> | null {
+    if (res.mode === 'empty') return null;
+    if (res.mode === 'pending_create') {
+      // Zod exige `sap_id_fiscal` y `sap_nombre`. Sin alguno, omitimos el bloque.
+      if (!trimOrNull(res.draft.sap_id_fiscal) || !trimOrNull(res.draft.sap_nombre)) return null;
+      return { mode: 'pending_create', pending_create: { ...res.draft } };
+    }
+    if (res.mode === 'update' && res.existingId) {
+      const diff = computeDraftDiff(res.draft, res.pristine);
+      if (Object.keys(diff).length === 0) return { mode: 'matched' };
+      return { mode: 'update', update: { id_chofer: res.existingId, fields: diff } };
+    }
+    return { mode: 'matched' };
+  }
+
+  private _buildCamionIntentBlock(res: EntityResolution<CamionDraft>, tipoChange: TransportIntent['camionTipoChange']): Record<string, unknown> | null {
+    const hasTipoUpdate = tipoChange.changed && tipoChange.confirmed && !!res.existingId;
+    if (res.mode === 'empty' && !hasTipoUpdate) return null;
+
+    let block: Record<string, unknown> | null;
+    if (res.mode === 'pending_create') {
+      // Zod exige `sap_patente` + `id_tipo_camion`. Sin ellos, omitimos el bloque.
+      if (!trimOrNull(res.draft.sap_patente) || !res.draft.id_tipo_camion) {
+        block = null;
+      } else {
+        block = { mode: 'pending_create', pending_create: { ...res.draft } };
+      }
+    } else if (res.mode === 'update' && res.existingId) {
+      const diff = computeDraftDiff(res.draft, res.pristine);
+      block = Object.keys(diff).length === 0
+        ? { mode: 'matched' }
+        : { mode: 'update', update: { id_camion: res.existingId, fields: diff } };
+    } else if (res.mode === 'matched') {
+      block = { mode: 'matched' };
+    } else {
+      // empty con hasTipoUpdate: emitir bloque mínimo para transportar update_tipo_camion.
+      block = { mode: 'empty' };
+    }
+
+    if (hasTipoUpdate) {
+      block = block ?? { mode: 'empty' };
+      block['update_tipo_camion'] = {
+        id_camion: res.existingId,
+        from_id_tipo_camion: tipoChange.originalIdTipoCamion,
+        to_id_tipo_camion: tipoChange.newIdTipoCamion,
+      };
+    }
+    return block;
   }
 
   private _findNodoLabel(id: string): string {
@@ -1392,6 +2055,8 @@ export class EditFleteModalComponent implements OnChanges {
       sap_posicion: '',
       sap_posicion_superior: '',
       sap_lote: '',
+      id_romana_entrega: '',
+      romana_numero_partida: '',
     };
   }
 
@@ -1416,17 +2081,11 @@ export class EditFleteModalComponent implements OnChanges {
   }
 
   private _fromRomanaRow(row: Record<string, unknown>): DetalleDraft {
-    // Romana: cantidad = envases (CantidadSubEnvaseL), peso = PesoReal
-    const especieDesc = fleteToString(row['EspecieDescripcion'] || row['especie_descripcion']);
-    const especieCod = fleteToString(row['CodigoEspecie'] || row['codigo_especie']);
-    let especieId = '';
-    if (especieDesc || especieCod) {
-      const match = this.especies.find(
-        (e) => (especieDesc && fleteNormalized(e['glosa']) === fleteNormalized(especieDesc))
-          || (especieCod && fleteNormalized(e['glosa']) === fleteNormalized(especieCod))
-      );
-      if (match) especieId = String(match['id_especie']);
-    }
+    // Romana: cantidad = envases (CantidadSubEnvaseL), peso = PesoReal.
+    // IdEspecie se deriva directo del CodigoEspecie (sin ceros a la izquierda).
+    const especieId = this._resolveEspecieIdFromCodigo(
+      fleteToString(row['CodigoEspecie'] ?? row['codigo_especie']),
+    );
 
     return {
       ...this._createEmptyDetailRow(),
@@ -1438,6 +2097,8 @@ export class EditFleteModalComponent implements OnChanges {
       peso: toControlValue(row['PesoReal'] ?? row['peso_real']),
       sap_posicion: fleteToString(row['Posicion'] || row['posicion']) ?? '',
       sap_lote: fleteToString(row['Lote'] || row['lote']) ?? '',
+      id_romana_entrega: toControlValue(row['IdRomanaEntrega'] ?? row['id_romana_entrega']),
+      romana_numero_partida: fleteToString(row['NumeroPartida'] || row['numero_partida']) ?? '',
     };
   }
 

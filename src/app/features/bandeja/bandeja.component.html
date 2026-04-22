@@ -122,7 +122,7 @@
                     class="cfl-input pl-9 w-full"
                     [placeholder]="activeTab() === 'en_curso'
                       ? 'Buscar guía, empresa, chofer, patente, productor...'
-                      : 'Buscar entrega, guía, empresa, chofer, patente...'"
+                      : 'Buscar entrega, guía, empresa, chofer, patente, productor...'"
                     aria-label="Buscar fletes"
                     [ngModel]="searchFilter()"
                     (ngModelChange)="onSearchInput($event)"
@@ -312,7 +312,15 @@
                         <div class="min-w-0">
                           @if (flete.kind === 'candidato') {
                             <div class="text-sm font-bold text-forest-900">{{ flete.sapGuiaRemision || flete.numeroGuia }}</div>
-                            <div class="text-[11px] font-mono text-forest-500 mt-0.5">{{ flete.numeroGuia }}</div>
+                            @if (flete.origenDatos === 'RECEPCION') {
+                              @if ((flete.partidaCount ?? 0) > 1) {
+                                <div class="text-[11px] font-semibold text-emerald-700 mt-0.5">{{ flete.partidaCount }} partidas</div>
+                              } @else if (flete.partidas && flete.partidas.length === 1) {
+                                <div class="text-[11px] font-mono text-forest-500 mt-0.5">Partida {{ flete.partidas[0].numeroPartida }}</div>
+                              }
+                            } @else {
+                              <div class="text-[11px] font-mono text-forest-500 mt-0.5">{{ flete.numeroGuia }}</div>
+                            }
                           } @else {
                             <div class="text-sm font-semibold text-forest-800">{{ flete.numeroGuia }}</div>
                           }

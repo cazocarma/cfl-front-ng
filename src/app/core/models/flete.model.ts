@@ -2,7 +2,7 @@ import { parseLocalDate } from '../utils/format.utils';
 
 export interface CandidatoRow {
   id_sap_entrega: number;
-  sap_numero_entrega: string;
+  sap_numero_entrega: string | null;
   sap_destinatario: string | null;
   id_productor?: number | null;
   productor_codigo_proveedor?: string | null;
@@ -29,6 +29,18 @@ export interface CandidatoRow {
   puede_ingresar: boolean;
   motivo_no_ingreso: string | null;
   origen_datos: 'DESPACHO' | 'RECEPCION';
+  // Candidato Romana agrupado por camión/guía: array JSON con las partidas del
+  // grupo. Fuente única de verdad — los IdRomanaEntrega se derivan al parsear.
+  // Llega como string desde BD; `adaptCandidato` lo parsea defensivamente.
+  partidas_json?:
+    | string
+    | Array<{ id_romana_entrega: number; numero_partida: string }>
+    | null;
+}
+
+export interface PartidaRomana {
+  idRomanaEntrega: number;
+  numeroPartida: string;
 }
 
 export interface FleteEnCursoRow {
@@ -121,17 +133,36 @@ export interface FleteTabla {
   idEspecie?: number | null;
   especieGlosa?: string | null;
   origenDatos?: 'DESPACHO' | 'RECEPCION';
+  idsRomanaEntrega?: number[] | null;
+  partidas?: PartidaRomana[];
+  partidaCount?: number;
 }
 
 export function adaptCandidato(row: CandidatoRow): FleteTabla {
   const productorCodigo = row.productor_codigo_proveedor ?? null;
   const productorRut = row.productor_rut ?? null;
   const productorNombre = row.productor_nombre ?? null;
+  const origenDatos = row.origen_datos || 'DESPACHO';
+
+  const partidas = origenDatos === 'RECEPCION'
+    ? parsePartidasRomana(row.partidas_json)
+    : [];
+  const idsRomanaEntrega = partidas.length > 0
+    ? partidas.map((p) => p.idRomanaEntrega)
+    : null;
+  const partidaCount = partidas.length;
+
+  // Para Romana el identificador primario visible es la guía de despacho; la
+  // partida pierde relevancia porque un candidato puede agrupar varias.
+  const numeroGuia = origenDatos === 'RECEPCION'
+    ? (row.sap_guia_remision ?? '-')
+    : (row.sap_numero_entrega ?? '-');
+
   return {
     kind: 'candidato',
     id: `sap-${row.id_sap_entrega}`,
     idSapEntrega: row.id_sap_entrega,
-    numeroGuia: row.sap_numero_entrega ?? '-',
+    numeroGuia,
     tipoFlete: row.tipo_flete_nombre ?? '-',
     rutaLabel: 'Pendiente por asignar',
     origen: '-',
@@ -162,8 +193,27 @@ export function adaptCandidato(row: CandidatoRow): FleteTabla {
     sapNombreChofer: row.sap_nombre_chofer ?? null,
     sapPatente: row.sap_patente ?? null,
     sapCarro: row.sap_carro ?? null,
-    origenDatos: row.origen_datos || 'DESPACHO',
+    origenDatos,
+    idsRomanaEntrega,
+    partidas,
+    partidaCount,
   };
+}
+
+function parsePartidasRomana(raw: CandidatoRow['partidas_json']): PartidaRomana[] {
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => ({
+        idRomanaEntrega: Number(item?.id_romana_entrega ?? 0),
+        numeroPartida: String(item?.numero_partida ?? ''),
+      }))
+      .filter((p) => Number.isFinite(p.idRomanaEntrega) && p.idRomanaEntrega > 0);
+  } catch {
+    return [];
+  }
 }
 
 export function adaptFleteEnCurso(row: FleteEnCursoRow): FleteTabla {

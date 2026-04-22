@@ -87,6 +87,7 @@ export class DetallesTabComponent {
       rowId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       id_especie: '', material: '', descripcion: '', cantidad: '',
       unidad: 'UN', peso: '', sap_posicion: '', sap_posicion_superior: '', sap_lote: '',
+      id_romana_entrega: '', romana_numero_partida: '',
     };
     const updated = [...this._rows(), newRow];
     this._rows.set(updated);

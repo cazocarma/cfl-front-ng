@@ -5,7 +5,7 @@
 
 import { toLocalDateInput, toLocalTimeInput } from './format.utils';
 
-export function trimOrNull(value: string): string | null {
+export function trimOrNull(value: string | null | undefined): string | null {
   const trimmed = String(value ?? '').trim();
   return trimmed ? trimmed : null;
 }
