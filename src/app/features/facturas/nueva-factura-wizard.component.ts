@@ -19,6 +19,15 @@ interface GrupoPrefactura {
   ids: Set<number>;
 }
 
+// Códigos de temporada distintos (no null) ordenados alfabéticamente.
+function uniqueTemporadas(movimientos: MovimientoElegible[]): string[] {
+  const codigos = new Set<string>();
+  for (const m of movimientos) {
+    if (m.temporada_codigo) codigos.add(m.temporada_codigo);
+  }
+  return [...codigos].sort();
+}
+
 @Component({
     selector: 'app-nueva-factura-wizard',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -184,6 +193,16 @@ interface GrupoPrefactura {
                       />
                       <p class="text-xs text-forest-500">{{ grupo.ids.size }} movimiento(s)</p>
                     </div>
+                    @if (temporadasDeGrupo(grupo.id).length > 1) {
+                      <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"
+                            [title]="'Temporadas mezcladas: ' + temporadasDeGrupo(grupo.id).join(', ')">
+                        ⚠ Mezcla temporadas ({{ temporadasDeGrupo(grupo.id).length }})
+                      </span>
+                    } @else if (temporadasDeGrupo(grupo.id).length === 1) {
+                      <span class="inline-flex items-center rounded-full border border-forest-200 bg-forest-50 px-2.5 py-1 text-xs font-semibold text-forest-700">
+                        Temp. {{ temporadasDeGrupo(grupo.id)[0] }}
+                      </span>
+                    }
                   </div>
                   <div class="text-right">
                     <p class="text-xs text-forest-500 uppercase tracking-widest">Total grupo</p>
@@ -209,6 +228,7 @@ interface GrupoPrefactura {
                         <th class="px-3 py-2">Guia / Entrega</th>
                         <th class="px-3 py-2">Tipo Flete</th>
                         <th class="px-3 py-2">Centro Costo</th>
+                        <th class="px-3 py-2">Temp.</th>
                         <th class="px-3 py-2">Fecha</th>
                         <th class="px-3 py-2 text-right">Monto</th>
                       </tr>
@@ -226,6 +246,7 @@ interface GrupoPrefactura {
                           <td class="px-3 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ m.centro_costo_codigo ? m.centro_costo_codigo + ' - ' : '' }}{{ m.centro_costo || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.temporada_codigo || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
                           <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
                         </tr>
@@ -273,9 +294,17 @@ interface GrupoPrefactura {
             @if (sinAsignar().length > 0) {
               <div class="rounded-2xl border border-amber-200 bg-white shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-4 rounded-t-2xl">
-                  <div>
-                    <h3 class="text-sm font-semibold text-amber-800">Sin asignar</h3>
-                    <p class="text-xs text-amber-600">{{ sinAsignar().length }} movimiento(s) sin grupo</p>
+                  <div class="flex items-center gap-3">
+                    <div>
+                      <h3 class="text-sm font-semibold text-amber-800">Sin asignar</h3>
+                      <p class="text-xs text-amber-600">{{ sinAsignar().length }} movimiento(s) sin grupo</p>
+                    </div>
+                    @if (temporadasSinAsignar().length > 1) {
+                      <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-700"
+                            [title]="'Temporadas: ' + temporadasSinAsignar().join(', ')">
+                        ⚠ Mezcla temporadas ({{ temporadasSinAsignar().length }})
+                      </span>
+                    }
                   </div>
                 </div>
 
@@ -293,6 +322,7 @@ interface GrupoPrefactura {
                         <th class="px-3 py-2">Guia / Entrega</th>
                         <th class="px-3 py-2">Tipo Flete</th>
                         <th class="px-3 py-2">Centro Costo</th>
+                        <th class="px-3 py-2">Temp.</th>
                         <th class="px-3 py-2">Fecha</th>
                         <th class="px-3 py-2 text-right">Monto</th>
                       </tr>
@@ -310,6 +340,7 @@ interface GrupoPrefactura {
                           <td class="px-3 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ m.centro_costo_codigo ? m.centro_costo_codigo + ' - ' : '' }}{{ m.centro_costo || '-' }}</td>
+                          <td class="px-3 py-2 text-forest-600">{{ m.temporada_codigo || '-' }}</td>
                           <td class="px-3 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
                           <td class="px-3 py-2 text-right font-semibold text-forest-900">{{ formatCLP(m.monto_aplicado) }}</td>
                         </tr>
@@ -374,6 +405,11 @@ interface GrupoPrefactura {
                   <p class="mt-2 text-sm font-semibold text-forest-900">
                     {{ grupo.ids.size }} movimiento(s)
                   </p>
+                  @if (temporadasDeGrupo(grupo.id).length > 1) {
+                    <p class="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      ⚠ Esta pre factura mezcla temporadas: {{ temporadasDeGrupo(grupo.id).join(', ') }}
+                    </p>
+                  }
                 </div>
                 <div class="text-right">
                   <p class="text-xs text-forest-500 uppercase tracking-widest">Monto total</p>
@@ -389,6 +425,7 @@ interface GrupoPrefactura {
                       <th class="px-2 py-2">Guia / Entrega</th>
                       <th class="px-2 py-2">Tipo Flete</th>
                       <th class="px-2 py-2">Centro Costo</th>
+                      <th class="px-2 py-2">Temp.</th>
                       <th class="px-2 py-2">Fecha</th>
                       <th class="px-2 py-2 text-right">Monto</th>
                     </tr>
@@ -399,6 +436,7 @@ interface GrupoPrefactura {
                         <td class="px-2 py-2 font-medium text-forest-900">{{ m.guia_remision || m.sap_numero_entrega || '-' }}</td>
                         <td class="px-2 py-2 text-forest-600">{{ m.tipo_flete_nombre || '-' }}</td>
                         <td class="px-2 py-2 text-forest-600">{{ m.centro_costo || '-' }}</td>
+                        <td class="px-2 py-2 text-forest-600">{{ m.temporada_codigo || '-' }}</td>
                         <td class="px-2 py-2 text-forest-600">{{ formatFecha(m.fecha_salida) }}</td>
                         <td class="px-2 py-2 text-right font-semibold">{{ formatCLP(m.monto_aplicado) }}</td>
                       </tr>
@@ -518,6 +556,11 @@ export class NuevaFacturaWizardComponent implements OnInit {
     return this.formatCLP(total);
   });
 
+  // Computed: códigos distintos de temporada en movimientos sin asignar.
+  readonly temporadasSinAsignar = computed(() => {
+    return uniqueTemporadas(this.sinAsignar());
+  });
+
   constructor(private cflApi: CflApiService, private router: Router) {}
 
   ngOnInit(): void {
@@ -618,6 +661,12 @@ export class NuevaFacturaWizardComponent implements OnInit {
     const grupo = this.grupos().find(g => g.id === grupoId);
     if (!grupo) return [];
     return this.allMovimientos().filter(m => grupo.ids.has(m.id_cabecera_flete));
+  }
+
+  // Retorna los códigos de temporada únicos presentes en el grupo.
+  // Usado para mostrar chip informativo (1 temporada) o advertencia (>1).
+  temporadasDeGrupo(grupoId: string): string[] {
+    return uniqueTemporadas(this.getMovimientosDeGrupo(grupoId));
   }
 
   updateGroupLabel(grupoId: string, newLabel: string): void {

@@ -26,6 +26,9 @@ export interface MovimientoElegible {
   tipo_flete_nombre: string;
   centro_costo: string;
   centro_costo_codigo: string;
+  id_temporada: number;
+  temporada_codigo: string | null;
+  temporada_nombre: string | null;
   fecha_salida: string;
   monto_aplicado: number;
 }
@@ -49,6 +52,9 @@ export interface MovimientoFactura {
   tipo_flete_codigo: string | null;
   centro_costo: string | null;
   centro_costo_codigo: string | null;
+  id_temporada: number | null;
+  temporada_codigo: string | null;
+  temporada_nombre: string | null;
   ruta: string | null;
   empresa_nombre: string | null;
   empresa_rut: string | null;

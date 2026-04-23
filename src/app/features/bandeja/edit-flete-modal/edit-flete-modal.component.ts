@@ -362,6 +362,15 @@ export class EditFleteModalComponent implements OnChanges {
     this._recalcMontoAplicado();
   }
 
+  /** Si el usuario edita el total manualmente, limpia el extra para que la prefactura no sume dos veces. */
+  onMontoAplicadoChange(): void {
+    if (this.isReadOnly()) return;
+    const extraActual = Number(this.form.get('monto_extra')?.value) || 0;
+    if (extraActual !== 0) {
+      this.form.patchValue({ monto_extra: 0 }, { emitEvent: false });
+    }
+  }
+
   getMontoExtraValue(): number {
     return Number(this.form.get('monto_extra')?.value) || 0;
   }
