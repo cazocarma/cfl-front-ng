@@ -1,20 +1,27 @@
-# ════════════════════════════════════════════════════════
-#  CFL Angular Front — Multi-stage Docker build
-#  Alineado con PLATFORM_INTEGRATION_SPEC §7.2.
-# ════════════════════════════════════════════════════════
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# cfl-front-ng — Angular build + nginx runtime.
+# Alineado con PLATFORM_INTEGRATION_SPEC §7.2 y est-front-ng/Dockerfile.
+#
+#   - deps    : solo node_modules (usado por el overlay dev para ng serve).
+#   - builder : compila npm run build.
+#   - runtime : nginx sirviendo /usr/share/nginx/html/ (prod default).
+# =============================================================================
 
-# ── Stage 1: Build ─────────────────────────────────────
-FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS builder
-
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS deps
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --legacy-peer-deps --no-audit --no-fund
 
+# ---------- builder ----------
+FROM node:22-alpine@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve ─────────────────────────────────────
+# ---------- runtime ----------
 FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10 AS runtime
 
 RUN rm -rf /usr/share/nginx/html/*
